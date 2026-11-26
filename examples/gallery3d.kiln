@@ -1,0 +1,48 @@
+# glTF models with metallic-roughness materials and textures (drawn by WebGPU; the
+# WebGL2 fallback shows each as its box). A model is fitted to its entity's box.
+# The models are made by scripts/models.ts: see ASSETS.md.
+world hz=60 gravity=0,30
+
+entity keeper
+  pos 5 -1 6.4
+  box 0.6 1 0.6
+  vel
+  body
+  ctrl 4 0 xz
+  eye 0 -4.5 6.5
+  sprite @ dodgerblue
+
+entity floor
+  pos 0 0 0
+  box 12 1 8
+  solid
+  sprite color=dimgray
+
+entity totem
+  pos 1.2 -3.2 1.2
+  box 2 3.2 2.25
+  solid
+  sprite mesh=totem.gltf
+entity orbs
+  pos 4.4 -1.1 2.2
+  box 6.6 1.1 1.1
+  solid
+  sprite mesh=orbs.glb
+entity crate
+  pos 2.2 -1.5 5
+  box 1.5 1.5 1.5
+  solid
+  rot 25 axis=y
+  sprite mesh=crate.glb
+entity crate2
+  pos 7.4 -1.2 4.6
+  box 0.9 0.9 0.9
+  quat 0.25882 0 0 0.96593 sy=60
+  sprite mesh=crate.glb
+entity plate
+  pos 10 -0.1 6
+  box 1.2 0.1 1.2
+  trigger keeper arrived
+  sprite color=limegreen
+
+expect event arrived by 600

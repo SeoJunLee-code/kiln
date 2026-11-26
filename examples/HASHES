@@ -2,6 +2,7 @@ arena3d.kiln tick=600 hash=306c30e4 expects=pass
 cave.kiln tick=300 hash=bc9572e8 expects=pass
 crypt3d.kiln tick=1200 hash=d24631ac expects=pass
 dungeon.kiln tick=600 hash=a5dec40f expects=pass
+gallery3d.kiln tick=600 hash=7f159021 expects=pass
 gauntlet.kiln tick=900 hash=b6a4fd98 expects=pass
 level1.kiln tick=600 hash=7b184b77 expects=pass
 level2.kiln tick=600 hash=56004a7c expects=pass

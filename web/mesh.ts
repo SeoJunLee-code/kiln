@@ -122,6 +122,8 @@ export interface Renderer3 {
   draw(boxes: Box3[], eye: number[], target: number[], fovDeg: number): void;
   /** Register OBJ text under a name; boxes that ask for it are drawn as that mesh, fitted to their box. */
   addMesh(name: string, obj: string): void;
+  /** Register a glTF model under a name, like addMesh. Resolves when its textures are ready. Only WebGPU has it. */
+  addModel?(name: string, model: import('./gltf.ts').Model): Promise<void>;
   /** The last frame's pixels (RGBA, top row first), for a renderer whose canvas cannot simply be read. */
   read?(): Promise<{ width: number; height: number; rgba: Uint8ClampedArray } | null>;
 }

@@ -1,6 +1,8 @@
 // Browser player. It runs the same simulation modules as the headless CLI and only
 // adds drawing and keyboard input. Floats appear here for drawing, never in the simulation.
 import { makeRenderer3 } from './gl.ts';
+import { loadGltf } from './gltf.ts';
+import type { Model } from './gltf.ts';
 import { makeRendererGpu } from './gpu.ts';
 import type { Box3, Renderer3 } from './mesh.ts';
 import { makeApi } from '../src/api.ts';
@@ -36,6 +38,7 @@ const wantRenderer = (): void => {
     if (only !== 'webgl2') made = await makeRendererGpu(canvas3, new URLSearchParams(location.search).has('offscreen')).catch(() => null);
     if (!made && only !== 'webgpu') made = makeRenderer3(canvas3);
     for (const [path, text] of meshText) made?.addMesh(path, text);
+    await Promise.all([...models].map(([path, model]) => made?.addModel?.(path, model)));
     gl3 = made;
   })());
 };
@@ -48,10 +51,31 @@ const meshText = new Map<string, string>();
 // Assets still on their way. A picture taken for a check waits for these, so it never
 // shows the fallback box of a mesh or image that simply had not arrived yet.
 const loading: Promise<unknown>[] = [];
+// glTF models that have arrived. Only a renderer with addModel draws them; elsewhere the box shows.
+const models = new Map<string, Model>();
+const isModel = (path: string): boolean => /\.(gltf|glb)$/i.test(path);
+const bytesOf = async (url: URL): Promise<Uint8Array> => {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`${r.status}`);
+  return new Uint8Array(await r.arrayBuffer());
+};
+const loadModel = async (path: string): Promise<void> => {
+  try {
+    const at = new URL(path, GAME);
+    const model = await loadGltf(await bytesOf(at), (uri) => bytesOf(new URL(uri, at)));
+    for (const w of model.warnings) console.warn(`${path}: ${w}`);
+    models.set(path, model);
+    await gl3?.addModel?.(path, model);
+  } catch (e) {
+    // Reported, so a check sees it; the entity is drawn as its box.
+    console.error(`mesh ${path}: ${(e as Error).message}`);
+  }
+};
 const wantMesh = (path: string): string => {
   if (!meshAsked.has(path)) {
     meshAsked.add(path);
-    loading.push(fetch(new URL(path, GAME)).then((r) => (r.ok ? r.text() : '')).then((t) => { if (t) { meshText.set(path, t); gl3?.addMesh(path, t); } }).catch(() => {}));
+    if (isModel(path)) loading.push(loadModel(path));
+    else loading.push(fetch(new URL(path, GAME)).then((r) => (r.ok ? r.text() : '')).then((t) => { if (t) { meshText.set(path, t); gl3?.addMesh(path, t); } }).catch(() => {}));
   }
   return path;
 };
@@ -208,7 +232,8 @@ try {
       boxes.push({
         q,
         p: [u(p.x), u(p.y), u(p.z)], s: [u(b.w), u(b.h), u(b.d)],
-        color: rgb(color === 'white' ? (world.has(id, 'solid') ? '#59616e' : '#d7dbe2') : color),
+        // A model keeps its own colors unless the sprite names one, which then tints it.
+        color: color === 'white' && sp?.mesh && isModel(sp.mesh as string) && gl3?.addModel ? [1, 1, 1] : rgb(color === 'white' ? (world.has(id, 'solid') ? '#59616e' : '#d7dbe2') : color),
         mesh: sp?.mesh ? wantMesh(sp.mesh as string) : undefined,
       });
     }

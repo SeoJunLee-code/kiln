@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fmtWarn, lint } from './lint.ts';
+import { loadGltf } from '../web/gltf.ts';
 import { parseExpects } from './expect.ts';
 import { guideText } from './guide.ts';
 import { loadMods } from './load.ts';
@@ -74,6 +75,18 @@ export async function command(cmd: string, a: CmdArgs): Promise<{ text: string; 
       parseExpects(s.expects, s.world, file);
       // Files can only be checked when the scene came from disk.
       const warnings = lint(s, file, a.scene === undefined ? (name) => existsSync(join(dirname(file), name)) : undefined);
+      // A model is read the way the player will read it, so what it would lose shows up here.
+      if (a.scene === undefined) for (const id of s.world.query('sprite')) {
+        const mesh = s.world.get(id, 'sprite')!.mesh as string, at = join(dirname(file), mesh);
+        if (!/\.(gltf|glb)$/i.test(mesh) || !existsSync(at)) continue;
+        const said = (msg: string): void => {
+          if (!warnings.some((w) => w.msg === msg)) warnings.push({ code: 'K315', file, line: 0, msg });
+        };
+        try {
+          const model = await loadGltf(new Uint8Array(readFileSync(at)), async (uri) => new Uint8Array(readFileSync(join(dirname(at), uri))));
+          for (const w of model.warnings) said(`mesh '${mesh}': ${w}`);
+        } catch (e) { said(`mesh '${mesh}' cannot be read: ${(e as Error).message}`); }
+      }
       for (const d of warnings) out.push(fmtWarn(d));
       out.push(`ok entities=${s.world.ids.size} expects=${s.expects.length} scripts=${s.uses.length} warnings=${warnings.length}`);
       return done(0);

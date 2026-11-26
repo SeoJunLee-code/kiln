@@ -31,7 +31,7 @@ defineComponent('trigger', 'emits event when target (entity name or #tag) starts
   [f('target', 'str'), f('event', 'str'), f('action', 'str', 'none')]);
 defineComponent('tiles', 'grid of square cells at pos. rows follow, indented 4 spaces, one character per cell. size: cell size. solid: characters that block movers. spawn: CHAR:PREFAB pairs, e.g. o:coin,@:hero, replaced by entities when the scene loads. plane=xz lays the grid flat as a 3D floor plan (rows run along z); depth is then the wall height',
   [f('size', 'fx', 65536), f('solid', 'str', '#'), f('spawn', 'str', ''), f('depth', 'fx', 65536), f('plane', 'str', 'xy')]);
-defineComponent('sprite', 'appearance. glyph: character for the ASCII view. color: CSS color. image: svg/png next to the scene, drawn in 2D. mesh: .obj next to the scene, drawn in 3D fitted to the box',
+defineComponent('sprite', 'appearance. glyph: character for the ASCII view. color: CSS color. image: svg/png next to the scene, drawn in 2D. mesh: .obj, .gltf or .glb next to the scene, drawn in 3D fitted to the box',
   [f('glyph', 'str', ''), f('color', 'str', 'white'), f('image', 'str', ''), f('mesh', 'str', '')]);
 defineComponent('rot', 'turned angle degrees about axis (x, y, z) through the box centre, clockwise in 2D. spin: degrees/second. Collision ignores it',
   [f('angle', 'fx', 0), f('spin', 'fx', 0), f('axis', 'str', 'z')]);

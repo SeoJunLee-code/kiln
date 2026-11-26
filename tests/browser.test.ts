@@ -193,3 +193,26 @@ test('browser: rotation changes what is drawn, in 2D and by WebGPU', { skip }, a
     } finally { await player.close(); }
   }
 });
+
+test('browser: glTF models are drawn by WebGPU with their materials, and as boxes by WebGL2', { skip }, async () => {
+  const at = { tick: 10, inputFile: ex('gallery3d.input'), browser };
+  const boxes = await look(ex('gallery3d.kiln'), { ...at, query: 'renderer=webgl2' });
+  assert.equal(boxes.renderer, 'webgl2');
+  assert.deepEqual(boxes.errors, []);
+  const player = await openPlayer(ex('gallery3d.kiln'), { ...at, query: 'renderer=webgpu' });
+  try {
+    const shots = await player.page.eval<{ renderer: string; models: string; plain: string }>(`(async () => {
+      kiln.runTo(10);
+      const first = await kiln.shot();
+      for (const id of kiln.world.query('sprite')) kiln.world.get(id, 'sprite').mesh = '';
+      return { renderer: first.renderer, models: first.png, plain: (await kiln.shot()).png };
+    })()`);
+    if (shots.renderer !== 'webgpu') return; // no WebGPU in this browser
+    assert.deepEqual(player.page.errors(), []);
+    const png = (url: string) => decodePng(Buffer.from(url.slice(url.indexOf(',') + 1), 'base64'));
+    const models = png(shots.models), plain = png(shots.plain);
+    assert.ok(compare(models, plain).changed > 0.03, 'the models made no difference to the frame');
+    // Textures and highlights give many more distinct colors than flat-shaded boxes have.
+    assert.ok(summarize(models).colors > summarize(plain).colors * 2, `colors ${summarize(models).colors} with models, ${summarize(plain).colors} without`);
+  } finally { await player.close(); }
+});

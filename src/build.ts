@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 /** What a game folder may contribute to a build. Anything else (dotfiles, notes, keys) stays out of the published folder. */
-export const ASSETS = /^[^.][^/\\]*\.(kiln|input|ts|svg|png|jpe?g|webp|gif|obj|json|mp3|ogg|wav|txt)$/i;
+export const ASSETS = /^[^.][^/\\]*\.(kiln|input|ts|svg|png|jpe?g|webp|gif|obj|gltf|glb|bin|json|mp3|ogg|wav|txt)$/i;
 
 // A static host serves `.ts` with a non-script type, so built files are `.js` and say so in their imports.
 const IMPORT = /((?:from|import)\s+')(\.\.?\/[^']+)\.ts'/g;

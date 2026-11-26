@@ -1,0 +1,434 @@
+{
+ "asset": {
+  "version": "2.0",
+  "generator": "kiln scripts/models.ts"
+ },
+ "scene": 0,
+ "scenes": [
+  {
+   "nodes": [
+    4
+   ]
+  }
+ ],
+ "nodes": [
+  {
+   "name": "pillar",
+   "mesh": 0
+  },
+  {
+   "name": "orb",
+   "translation": [
+    0,
+    1.55,
+    0
+   ],
+   "mesh": 1
+  },
+  {
+   "name": "ring",
+   "translation": [
+    0,
+    1.55,
+    0
+   ],
+   "rotation": [
+    0.21643961393810288,
+    0,
+    0,
+    0.9762960071199334
+   ],
+   "scale": [
+    1,
+    1,
+    1.3
+   ],
+   "mesh": 2
+  },
+  {
+   "name": "ember",
+   "matrix": [
+    0.22,
+    0,
+    0,
+    0,
+    0,
+    0.3,
+    0,
+    0,
+    0,
+    0,
+    0.22,
+    0,
+    0,
+    2.45,
+    0,
+    1
+   ],
+   "mesh": 3
+  },
+  {
+   "name": "totem",
+   "rotation": [
+    0,
+    0.17364817766693033,
+    0,
+    0.984807753012208
+   ],
+   "children": [
+    0,
+    1,
+    2,
+    3
+   ]
+  }
+ ],
+ "meshes": [
+  {
+   "primitives": [
+    {
+     "attributes": {
+      "POSITION": 0,
+      "NORMAL": 1,
+      "TEXCOORD_0": 2
+     },
+     "indices": 3,
+     "material": 0
+    }
+   ]
+  },
+  {
+   "primitives": [
+    {
+     "attributes": {
+      "POSITION": 4,
+      "NORMAL": 5,
+      "TEXCOORD_0": 6
+     },
+     "indices": 7,
+     "material": 1
+    }
+   ]
+  },
+  {
+   "primitives": [
+    {
+     "attributes": {
+      "POSITION": 8,
+      "NORMAL": 9,
+      "TEXCOORD_0": 10
+     },
+     "indices": 11,
+     "material": 2
+    }
+   ]
+  },
+  {
+   "primitives": [
+    {
+     "attributes": {
+      "POSITION": 12
+     },
+     "indices": 13,
+     "material": 3
+    }
+   ]
+  }
+ ],
+ "materials": [
+  {
+   "name": "stone",
+   "pbrMetallicRoughness": {
+    "baseColorTexture": {
+     "index": 0
+    },
+    "metallicFactor": 0,
+    "roughnessFactor": 0.9
+   },
+   "normalTexture": {
+    "index": 1,
+    "scale": 1
+   }
+  },
+  {
+   "name": "gold",
+   "pbrMetallicRoughness": {
+    "baseColorFactor": [
+     1,
+     0.77,
+     0.34,
+     1
+    ],
+    "metallicFactor": 1,
+    "roughnessFactor": 0.3
+   }
+  },
+  {
+   "name": "glaze",
+   "pbrMetallicRoughness": {
+    "baseColorFactor": [
+     0.1,
+     0.3,
+     0.8,
+     1
+    ],
+    "metallicFactor": 0,
+    "roughnessFactor": 0.15
+   }
+  },
+  {
+   "name": "ember",
+   "pbrMetallicRoughness": {
+    "baseColorFactor": [
+     0.2,
+     0.05,
+     0.02,
+     1
+    ],
+    "metallicFactor": 0,
+    "roughnessFactor": 0.6
+   },
+   "emissiveFactor": [
+    1,
+    0.45,
+    0.1
+   ]
+  }
+ ],
+ "accessors": [
+  {
+   "bufferView": 0,
+   "byteOffset": 0,
+   "componentType": 5126,
+   "count": 102,
+   "type": "VEC3",
+   "min": [
+    -0.6,
+    0,
+    -0.6
+   ],
+   "max": [
+    0.6,
+    1,
+    0.6
+   ]
+  },
+  {
+   "bufferView": 0,
+   "byteOffset": 12,
+   "componentType": 5126,
+   "count": 102,
+   "type": "VEC3"
+  },
+  {
+   "bufferView": 0,
+   "byteOffset": 24,
+   "componentType": 5126,
+   "count": 102,
+   "type": "VEC2"
+  },
+  {
+   "bufferView": 1,
+   "componentType": 5123,
+   "count": 288,
+   "type": "SCALAR"
+  },
+  {
+   "bufferView": 2,
+   "componentType": 5126,
+   "count": 425,
+   "type": "VEC3",
+   "min": [
+    -0.45,
+    -0.45,
+    -0.45
+   ],
+   "max": [
+    0.45,
+    0.45,
+    0.45
+   ]
+  },
+  {
+   "bufferView": 3,
+   "componentType": 5126,
+   "count": 425,
+   "type": "VEC3"
+  },
+  {
+   "bufferView": 4,
+   "componentType": 5126,
+   "count": 425,
+   "type": "VEC2"
+  },
+  {
+   "bufferView": 5,
+   "componentType": 5123,
+   "count": 2160,
+   "type": "SCALAR"
+  },
+  {
+   "bufferView": 6,
+   "componentType": 5126,
+   "count": 363,
+   "type": "VEC3",
+   "min": [
+    -0.83,
+    -0.07608452130361229,
+    -0.83
+   ],
+   "max": [
+    0.83,
+    0.07608452130361229,
+    0.83
+   ]
+  },
+  {
+   "bufferView": 7,
+   "componentType": 5126,
+   "count": 363,
+   "type": "VEC3"
+  },
+  {
+   "bufferView": 8,
+   "componentType": 5126,
+   "count": 363,
+   "type": "VEC2"
+  },
+  {
+   "bufferView": 9,
+   "componentType": 5125,
+   "count": 1920,
+   "type": "SCALAR"
+  },
+  {
+   "bufferView": 10,
+   "componentType": 5126,
+   "count": 6,
+   "type": "VEC3",
+   "min": [
+    -1,
+    -1,
+    -1
+   ],
+   "max": [
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "bufferView": 11,
+   "componentType": 5121,
+   "count": 24,
+   "type": "SCALAR"
+  }
+ ],
+ "bufferViews": [
+  {
+   "buffer": 0,
+   "byteOffset": 0,
+   "byteLength": 3264,
+   "byteStride": 32,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 3264,
+   "byteLength": 576,
+   "target": 34963
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 3840,
+   "byteLength": 5100,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 8940,
+   "byteLength": 5100,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 14040,
+   "byteLength": 3400,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 17440,
+   "byteLength": 4320,
+   "target": 34963
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 21760,
+   "byteLength": 4356,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 26116,
+   "byteLength": 4356,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 30472,
+   "byteLength": 2904,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 33376,
+   "byteLength": 7680,
+   "target": 34963
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 41056,
+   "byteLength": 72,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 41128,
+   "byteLength": 24,
+   "target": 34963
+  }
+ ],
+ "buffers": [
+  {
+   "uri": "totem.bin",
+   "byteLength": 41152
+  }
+ ],
+ "images": [
+  {
+   "uri": "totem.png"
+  },
+  {
+   "uri": "totem_n.png"
+  }
+ ],
+ "textures": [
+  {
+   "source": 0,
+   "sampler": 0
+  },
+  {
+   "source": 1,
+   "sampler": 0
+  }
+ ],
+ "samplers": [
+  {
+   "magFilter": 9729,
+   "minFilter": 9987,
+   "wrapS": 10497,
+   "wrapT": 10497
+  }
+ ]
+}
