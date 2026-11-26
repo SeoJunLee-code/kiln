@@ -1,0 +1,105 @@
+[gd_scene load_steps=10 format=3 uid="uid://c4kilnbenchmaze"]
+
+[ext_resource type="Script" path="res://player.gd" id="1_player"]
+[ext_resource type="Script" path="res://coin.gd" id="2_coin"]
+[ext_resource type="Script" path="res://exit.gd" id="3_exit"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_player"]
+size = Vector2(25.6, 25.6)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_wide"]
+size = Vector2(320, 32)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_tall"]
+size = Vector2(32, 160)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_inner"]
+size = Vector2(32, 96)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_coin"]
+size = Vector2(16, 16)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_exit"]
+size = Vector2(32, 32)
+
+[node name="Maze" type="Node2D"]
+
+[node name="Player" type="CharacterBody2D" parent="."]
+position = Vector2(44.8, 44.8)
+motion_mode = 1
+script = ExtResource("1_player")
+speed = 128.0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Player"]
+shape = SubResource("RectangleShape2D_player")
+
+[node name="Label" type="Label" parent="Player"]
+offset_left = -12.8
+offset_top = -12.8
+offset_right = 12.8
+offset_bottom = 12.8
+text = "@"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Top" type="StaticBody2D" parent="."]
+position = Vector2(160, 16)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Top"]
+shape = SubResource("RectangleShape2D_wide")
+
+[node name="Bottom" type="StaticBody2D" parent="."]
+position = Vector2(160, 208)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Bottom"]
+shape = SubResource("RectangleShape2D_wide")
+
+[node name="Left" type="StaticBody2D" parent="."]
+position = Vector2(16, 112)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Left"]
+shape = SubResource("RectangleShape2D_tall")
+
+[node name="Right" type="StaticBody2D" parent="."]
+position = Vector2(304, 112)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Right"]
+shape = SubResource("RectangleShape2D_tall")
+
+[node name="Inner" type="StaticBody2D" parent="."]
+position = Vector2(144, 80)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Inner"]
+shape = SubResource("RectangleShape2D_inner")
+
+[node name="Coin" type="Area2D" parent="."]
+position = Vector2(168, 155.2)
+script = ExtResource("2_coin")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Coin"]
+shape = SubResource("RectangleShape2D_coin")
+
+[node name="Label" type="Label" parent="Coin"]
+offset_left = -8.0
+offset_top = -8.0
+offset_right = 8.0
+offset_bottom = 8.0
+text = "o"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Exit" type="Area2D" parent="."]
+position = Vector2(240, 48)
+script = ExtResource("3_exit")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Exit"]
+shape = SubResource("RectangleShape2D_exit")
+
+[node name="Label" type="Label" parent="Exit"]
+offset_left = -16.0
+offset_top = -16.0
+offset_right = 16.0
+offset_bottom = 16.0
+text = "E"
+horizontal_alignment = 1
+vertical_alignment = 1
