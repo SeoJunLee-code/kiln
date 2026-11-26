@@ -1,0 +1,5 @@
+# The same room, walked the wrong way.
+0 left down
+120 left up
+expect event caught by 300
+expect count exit == 0 at 300

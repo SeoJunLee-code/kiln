@@ -143,11 +143,20 @@ export function evalTick(w: World, es: Expect[]): void {
   }
 }
 
-/** Resolve whatever is still open at the end of the run. */
-export function finish(es: Expect[]): void {
+/**
+ * Resolve whatever is still open at the end of the run. `load` names the scene this one
+ * loaded, which ended it: nothing more can happen in it, so its event counts are final,
+ * while a field that was to be read at a later tick has no value.
+ */
+export function finish(es: Expect[], w?: World, load?: string): void {
   for (const e of es) {
     if (e.ok !== undefined) continue;
     e.ok = e.kind === 'never';
-    if (e.kind === 'at' || e.kind === 'count') e.note = `run ended before tick ${e.by}`;
+    if (e.kind === 'count' && w && load !== undefined) {
+      const n = w.events.filter((x) => x.name === e.a).length;
+      e.ok = OPS[e.op](n, e.val);
+      e.note = `actual ${n}, scene ended at tick ${w.tick} (load ${load})`;
+    } else if (e.kind === 'at' || e.kind === 'count') e.note = w && load !== undefined ? `scene ended at tick ${w.tick} (load ${load}), before tick ${e.by}` : `run ended before tick ${e.by}`;
+    else if (e.kind !== 'never' && w && load !== undefined && !e.note.includes('scene ended')) e.note = `${e.note ? e.note + '; ' : ''}scene ended at tick ${w.tick} (load ${load})`;
   }
 }

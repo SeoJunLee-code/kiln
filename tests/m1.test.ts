@@ -379,7 +379,7 @@ test('test DIR: every scene with its own input, one line each, failures in full'
   const all = await command('test', { file: ex('') });
   assert.equal(all.code, 0, all.text);
   const lines = all.text.trim().split('\n');
-  assert.match(lines.at(-1)!, /^ok scenes=(\d+) passed=\1 failed=0$/);
+  assert.match(lines.at(-1)!, /^ok scenes=(\d+)( cases=\d+)? passed=\d+ failed=0$/);
   assert.ok(lines.some((l) => /^quest\.kiln ok tick=1800 hash=[0-9a-f]{8} passed=1 failed=0$/.test(l)));
 
   const dir = mkdtempSync(join(tmpdir(), 'kiln-dir-'));

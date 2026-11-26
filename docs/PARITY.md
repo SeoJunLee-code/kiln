@@ -71,6 +71,8 @@ Neither engine was built for this; these rows are why Kiln exists.
 | Every error at once, with codes and hints | **gated** | tests |
 | Headless run with the same result as the browser | **gated** | all 18 examples replay in a browser to the headless hash, on 3 OSes |
 | `solve`: the engine finds the input that wins a level | **gated** | tests, including a level won by pushing a rigid body, and one with gems in a maze, a door that opens last and guards that must not be touched (`count NAME == 0`). Distance follows the walls on top-down tile maps only; platformers and 3D still use the straight line |
+| A scene ends headless where it loads another; `--follow` plays a game through its scenes | **gated** | `tests/cases.test.ts`: the run stops at the tick of the load and names the scene; counts asked for later are final; `--follow` replays the Lite proof game from level 1 to its ending in one command, stops at a failing scene, and gives up on a scene that loads itself. `solve` does not walk on through a load. Nothing is carried from one scene to the next |
+| One scene checked for several things without copying it | **gated** | `tests/cases.test.ts`: `expect` lines in an input replace the scene's; `test DIR` runs each `NAME.CASE.input`; the three checks the first agent needed copied levels for pass against the levels themselves |
 | `check` warns about parts that silently do nothing | **gated** | tests |
 | One-call guide for an agent, kept small | **gated** | size budget in tests |
 | MCP server | **gated** (protocol) | JSON-RPC test. One real client has used it (Claude Code, headless): [`proof/lite/RUN.md`](../proof/lite/RUN.md) |

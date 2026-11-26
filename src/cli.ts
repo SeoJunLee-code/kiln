@@ -6,7 +6,8 @@ const HELP = `kiln <command> [scene] [options]
                          by axis, and why. --edition lite|standard|ultra: needing more is an error
   run SCENE              run headless, print state hash
   test SCENE|DIR         run and evaluate the scene's expect lines (exit 1 on failure);
-                         with a folder: every scene in it, each with its NAME.input if present
+                         with a folder: every scene in it, each with its NAME.input if present,
+                         and once more for each NAME.CASE.input (an input with its own expect lines)
   solve SCENE            search for an input script that meets the scene's reach/gone/event expects
                          (--step N ticks per key choice, --max-states N, --out FILE saves the input)
   schema [SCENE]         print the component reference (with SCENE: including its scripts)
@@ -21,7 +22,9 @@ const HELP = `kiln <command> [scene] [options]
   build SCENE --out DIR  write a folder any static web host can serve (player, engine, the scene's folder)
 options:
   --input FILE           input script (TICK ACTION down|up per line)
-  --ticks N              ticks to run (default: last tick any expect needs)
+  --ticks N              ticks to run (default: last tick any expect needs); a scene ends early
+                         at the tick a trigger loads another one
+  --follow               test, run: go on in the scene that was loaded, with its NAME.input
   --view                 print an ASCII picture of the final state
   --top                  the same, looking down on the x/z plane (3D scenes)
   --observe              print one line per entity
@@ -91,7 +94,7 @@ if (cmd === 'mcp') {
       if (Number.isNaN(n)) { console.log(`E K002 ${k} must be a positive integer`); process.exit(2); }
       a[k === '--step' ? 'stepTicks' : 'maxStates'] = n;
     }
-    else if (k === '--view' || k === '--top' || k === '--observe' || k === '--events') a[k.slice(2) as 'view' | 'top' | 'observe' | 'events'] = true;
+    else if (k === '--view' || k === '--top' || k === '--observe' || k === '--events' || k === '--follow') a[k.slice(2) as 'view' | 'top' | 'observe' | 'events' | 'follow'] = true;
     else { console.log(`E K002 unknown option '${k}'`); process.exit(2); }
   }
   if (cmd === 'guide') { a.topic = a.file; a.file = undefined; }

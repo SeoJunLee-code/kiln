@@ -33,14 +33,14 @@ defineComponent('body', 'gets world gravity; carried by what it stands on. groun
   [f('grounded', 'int', 0), f('ride', 'str', '')]);
 defineComponent('ctrl', 'input-driven. jump=0: 4-way. jump>0: platformer, up jumps when grounded. plane=xz (3D): up/down walk along z, `a` jumps',
   [f('speed', 'fx'), f('jump', 'fx', 0), f('plane', 'str', 'xy')]);
-defineComponent('pace', 'walks back and forth along axis (x, y or z) between min and max at speed; needs vel',
+defineComponent('pace', 'walks back and forth along axis (x, y or z) from min to max at speed; needs vel',
   [f('axis', 'str'), f('min', 'fx'), f('max', 'fx'), f('speed', 'fx')]);
 defineComponent('tag', 'group label; refer to it as #name', [f('name', 'str')]);
-defineComponent('trigger', 'emits event when target (entity name or #tag) starts overlapping. action: none, despawn-self, despawn-other, despawn:REF (REF: name or #tag), load:FILE (emits event load; the player opens that scene); join with +',
+defineComponent('trigger', 'emits event when target (entity name or #tag) starts overlapping. action: none, despawn-self, despawn-other, despawn:REF (name or #tag), load:FILE (event load; the scene ends there and the player opens FILE); join with +',
   [f('target', 'str'), f('event', 'str'), f('action', 'str', 'none')]);
-defineComponent('tiles', 'grid of square cells at pos. rows follow, indented 4 spaces, one character per cell. size: cell size. solid: characters that block movers. spawn: CHAR:PREFAB pairs (o:coin,@:hero), replaced by entities on load. plane=xz lays the grid flat as a 3D floor plan (rows run along z); depth is then the wall height',
+defineComponent('tiles', 'grid of square cells at pos. size: cell size. solid: characters that block movers. spawn: CHAR:PREFAB pairs (o:coin,@:hero), replaced by entities on load. plane=xz lays the grid flat as a 3D floor plan (rows run along z); depth is then the wall height',
   [f('size', 'fx', 65536), f('solid', 'str', '#'), f('spawn', 'str', ''), f('depth', 'fx', 65536), f('plane', 'str', 'xy')]);
-defineComponent('sprite', 'glyph: character for the ASCII view. color: CSS color. image (2D): svg/png beside the scene. mesh (3D): .obj, .gltf or .glb beside the scene, fitted to the box',
+defineComponent('sprite', 'glyph: character in the ASCII view. color: CSS color. image (2D): svg/png beside the scene. mesh (3D): .obj/.gltf/.glb, fitted to the box',
   [f('glyph', 'str', ''), f('color', 'str', 'white'), f('image', 'str', ''), f('mesh', 'str', '')]);
 defineComponent('rot', 'turned angle degrees about axis (x, y, z) through the box centre, clockwise in 2D. spin: degrees/second. Collision ignores it',
   [f('angle', 'fx', 0), f('spin', 'fx', 0), f('axis', 'str', 'z')], 'view');

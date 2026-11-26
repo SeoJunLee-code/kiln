@@ -1,0 +1,28 @@
+# A corridor: the exit on the right loads the next scene, the trap on the left restarts this one.
+world hz=60 gravity=0,0
+
+entity map
+  pos 0 0
+  tiles
+    #########
+    #.......#
+    #########
+
+entity hero
+  pos 4.1 1.1
+  vel
+  box 0.8 0.8
+  ctrl 4
+
+entity trap
+  pos 1 1
+  box 1 1
+  trigger hero caught load:room.kiln
+
+entity exit
+  pos 7 1
+  box 1 1
+  trigger hero exit load:end.kiln
+
+expect event exit by 300
+expect count caught == 0 at 300

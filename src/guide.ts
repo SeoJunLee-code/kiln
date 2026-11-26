@@ -78,14 +78,14 @@ entity map
     #@.o#
     #####
 A spawned prefab used once keeps its name (hero); used several times it is numbered
-(coin1, coin2). Give those a tag and refer to them as #tag.
+(coin1, coin2). Tag those and refer to them as #tag.
 
 EXPECT  A and B are entity names or #tags; N is a tick
 expect reach A B by N        A overlaps B at some tick <= N
 expect never A B             A never overlaps B
-expect gone A by N           A (or every entity with that #tag) was despawned
+expect gone A by N           A (or all with that #tag) was despawned
 expect event NAME by N       a trigger emitted NAME
-expect count NAME OP VALUE at N       how many NAME events were emitted by tick N
+expect count NAME OP VALUE at N       NAME events emitted by tick N
 expect at N A.comp.field OP VALUE     OP: < <= > >= == !=
 
 INPUT  one per line: TICK ACTION down|up     actions: left right up down a b
@@ -93,22 +93,24 @@ INPUT  one per line: TICK ACTION down|up     actions: left right up down a b
 COMMANDS  (CLI: node src/cli.ts CMD SCENE [options]; MCP: tool kiln, argument cmd)
 check    parse and validate (a folder: every scene). Says the edition the game needs: lite runs
          anywhere; [standard] parts need WebGPU (drawing) or megabytes more (physics). --edition lite: more is an error
-test     run, evaluate expects; --input FILE; exit 1 if any fails. Given a folder,
-         tests every scene in it with the NAME.input next to it
+test     run, evaluate expects; --input FILE; exit 1 if any fails. A folder: every scene
+         with its NAME.input, then once per NAME.CASE.input. expect lines in an input
+         replace the scene's (one scene, many checks). --follow: go on into
+         the scene a load: opened, with its NAME.input
 run      run without judging; --ticks N
 solve    find an input meeting reach/gone/event, keeping never and count X == 0; --out FILE saves it
-schema   component list only
-look     draw the scene in a headless browser and return a picture of the game view
-         with what is in it; --tick N --input FILE --out FILE.png (needs Chrome or Edge)
+schema   components only
+look     picture of the game view from a headless browser, with what is in it;
+         --tick N --input FILE --out FILE.png (needs Chrome/Edge)
 play     open in a browser (CLI only); what you press is recorded as an input script
-Add to test/run: --view (ASCII picture), --top (3D floor plan), --observe (entity
-positions), --events.
+Add to test/run: --view (ASCII picture), --top (3D floor plan), --observe
+(positions), --events.
 
 OUTPUT
 ok ... / fail ...                        last line of every command
 pass|FAIL file:line EXPECT -- what happened
-E CODE file:line message (hint: ...)     all errors at once; fix them all, then rerun
-W CODE file message (hint: ...)          check only: it runs, but part of it does nothing
+E CODE file:line message (hint: ...)     all errors at once; fix all, rerun
+W CODE file message (hint: ...)          check only: runs, but part of it does nothing
 
 WORKFLOW
 1. Write the scene with expects that say what "working" means.

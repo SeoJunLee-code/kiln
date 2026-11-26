@@ -26,6 +26,7 @@ const TOOL = {
       top: { type: 'boolean', description: 'append ASCII floor plan (x/z plane) for 3D scenes' },
       observe: { type: 'boolean', description: 'append one line per entity' },
       events: { type: 'boolean', description: 'append emitted events' },
+      follow: { type: 'boolean', description: 'test, run: when the scene loads another, go on in it with its NAME.input' },
     },
     required: ['cmd'],
   },
@@ -69,7 +70,7 @@ async function handle(msg: Msg): Promise<unknown> {
         topic: a.topic as string | undefined,
         edition: a.edition as string | undefined,
         stepTicks: a.step as number | undefined,
-        view: !!a.view, top: !!a.top, observe: !!a.observe, events: !!a.events,
+        view: !!a.view, top: !!a.top, observe: !!a.observe, events: !!a.events, follow: !!a.follow,
       });
       return { content: [{ type: 'text', text: r.text }], isError: r.code === 2 };
     }

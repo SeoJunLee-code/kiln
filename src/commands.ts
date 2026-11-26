@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { EDITIONS, isEdition, lowest, needs, over, why } from './edition.ts';
 import { fmtWarn, lint } from './lint.ts';
 import { loadGltf } from '../web/gltf.ts';
@@ -9,8 +9,12 @@ import { loadMods } from './load.ts';
 import type { Edition } from './world.ts';
 import { loadBackend, physicsOf } from './physics.ts';
 import { observe, run, view } from './run.ts';
+import type { RunResult } from './run.ts';
 import { KilnFail, fmtDiag, parseScene, schemaText, serialize } from './scene.ts';
 import { solve } from './solve.ts';
+
+/** --follow gives up after this many scenes: a scene that loads itself would go on for ever. */
+const FOLLOW_MAX = 64;
 
 export const COMMANDS = ['check', 'run', 'test', 'solve', 'schema', 'guide'];
 
@@ -28,6 +32,8 @@ export interface CmdArgs {
   observe?: boolean;
   events?: boolean;
   out?: string;
+  /** test, run: when the scene loads another, go on in that one with its NAME.input */
+  follow?: boolean;
   /** solve: ticks each key choice is held (default 5) */
   stepTicks?: number;
   /** solve: give up after this many distinct states (default 200000) */
@@ -53,22 +59,31 @@ export async function command(cmd: string, a: CmdArgs): Promise<{ text: string; 
 
   // `test DIR`, `check DIR`: every scene in the folder; `test` gives each the input file of the same name if there is one.
   if ((cmd === 'test' || cmd === 'check') && a.file && a.scene === undefined && existsSync(a.file) && statSync(a.file).isDirectory()) {
-    const scenes = readdirSync(a.file).filter((f) => f.endsWith('.kiln')).sort();
+    const all = readdirSync(a.file).sort();
+    const scenes = all.filter((f) => f.endsWith('.kiln'));
     if (!scenes.length) return out.push(`E K001 no .kiln files in ${a.file}`), done(2);
-    let worst = 0, passed = 0, edition = 0;
+    let worst = 0, passed = 0, edition = 0, runs = 0, cases = 0;
     for (const f of scenes) {
-      const input = join(a.file, f.replace(/\.kiln$/, '.input'));
-      const r = await command(cmd, cmd === 'test' ? { file: join(a.file, f), inputFile: existsSync(input) ? input : undefined } : { file: join(a.file, f), edition: a.edition });
-      const lines = r.text.trimEnd().split('\n');
-      if (r.code === 0) passed++;
-      // `test`: one line per scene when it passes; everything it said when it does not. `check` is short already.
-      if (r.code === 0 && cmd === 'test') out.push(`${f} ${lines.at(-1)}`);
-      else out.push(...lines.map((l) => `${f} ${l}`));
-      edition = Math.max(edition, EDITIONS.indexOf((/ edition=(\w+)/.exec(lines.at(-1)!)?.[1] ?? 'lite') as never));
-      worst = Math.max(worst, r.code);
+      const stem = f.replace(/\.kiln$/, '');
+      // NAME.input is the scene's own input. NAME.CASE.input is one more run of the same scene,
+      // with the expect lines written in that file (unless a scene NAME.CASE.kiln owns it).
+      const extra = cmd === 'test' ? all.filter((x) => x.startsWith(`${stem}.`) && x.endsWith('.input') && x !== `${stem}.input` && !scenes.includes(x.replace(/\.input$/, '.kiln'))) : [];
+      for (const inp of [`${stem}.input`, ...extra]) {
+        const input = join(a.file, inp), label = inp === `${stem}.input` ? f : inp;
+        const r = await command(cmd, cmd === 'test' ? { file: join(a.file, f), inputFile: existsSync(input) ? input : undefined } : { file: join(a.file, f), edition: a.edition });
+        const lines = r.text.trimEnd().split('\n');
+        runs++;
+        if (label !== f) cases++;
+        if (r.code === 0) passed++;
+        // `test`: one line per run when it passes; everything it said when it does not. `check` is short already.
+        if (r.code === 0 && cmd === 'test') out.push(`${label} ${lines.at(-1)}`);
+        else out.push(...lines.map((l) => `${label} ${l}`));
+        edition = Math.max(edition, EDITIONS.indexOf((/ edition=(\w+)/.exec(lines.at(-1)!)?.[1] ?? 'lite') as never));
+        worst = Math.max(worst, r.code);
+      }
     }
     // A game is its folder, so its edition is the largest any of its scenes needs.
-    out.push(`${worst ? 'fail' : 'ok'} scenes=${scenes.length} passed=${passed} failed=${scenes.length - passed}${cmd === 'check' && !worst ? ` edition=${EDITIONS[edition]}` : ''}`);
+    out.push(`${worst ? 'fail' : 'ok'} scenes=${scenes.length}${cases ? ` cases=${cases}` : ''} passed=${passed} failed=${runs - passed}${cmd === 'check' && !worst ? ` edition=${EDITIONS[edition]}` : ''}`);
     return done(worst);
   }
 
@@ -132,10 +147,28 @@ export async function command(cmd: string, a: CmdArgs): Promise<{ text: string; 
       out.push(s.input.trimEnd(), `ok solved tick=${s.tick} states=${s.states}${a.out ? ` wrote=${a.out}` : ''}`);
       return done(0);
     }
-    const r = run(text, { input, file, inputFile: a.inputFile, ticks: a.ticks, mods });
-    if (cmd === 'test') {
-      for (const e of r.expects) out.push(`${e.ok ? 'pass' : 'FAIL'} ${file}:${e.line} ${e.text}${e.note ? ` -- ${e.note}` : ''}`);
+    let r = run(text, { input, file, inputFile: a.inputFile, ticks: a.ticks, mods });
+    const report = (r: RunResult, file: string): void => {
+      if (cmd !== 'test') return;
+      // Following a game through its scenes, only what failed is worth a line.
+      for (const e of r.expects) if (!e.ok || !a.follow) out.push(`${e.ok ? 'pass' : 'FAIL'} ${r.from}:${e.line} ${e.text}${e.note ? ` -- ${e.note}` : ''}`);
       if (!r.expects.length) out.push(`W K300 ${file} has no expect lines`);
+    };
+    report(r, file);
+    // --follow: when the scene loads another, go on in that one with its own NAME.input, as a
+    // player would, until a scene ends without loading or one fails. A game played end to end.
+    const path = [basename(file)];
+    while (a.follow && r.load !== undefined && r.ok) {
+      if (a.scene !== undefined) return out.push('E K002 follow needs a scene file, not scene text'), done(2);
+      if (path.length >= FOLLOW_MAX) return out.push(`E K132 still loading after ${FOLLOW_MAX} scenes: ${path.slice(-3).join(' > ')} (hint: a scene that loads itself with the same input never ends)`), done(2);
+      const next = `${dirname(file)}/${r.load}`, nextInput = next.replace(/\.kiln$/, '.input');
+      if (!existsSync(next)) return out.push(`E K001 ${path.at(-1)} loads '${r.load}', which is not next to it`), done(2);
+      out.push(`scene ${path.at(-1)} tick=${r.world.tick} hash=${r.hash} passed=${r.expects.length} load=${r.load}`);
+      const t = readFileSync(next, 'utf8'), m = await loadMods(t, next);
+      await loadBackend(physicsOf(t), next);
+      r = run(t, { input: existsSync(nextInput) ? readFileSync(nextInput, 'utf8') : undefined, file: next, inputFile: nextInput, ticks: a.ticks, mods: m });
+      report(r, next);
+      path.push(basename(next));
     }
     if (a.events) for (const ev of r.world.events) out.push(`event ${ev.tick} ${ev.name} ${ev.a} ${ev.b}`.trimEnd());
     if (a.observe) out.push(observe(r.world).trimEnd());
@@ -144,7 +177,7 @@ export async function command(cmd: string, a: CmdArgs): Promise<{ text: string; 
     if (a.out) writeFileSync(a.out, serialize(r.world, [], r.uses));
     const failed = r.expects.filter((e) => !e.ok).length;
     const bad = cmd === 'test' && failed > 0;
-    out.push(`${bad ? 'fail' : 'ok'} tick=${r.world.tick} hash=${r.hash}${cmd === 'test' ? ` passed=${r.expects.length - failed} failed=${failed}` : ''}`);
+    out.push(`${bad ? 'fail' : 'ok'} tick=${r.world.tick} hash=${r.hash}${cmd === 'test' ? ` passed=${r.expects.length - failed} failed=${failed}` : ''}${r.load !== undefined ? ` load=${r.load}` : ''}${path.length > 1 ? ` path=${path.join('>')}` : ''}`);
     return done(bad ? 1 : 0);
   } catch (e) {
     if (!(e instanceof KilnFail)) throw e;

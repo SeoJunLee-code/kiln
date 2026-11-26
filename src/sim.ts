@@ -13,7 +13,8 @@ export function parseInput(text: string, file = 'input'): InputScript {
   const diags: Diag[] = [];
   text.split(/\r?\n/).forEach((raw, i) => {
     const tok = raw.replace(/#.*$/, '').trim().split(/\s+/);
-    if (!tok[0]) return;
+    // An input may carry expect lines of its own (run.ts reads them); they press no keys.
+    if (!tok[0] || tok[0] === 'expect') return;
     const err = (msg: string, hint?: string) => diags.push({ code: 'K200', file, line: i + 1, msg, hint });
     if (tok.length !== 3 || !/^\d+$/.test(tok[0])) return err(`expected 'TICK ACTION down|up'`);
     if (!ACTIONS.includes(tok[1])) return err(`unknown action '${tok[1]}'`, suggest(tok[1], ACTIONS) ?? `valid: ${ACTIONS.join(' ')}`);

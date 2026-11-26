@@ -4,7 +4,7 @@ crypt3d.kiln tick=1200 hash=d24631ac expects=pass
 dungeon.kiln tick=600 hash=a5dec40f expects=pass
 gallery3d.kiln tick=600 hash=7f159021 expects=pass
 gauntlet.kiln tick=900 hash=b6a4fd98 expects=pass
-level1.kiln tick=600 hash=7b184b77 expects=pass
+level1.kiln tick=187 hash=2cafa95c expects=pass
 level2.kiln tick=600 hash=56004a7c expects=pass
 lift.kiln tick=900 hash=c818a260 expects=pass
 maze.kiln tick=240 hash=3015b961 expects=pass

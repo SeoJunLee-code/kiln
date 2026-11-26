@@ -260,9 +260,13 @@ export function solve(sceneText: string, opts: { file?: string; mods?: Mods; ste
       step(w);
       evalTick(w, ex);
       if (ex.some((e) => e.ok === false)) return false;
-      if (forbidden.length) for (let j = w.events.length - 1; j >= 0 && w.events[j].tick === w.tick; j--) {
+      let over = false;
+      for (let j = w.events.length - 1; j >= 0 && w.events[j].tick === w.tick; j--) {
         if (forbidden.some((f) => f.a === w.events[j].name && w.tick <= f.by)) return false;
+        if (w.events[j].name === 'load' && w.events[j].a) over = true;
       }
+      // A trigger that loads another scene ends this one: whatever is still open stays open.
+      if (over) return count(ex) === goals;
     }
     return true;
   };

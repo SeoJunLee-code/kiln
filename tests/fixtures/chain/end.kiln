@@ -1,0 +1,7 @@
+world hz=60 gravity=0,0
+
+entity sign
+  pos 1 1
+  label The_end
+
+expect at 1 sign.pos.x == 1

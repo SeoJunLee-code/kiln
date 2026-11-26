@@ -1,0 +1,6 @@
+0 right down
+55 right up
+# The stairs are never reached: one coin taken, the level still open.
+expect count coin == 1 at 120
+expect count load == 0 at 120
+expect at 120 hero.pos.x > 4

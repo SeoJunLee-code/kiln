@@ -141,6 +141,19 @@ FAIL examples/maze.kiln:45 reach player exit by 240 -- closest gap 5.2 at tick 0
 
 Input scripts are one `TICK ACTION down|up` per line. Actions: `left right up down a b`.
 
+**One scene, several checks.** An input file may carry `expect` lines of its own; they replace the scene's for that run. `kiln test DIR` runs every scene with its `NAME.input`, and once more for each `NAME.CASE.input` beside it, so "the door stays shut with two gems" is one small file ([examples/level1.wait.input](examples/level1.wait.input)) and not a copy of the level.
+
+**A scene ends where it loads another.** A trigger with `load:FILE` ends the scene at that tick, headless as in the player: the run stops, the last line says `load=FILE`, an event count asked for at a later tick is final and a field asked for at a later tick has no value. `kiln test SCENE --input FILE --follow` goes on into the loaded scene with that scene's `NAME.input`, and so on, which plays a whole game from its first level to its ending in one command:
+
+```
+scene level1.kiln tick=426 hash=6023ce5f passed=3 load=level2.kiln
+scene level2.kiln tick=886 hash=900348c1 passed=8 load=level3.kiln
+scene level3.kiln tick=671 hash=4ab2b31b passed=8 load=end.kiln
+ok tick=1 hash=505dfab4 passed=1 failed=0 path=level1.kiln>level2.kiln>level3.kiln>end.kiln
+```
+
+`solve` treats a load the same way: a route through a trigger that restarts the level is not an answer.
+
 ## Let the engine prove a level can be finished
 
 ```

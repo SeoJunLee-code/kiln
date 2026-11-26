@@ -2,26 +2,56 @@ import { ONE, fmtFx } from './fx.ts';
 import { evalTick, finish, lastTick, parseExpects } from './expect.ts';
 import type { Expect } from './expect.ts';
 import { parseScene } from './scene.ts';
+import type { RawExpect } from './scene.ts';
 import { hash, parseInput, step, tileAt, tileRows } from './sim.ts';
 import type { System, World } from './world.ts';
 
-export interface RunResult { world: World; hash: string; expects: Expect[]; ok: boolean; uses: string[] }
+export interface RunResult {
+  world: World; hash: string; expects: Expect[]; ok: boolean; uses: string[];
+  /** the scene a trigger's load:FILE asked for; the run stopped at that tick */
+  load?: string;
+  /** the file the expects came from: the scene, or an input file that carries its own */
+  from: string;
+}
 export interface Mods { pre: System[]; post: System[] }
 
-/** Load a scene, run it headless, and evaluate its `expect` lines. */
+/**
+ * An input file may carry `expect` lines of its own. They replace the scene's, so one scene
+ * can be checked for several things without copying it. The lines are blanked, not removed,
+ * so the input's line numbers stay true.
+ */
+export function splitInput(text: string): { input: string; expects: RawExpect[] } {
+  const expects: RawExpect[] = [];
+  const input = text.split(/\r?\n/).map((l, i) => {
+    const m = /^\s*expect\s+(.*?)\s*$/.exec(l);
+    if (m) expects.push({ line: i + 1, text: m[1].split(/\s+/).join(' ') });
+    return m ? '' : l;
+  }).join('\n');
+  return { input, expects };
+}
+
+/**
+ * Load a scene, run it headless, and evaluate its `expect` lines.
+ * A scene is over at the tick a trigger loads another one: the run stops there, as the player does.
+ */
 export function run(sceneText: string, opts: { input?: string; ticks?: number; file?: string; inputFile?: string; mods?: Mods } = {}): RunResult {
   const { world, expects: raw, uses } = parseScene(sceneText, opts.file);
   if (opts.mods) { world.pre = opts.mods.pre; world.post = opts.mods.post; }
-  const expects = parseExpects(raw, world, opts.file);
-  const script = opts.input === undefined ? undefined : parseInput(opts.input, opts.inputFile);
+  const own = opts.input === undefined ? undefined : splitInput(opts.input);
+  const from = own?.expects.length ? opts.inputFile ?? 'input' : opts.file ?? 'scene';
+  const expects = parseExpects(own?.expects.length ? own.expects : raw, world, from);
+  const script = own && parseInput(own.input, opts.inputFile);
   const end = world.tick + (opts.ticks ?? Math.max(lastTick(expects) - world.tick, 0));
   evalTick(world, expects);
-  while (world.tick < end) {
+  let load: string | undefined;
+  while (world.tick < end && load === undefined) {
+    const heard = world.events.length;
     step(world, script);
     evalTick(world, expects);
+    for (let i = heard; i < world.events.length && load === undefined; i++) if (world.events[i].name === 'load' && world.events[i].a) load = world.events[i].a;
   }
-  finish(expects);
-  return { world, hash: hash(world), expects, ok: expects.every((e) => e.ok), uses };
+  finish(expects, world, load);
+  return { world, hash: hash(world), expects, ok: expects.every((e) => e.ok), uses, load, from };
 }
 
 /**

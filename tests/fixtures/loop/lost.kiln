@@ -1,0 +1,13 @@
+world hz=60 gravity=0,0
+
+entity hero
+  pos 0 0
+  vel 4 0
+  box 1 1
+
+entity door
+  pos 2 0
+  box 1 1
+  trigger hero out load:nowhere.kiln
+
+expect event out by 60
