@@ -142,7 +142,7 @@ The last column is the present state, not the hope.
 ## Order of work
 
 1. **Draw the line in code.** Each component and scene feature names its axis and edition; `check` reports per axis and why; `--edition` ceiling; the byte budget in CI; every example replayed under each edition to one hash.
-2. **Prove the core with a real agent.** Write the Lite proof game's spec, connect an agent over MCP, build it to the end, record the agent cost. Every edition rests on this. Run once (2026-11-26, [`proof/lite/RUN.md`](../proof/lite/RUN.md)): finished without a person. Still open: the same spec on Godot, a second run, and what the run showed `solve` cannot do.
+2. **Prove the core with a real agent.** Write the Lite proof game's spec, connect an agent over MCP, build it to the end, record the agent cost. Every edition rests on this. Run once (2026-11-26, [`proof/lite/RUN.md`](../proof/lite/RUN.md)): finished without a person. Since then ([`proof/lite/COMPARE.md`](../proof/lite/COMPARE.md)): what the run showed `solve` cannot do is fixed, a second run met no failure it had to repair, and the same spec was built once on Godot. Still open: repeats, so that the spread between runs is known.
 3. **Close the Lite gate**: sprite animation, per-tile art, audio, UI, gamepad, state between levels; the remaining budgets; a run on a phone.
 4. **Close the Standard gate**: glTF from other tools, animation and skins, lights, shapes and joints, navigation, networking, a hundred thousand entities, a desktop executable; its proof game and agent cost.
 5. **Ultra**, starting with the runtime spike and the study of other engines' architecture.

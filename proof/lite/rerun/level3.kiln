@@ -1,0 +1,132 @@
+world hz=60 gravity=0,0
+
+entity map
+  pos 0 0
+  tiles
+    #############
+    #.....#.....#
+    #...........#
+    #.....#.....#
+    #.....#.....#
+    #.....#......
+    #####.#######
+    #.....#######
+    ###.#########
+    #############
+
+entity title
+  pos 6.5 0
+  label Level_3
+
+entity hero
+  pos 1.1 1.1
+  vel
+  box 0.8 0.8
+  ctrl 6
+  sprite glyph=@ color=deepskyblue
+
+# crate1 sits over the mouth of the pocket that holds gem4
+entity crate1
+  pos 3 7
+  vel
+  box 1 1
+  solid
+  push
+  tag crate
+  sprite glyph=C color=orange
+
+# crate2 plugs the passage to the right room
+entity crate2
+  pos 6 2
+  vel
+  box 1 1
+  solid
+  push
+  tag crate
+  sprite glyph=C color=orange
+
+entity gem1
+  pos 3.3 3.3
+  box 0.4 0.4
+  tag gem
+  trigger hero gem despawn-self+despawn:lock1
+  sprite glyph=* color=magenta
+
+entity gem2
+  pos 11.3 1.3
+  box 0.4 0.4
+  tag gem
+  trigger hero gem despawn-self+despawn:lock2
+  sprite glyph=* color=magenta
+
+entity gem3
+  pos 7.3 5.3
+  box 0.4 0.4
+  tag gem
+  trigger hero gem despawn-self+despawn:lock3
+  sprite glyph=* color=magenta
+
+entity gem4
+  pos 3.3 8.3
+  box 0.4 0.4
+  tag gem
+  trigger hero gem4 despawn-self+despawn:lock4
+  sprite glyph=* color=magenta
+
+entity guard1
+  pos 11.1 3.1
+  vel -3 0
+  box 0.8 0.8
+  pace x 7.1 11.1 3
+  tag guard
+  trigger hero caught load:level3.kiln
+  sprite glyph=G color=red
+
+entity guard2
+  pos 5.1 4.1
+  vel -3 0
+  box 0.8 0.8
+  pace x 1.1 5.1 3
+  tag guard
+  trigger hero caught load:level3.kiln
+  sprite glyph=G color=red
+
+entity exit
+  pos 12.2 5.2
+  box 0.6 0.6
+  trigger hero exit load:end.kiln
+  sprite glyph=> color=lime
+
+entity lock1
+  pos 12 5
+  box 1 1
+  solid
+  tag door
+  sprite glyph=D color=saddlebrown
+
+entity lock2
+  pos 12 5
+  box 1 1
+  solid
+  tag door
+  sprite glyph=D color=saddlebrown
+
+entity lock3
+  pos 12 5
+  box 1 1
+  solid
+  tag door
+  sprite glyph=D color=saddlebrown
+
+entity lock4
+  pos 12 5
+  box 1 1
+  solid
+  tag door
+  sprite glyph=D color=saddlebrown
+
+expect gone #gem by 2400
+expect gone #door by 2400
+expect reach hero exit by 2400
+expect never hero #guard
+expect event load by 2400

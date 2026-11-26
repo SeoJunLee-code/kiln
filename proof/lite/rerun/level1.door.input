@@ -1,0 +1,24 @@
+# B: take only 2 of 3 gems, then push against the door. The level is not left.
+0 down down
+20 down up
+20 right down
+# stopped by the closed door at x=7.2
+90 right up
+# up to gem1
+90 up down
+120 up up
+# down to gem3
+120 down down
+170 down up
+# back to the door row and push against the door again
+170 up down
+190 up up
+190 right down
+300 right up
+
+expect count gem == 2 at 300
+expect at 90 hero.pos.x == 7.2
+expect at 300 hero.pos.x == 7.2
+expect at 300 lock2.pos.x == 8
+expect never hero exit
+expect count load == 0 at 300

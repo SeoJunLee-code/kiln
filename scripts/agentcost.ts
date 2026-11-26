@@ -27,6 +27,11 @@ export function kilnFailed(reply: string): boolean {
   return lines.some((l) => /^E K\d+/.test(l) || /^FAIL /.test(l)) || /^fail\b/.test(lines[lines.length - 1] ?? '');
 }
 
+// A Godot run failed when the engine printed an error (it often still exits 0) or a check said so.
+export function godotFailed(reply: string): boolean {
+  return reply.split('\n').some((l) => /^\s*(SCRIPT ERROR|ERROR|Parse Error|FAIL(ED)?\b)/.test(l) || /^Exit code [1-9]/.test(l));
+}
+
 export function cost(log: string): Cost {
   const out: Cost = {
     model: '', finished: false, turns: 0, seconds: 0, input: 0, cacheWrite: 0, cacheRead: 0, output: 0, usd: 0,
@@ -42,15 +47,17 @@ export function cost(log: string): Cost {
     for (const b of blocks) {
       if (b.type === 'tool_use' && b.id) {
         const kiln = b.name === 'mcp__kiln__kiln';
-        const call: Call = { tool: kiln ? 'kiln' : b.name ?? '?', cmd: kiln ? String(b.input?.cmd ?? '?') : '', failed: false, first: '' };
+        // A shell call is named by the program it runs (`cd game && godot ...` is a godot call).
+        const shell = b.name === 'Bash' || b.name === 'PowerShell' ? (/(?:^|&&|;|\|)\s*(?!cd\b)([\w.-]+)/.exec(String(b.input?.command ?? ''))?.[1] ?? '?') : '';
+        const call: Call = { tool: kiln ? 'kiln' : shell ? 'shell' : b.name ?? '?', cmd: kiln ? String(b.input?.cmd ?? '?') : shell, failed: false, first: '' };
         open.set(b.id, call);
         out.calls.push(call);
       } else if (b.type === 'tool_result' && b.tool_use_id) {
         const call = open.get(b.tool_use_id);
         if (!call) continue;
         const reply = text(b.content);
-        call.failed = call.tool === 'kiln' ? kilnFailed(reply) || !!b.is_error : !!b.is_error;
-        call.first = (reply.split('\n').find((l) => /^(E K\d+|FAIL |fail\b)/.test(l)) ?? reply.split('\n')[0] ?? '').slice(0, 110);
+        call.failed = !!b.is_error || (call.tool === 'kiln' ? kilnFailed(reply) : call.cmd === 'godot' && godotFailed(reply));
+        call.first = (reply.split('\n').find((l) => /^(E K\d+|FAIL |fail\b|\s*(SCRIPT ERROR|ERROR|Parse Error))/.test(l)) ?? reply.split('\n')[0] ?? '').slice(0, 110);
       }
     }
     if (m.type === 'result') {
@@ -66,7 +73,7 @@ export function cost(log: string): Cost {
     }
   }
   for (const c of out.calls) {
-    const key = c.cmd ? `kiln ${c.cmd}` : c.tool;
+    const key = c.cmd ? `${c.tool} ${c.cmd}` : c.tool;
     out.byTool[key] = (out.byTool[key] ?? 0) + 1;
     if (c.failed) { out.failures++; out.failedBy[key] = (out.failedBy[key] ?? 0) + 1; }
   }
@@ -95,6 +102,6 @@ if (process.argv[1]?.endsWith('agentcost.ts')) {
   const c = cost(readFileSync(file, 'utf8'));
   process.stdout.write(report(c));
   if (process.argv.includes('--calls')) {
-    c.calls.forEach((k, i) => console.log(`${String(i + 1).padStart(3)} ${k.failed ? 'x' : ' '} ${k.cmd ? 'kiln ' + k.cmd : k.tool}${k.failed ? '  ' + k.first : ''}`));
+    c.calls.forEach((k, i) => console.log(`${String(i + 1).padStart(3)} ${k.failed ? 'x' : ' '} ${k.cmd ? k.tool + ' ' + k.cmd : k.tool}${k.failed ? '  ' + k.first : ''}`));
   }
 }

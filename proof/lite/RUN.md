@@ -30,8 +30,8 @@ below come from it through `node scripts/agentcost.ts LOG.jsonl --calls`.
 | Tool calls | 104: Edit 47, Write 21, `solve` 10, `test` 8, `check` 6, `look` 6, `guide` 2, `schema` 1, Read 1, Glob 2 |
 | Failures met and repaired without a person | 7: `solve` 3, `test` 3, Edit 1 |
 
-One run, one model. It says nothing yet about spread between runs or about other
-models, and nothing about another engine: the same spec has not been built on Godot.
+One run, one model. It says nothing about spread between runs or about other models.
+A second Kiln run and a Godot run of the same spec are compared in [`COMPARE.md`](COMPARE.md).
 
 ## The seven failures
 

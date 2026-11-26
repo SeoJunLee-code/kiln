@@ -50,7 +50,7 @@ does that thing best. The agent-first rows belong to the core and hold in all th
 | `check` reports the edition per axis (drawing, physics, world, network) | **gated** | one line per axis above Lite; nothing sets world or network yet. The scenes drawn only by WebGPU must be exactly those whose drawing is Standard |
 | Budgets per edition: exported bytes, memory, time to first frame | works (bytes only) | bytes are gated in the row above; memory and time to first frame have not been measured |
 | A proof game per edition, built by an agent, at 60 fps on that edition's reference machine | works (Lite, on the PC; no phone) | `proof/lite`: spec, game and run record; tests replay it headless and in a browser. Frame rate measured on the reference PC by the protocol ([`proof/lite/FPS.md`](../proof/lite/FPS.md), 24 runs of 60 s): 1% low never under 247 fps without a frame cap, with the GPU or with it turned off, and no frame over 16.67 ms on the display. Not measured on a phone; with the page's CPU slowed 4x, one run of three had a 1% low of 52 fps. CI cannot check time; it holds a frame of the largest level to 90 Canvas 2D calls (`tests/proof.test.ts`). Standard and Ultra: none |
-| Agent cost per edition: tokens for one spec, failures repaired without a person | works (Lite, one run) | `proof/lite/RUN.md`. The same spec has not been built on the engine that is the bar |
+| Agent cost per edition: tokens for one spec, failures repaired without a person | works (Lite, one run each) | [`proof/lite/COMPARE.md`](../proof/lite/COMPARE.md): the same spec built once on Kiln before its fixes (7 failures repaired, 105 turns, $0.73), once after (0, 44 turns, $0.43) and once on Godot 4.7.2 (0, 45 turns, $0.73, 29 minutes against 4, and three and a half times the bytes of game: the agent wrote the rules, the solver and the test runner itself). One run each, so the spread is unknown; the spec was written by Kiln |
 
 ## Where Unity is the bar
 
@@ -78,7 +78,7 @@ Neither engine was built for this; these rows are why Kiln exists.
 | MCP server | **gated** (protocol) | JSON-RPC test. One real client has used it (Claude Code, headless): [`proof/lite/RUN.md`](../proof/lite/RUN.md) |
 | `look`: an agent sees what was drawn | **gated** | tests; over MCP the picture comes back in the reply |
 | Real token cost of building a game, measured | works | one run, one model: 37,711 tokens written, 794,808 read (725,800 of them from cache), 7 m 4 s. `scripts/agentcost.ts` reads it from the run log (tested). No second run, no other engine yet |
-| A real agent builds a game to the end and repairs its own failures | works | once: the Lite proof game, 7 failures repaired without a person, 4 kinds of them Kiln's fault (listed in `proof/lite/RUN.md`). The game is kept working by `tests/proof.test.ts`; the run itself is not repeated by CI |
+| A real agent builds a game to the end and repairs its own failures | works | twice: the Lite proof game. First run: 7 failures repaired without a person, 4 kinds of them Kiln's fault (listed in `proof/lite/RUN.md`). Second run, after those were fixed: none (`proof/lite/COMPARE.md`). Both games are kept working by `tests/proof.test.ts`; the runs themselves are not repeated by CI |
 | The first tick where two runs differ is reported | none | |
 
 ## 2D (Godot 2D is the bar)

@@ -102,3 +102,18 @@ test('proof game (Lite), in a browser: a frame of level 3 stays inside its drawi
     assert.ok(calls > 0 && calls <= BUDGET_CALLS, `drawing calls in one frame: ${calls}`);
   } finally { await player.close(); }
 });
+
+// The second build of the same spec (proof/lite/RERUN.md), kept as its agent left it.
+test('proof game (Lite), second build: passes as a folder, follows through to the end, and is Lite', async () => {
+  const dir = fileURLToPath(new URL('../proof/lite/rerun', import.meta.url));
+  const t = await command('test', { file: dir });
+  assert.equal(t.code, 0, t.text);
+  assert.match(t.text, /ok scenes=4 cases=3 passed=7 failed=0\n$/);
+  const f = await command('test', { file: join(dir, 'level1.kiln'), inputFile: join(dir, 'level1.input'), follow: true });
+  assert.equal(f.code, 0, f.text);
+  assert.match(f.text, /path=level1\.kiln>level2\.kiln>level3\.kiln>end\.kiln/);
+  const c = await command('check', { file: dir, edition: 'lite' });
+  assert.equal(c.code, 0, c.text);
+  assert.match(c.text, /failed=0 edition=lite\n$/);
+  assert.doesNotMatch(c.text, /^W /m);
+});

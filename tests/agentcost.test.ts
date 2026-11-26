@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cost, kilnFailed, report } from '../scripts/agentcost.ts';
+import { cost, godotFailed, kilnFailed, report } from '../scripts/agentcost.ts';
 
 const line = (o: unknown): string => JSON.stringify(o);
 const use = (id: string, name: string, input: Record<string, unknown>): string =>
@@ -50,4 +50,23 @@ test('a run cut off before its result line is not counted as finished', () => {
   const c = cost(use('1', 'mcp__kiln__kiln', { cmd: 'guide' }));
   assert.equal(c.finished, false);
   assert.equal(c.calls.length, 1);
+});
+
+test('agent cost: a shell call is named by its program, and a Godot run fails on an engine error or a non-zero exit', () => {
+  assert.equal(godotFailed('Godot Engine v4\n\n48 checks, 0 failed\n'), false);
+  assert.equal(godotFailed('Godot Engine v4\nSCRIPT ERROR: Parse Error: x\n   at: y\n'), true);
+  assert.equal(godotFailed('Exit code 1\nGodot Engine v4\n'), true);
+  assert.equal(godotFailed('  FAIL parses cleanly: res://a.gd\n'), true);
+  const c = cost([
+    use('1', 'PowerShell', { command: 'godot --headless --path game --script res://t.gd' }),
+    result('1', 'Godot Engine v4\n48 checks, 0 failed\n'),
+    use('2', 'Bash', { command: 'cd game && godot --headless --quit' }),
+    result('2', 'Godot Engine v4\nERROR: Failed to load script\n'),
+    use('3', 'PowerShell', { command: 'godot --version | Select-String 4' }),
+    result('3', 'requires manual approval', true),
+    use('4', 'PowerShell', { command: 'Get-ChildItem' }),
+    result('4', 'ERROR: this is not Godot speaking\n'),
+  ].join('\n'));
+  assert.deepEqual(c.byTool, { 'shell godot': 3, 'shell Get-ChildItem': 1 });
+  assert.deepEqual(c.failedBy, { 'shell godot': 2 });
 });
