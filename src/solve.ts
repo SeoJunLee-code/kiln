@@ -6,13 +6,15 @@ import { evalTick, gap, parseExpects } from './expect.ts';
 import type { Expect } from './expect.ts';
 import type { Mods } from './run.ts';
 import { parseScene } from './scene.ts';
+import { freeLink, restoreLink, saveLink } from './physics.ts';
+import type { SavedLink } from './physics.ts';
 import { step } from './sim.ts';
 import { World, registry } from './world.ts';
 
 /** Independent copy of a world. Script systems are shared, so scripts must keep their state in components. */
 export function cloneWorld(w: World): World {
   const c = new World();
-  c.tick = w.tick; c.hz = w.hz; c.gx = w.gx; c.gy = w.gy; c.gz = w.gz; c.seed = w.seed;
+  c.tick = w.tick; c.hz = w.hz; c.gx = w.gx; c.gy = w.gy; c.gz = w.gz; c.seed = w.seed; c.physics = w.physics;
   c.names = [...w.names];
   c.ids = new Map(w.ids);
   for (const [name, m] of w.comps) {
@@ -28,7 +30,12 @@ export function cloneWorld(w: World): World {
   return c;
 }
 
-interface Node { w: World; ex: Expect[]; parent: Node | null; keys: string[]; done: number; depth: number; f: number; seq: number }
+// `phys` is the physics backend's state at this node: null before physics has started,
+// undefined when it is not held (no physics, or dropped from the cache).
+interface Node { w: World; ex: Expect[]; parent: Node | null; keys: string[]; done: number; depth: number; f: number; seq: number; phys?: SavedLink | null }
+
+/** How many bytes of physics snapshots a search keeps before it drops the oldest. */
+const PHYSICS_CACHE = 256 * 1024 * 1024;
 
 export interface SolveResult {
   ok: boolean;
@@ -37,6 +44,8 @@ export interface SolveResult {
   tick: number;
   states: number;
   note: string;
+  /** Physics scenes only: search steps that had to be simulated again because their snapshot had left the cache. */
+  resimulated?: number;
 }
 
 const GOALS = ['reach', 'gone', 'event'];
@@ -46,8 +55,9 @@ const GOALS = ['reach', 'gone', 'event'];
  * breaking a `never`. `at` and `count` expectations are not searched for (they are checked by `test`).
  *   stepTicks  how long each key choice is held (smaller = finer control, larger search)
  *   maxStates  give up after this many distinct states
+ *   physicsCache  bytes of physics snapshots to keep (physics scenes only)
  */
-export function solve(sceneText: string, opts: { file?: string; mods?: Mods; stepTicks?: number; maxStates?: number } = {}): SolveResult {
+export function solve(sceneText: string, opts: { file?: string; mods?: Mods; stepTicks?: number; maxStates?: number; physicsCache?: number } = {}): SolveResult {
   const { world, expects: raw } = parseScene(sceneText, opts.file);
   if (opts.mods) { world.pre = opts.mods.pre; world.post = opts.mods.post; }
   const expects = parseExpects(raw, world, opts.file).filter((e) => e.kind !== 'at' && e.kind !== 'count');
@@ -153,9 +163,52 @@ export function solve(sceneText: string, opts: { file?: string; mods?: Mods; ste
     return top;
   };
 
+  // Physics scenes. A backend's state is too large to keep at every node, so snapshots
+  // live in a cache with a byte budget. A node whose snapshot was dropped gets it back by
+  // restoring the nearest ancestor that still has one and running the inputs between
+  // them again; a restored snapshot continues exactly, so that gives the same state.
+  const physics = !!world.physics, held: Node[] = [];
+  let heldBytes = 0, resimulated = 0;
+  const keep = (n: Node, saved: SavedLink | null): void => {
+    n.phys = saved;
+    if (!saved) return;
+    held.push(n);
+    heldBytes += saved.bytes;
+    while (heldBytes > (opts.physicsCache ?? PHYSICS_CACHE) && held.length > 1) {
+      const old = held.shift()!;
+      heldBytes -= old.phys!.bytes;
+      old.phys = undefined;
+    }
+  };
+  /** Advance a copy of a node's world by one key choice. Returns false if a `never` broke. */
+  const advance = (w: World, ex: Expect[], keys: string[]): boolean => {
+    w.pressed = new Set(keys);
+    for (let i = 0; i < stepTicks; i++) {
+      step(w);
+      evalTick(w, ex);
+      if (ex.some((e) => e.ok === false)) return false;
+    }
+    return true;
+  };
+  const physicsAt = (n: Node): SavedLink | null => {
+    if (n.phys !== undefined) return n.phys;
+    const path: Node[] = [];
+    let from: Node = n;
+    while (from.phys === undefined) { path.unshift(from); from = from.parent!; }
+    const w = cloneWorld(from.w);
+    restoreLink(w, from.phys);
+    const ex = from.ex.map((e) => ({ ...e }));
+    for (const p of path) advance(w, ex, p.keys);
+    resimulated += path.length;
+    const saved = saveLink(w);
+    freeLink(w);
+    keep(n, saved);
+    return saved;
+  };
+
   evalTick(world, expects);
   let seq = 0;
-  const root: Node = { w: world, ex: expects, parent: null, keys: [], done: count(expects), depth: 0, f: 0, seq: seq++ };
+  const root: Node = { w: world, ex: expects, parent: null, keys: [], done: count(expects), depth: 0, f: 0, seq: seq++, phys: physics ? null : undefined };
   const seen = new Set([key(root)]);
   push(root);
   // Furthest attempt so far: fewest open goals, then nearest to the next one.
@@ -166,16 +219,15 @@ export function solve(sceneText: string, opts: { file?: string; mods?: Mods; ste
     if (n.w.tick >= limit) continue;
     for (const keys of choices) {
       const c: Node = { w: cloneWorld(n.w), ex: n.ex.map((e) => ({ ...e })), parent: n, keys, done: 0, depth: n.depth + 1, f: 0, seq: seq++ };
-      c.w.pressed = new Set(keys);
-      let dead = false;
-      for (let i = 0; i < stepTicks && !dead; i++) {
-        step(c.w);
-        evalTick(c.w, c.ex);
-        dead = c.ex.some((e) => e.ok === false);
+      if (physics) restoreLink(c.w, physicsAt(n));
+      const alive = advance(c.w, c.ex, keys);
+      const k = alive ? key(c) : '';
+      const fresh = alive && !seen.has(k);
+      if (physics) {
+        if (fresh) keep(c, saveLink(c.w));
+        freeLink(c.w);
       }
-      if (dead) continue;
-      const k = key(c);
-      if (seen.has(k)) continue;
+      if (!fresh) continue;
       seen.add(k);
       c.done = count(c.ex);
       if (c.done === goals) { goal = c; break; }
@@ -207,5 +259,5 @@ export function solve(sceneText: string, opts: { file?: string; mods?: Mods; ste
     return { ...fail(`${why}; best run met ${best.done}/${goals}, still open: ${open.text}${open.note ? ` (${open.note})` : ''}`, best.w.tick, seen.size), input: script(best) };
   }
 
-  return { ok: true, input: script(goal), tick: goal.w.tick, states: seen.size, note: '' };
+  return { ok: true, input: script(goal), tick: goal.w.tick, states: seen.size, note: '', ...(physics ? { resimulated } : {}) };
 }

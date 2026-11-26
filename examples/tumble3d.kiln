@@ -1,0 +1,70 @@
+# Rigid bodies, simulated by a physics backend (world physics=rapier). A stack of
+# crates and a ball stand on the floor; walk into the ball to roll it onto the plate.
+# Movers push rigid bodies; rigid bodies do not block movers.
+world hz=60 gravity=0,30 physics=rapier
+
+entity pusher
+  pos 1 -1 4
+  box 0.8 1 0.8
+  vel
+  body
+  ctrl 4 0 xz
+  eye 0 -6 8
+  sprite @ dodgerblue
+
+entity floor
+  pos 0 0 0
+  box 14 1 9
+  solid
+  sprite color=dimgray
+entity back
+  pos 0 -1 -0.5
+  box 14 1 0.5
+  solid
+  sprite color=slategray
+entity front
+  pos 0 -1 9
+  box 14 1 0.5
+  solid
+  sprite color=slategray
+entity end
+  pos 14 -1 0
+  box 0.5 1 9
+  solid
+  sprite color=slategray
+
+entity ball
+  pos 3.5 -0.8 4
+  box 0.8 0.8 0.8
+  rigid ball bounce=0.3
+  sprite color=tomato mesh=ball.glb
+entity crate1
+  pos 7 -1 1.5
+  box 1 1 1
+  rigid
+  sprite mesh=crate.glb
+entity crate2
+  pos 7.1 -2 1.6
+  box 1 1 1
+  rigid
+  sprite mesh=crate.glb
+entity crate3
+  pos 6.9 -3.4 1.4
+  box 0.8 0.8 0.8
+  rigid
+  quat 0.2 0.1 0 0.97
+  sprite mesh=crate.glb
+entity plank
+  pos 9.5 -4 5
+  box 2.4 0.2 0.8
+  rigid density=0.5
+  quat sz=90
+  sprite color=peru
+
+entity plate
+  pos 10.5 -0.05 3.4
+  box 2 0.05 2
+  trigger ball scored
+  sprite color=limegreen
+
+expect event scored by 600

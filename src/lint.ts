@@ -18,6 +18,7 @@ const NEEDS: Record<string, string[]> = {
   eye: ['pos'],
   rot: ['pos', 'box'],
   quat: ['pos', 'box'],
+  rigid: ['pos', 'box'],
 };
 
 /**
@@ -46,6 +47,7 @@ export function lint(scene: Scene, file: string, exists?: (name: string) => bool
         if (a.startsWith('load:') && exists && !exists(a.slice(5))) warn('K312', `trigger on '${name}' loads '${a.slice(5)}', which is not next to the scene`);
       }
     }
+    if (w.has(id, 'rigid') && !w.physics) warn('K316', `'${name}' has 'rigid' but the world has no physics backend, so it does nothing`, 'add physics=rapier to the world line');
     const sp = w.get(id, 'sprite');
     for (const field of ['image', 'mesh']) {
       const f = sp?.[field] as string | undefined;

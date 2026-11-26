@@ -300,4 +300,13 @@ const stoneNormal = picture((x, y) => {
   });
   writeFileSync(OUT + 'orbs.glb', g.glb());
 }
-console.log('ok wrote crate.glb totem.gltf totem.bin totem.png totem_n.png orbs.glb');
+
+// --- ball.glb: a white ball with a dark band, so that rolling shows; a sprite's color tints it ---
+{
+  const g = new Gltf(), shape = sphere(0.5, 32, 20);
+  const band = g.texture(picture((x, y) => (y > 26 && y < 38 && (x >> 3) % 2 === 0 ? [60, 60, 66] : [255, 255, 255])), null);
+  const material = g.material({ name: 'ball', pbrMetallicRoughness: { baseColorTexture: { index: band }, metallicFactor: 0, roughnessFactor: 0.45 } });
+  g.node({ name: 'ball', mesh: g.mesh(g.attributes(shape), g.indices(shape.index, 2), material) });
+  writeFileSync(OUT + 'ball.glb', g.glb());
+}
+console.log('ok wrote crate.glb totem.gltf totem.bin totem.png totem_n.png orbs.glb ball.glb');

@@ -20,6 +20,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      # The optional physics backend: one pinned package, used by the rigid-body example.
+      - run: npm ci --prefix backends/rapier --ignore-scripts --no-audit --no-fund
       - run: node scripts/images.ts
       # The pictures as drawn, to look at when a comparison fails or to adopt as new references.
       - uses: actions/upload-artifact@v4

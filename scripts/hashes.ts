@@ -7,6 +7,7 @@
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { loadMods } from '../src/load.ts';
+import { loadBackend, physicsOf } from '../src/physics.ts';
 import { run } from '../src/run.ts';
 
 const dir = fileURLToPath(new URL('../examples/', import.meta.url));
@@ -15,6 +16,7 @@ for (const f of readdirSync(dir).filter((x) => x.endsWith('.kiln')).sort()) {
   const scene = readFileSync(dir + f, 'utf8');
   const inputFile = dir + f.replace(/\.kiln$/, '.input');
   const input = existsSync(inputFile) ? readFileSync(inputFile, 'utf8') : undefined;
+  await loadBackend(physicsOf(scene), f);
   const r = run(scene, { input, file: f, mods: await loadMods(scene, dir + f) });
   lines.push(`${f} tick=${r.world.tick} hash=${r.hash} expects=${r.ok ? 'pass' : 'FAIL'}`);
 }

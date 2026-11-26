@@ -1,11 +1,17 @@
-import { copyFileSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
 import { basename, dirname, join, posix, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { physicsOf } from './physics.ts';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 /** What a game folder may contribute to a build. Anything else (dotfiles, notes, keys) stays out of the published folder. */
 export const ASSETS = /^[^.][^/\\]*\.(kiln|input|ts|svg|png|jpe?g|webp|gif|obj|gltf|glb|bin|json|mp3|ogg|wav|txt)$/i;
+
+// What a backend's adapter loads at run time, relative to backends/NAME: the engine itself and its license.
+const BACKEND_FILES: Record<string, string[]> = {
+  rapier: ['node_modules/@dimforge/rapier3d-deterministic-compat/dist/rapier.mjs', 'node_modules/@dimforge/rapier3d-deterministic-compat/LICENSE'],
+};
 
 // A static host serves `.ts` with a non-script type, so built files are `.js` and say so in their imports.
 const IMPORT = /((?:from|import)\s+')(\.\.?\/[^']+)\.ts'/g;
@@ -48,6 +54,16 @@ export function build(sceneFile: string, outDir: string): { written: string[]; s
     if (f.endsWith('.kiln')) scenes.push(f);
     if (f.endsWith('.ts')) put(`game/${f.replace(/\.ts$/, '.js')}`, toJs(readFileSync(path, 'utf8')));
     else { mkdirSync(join(outDir, 'game'), { recursive: true }); copyFileSync(path, join(outDir, 'game', f)); written.push(`game/${f}`); }
+  }
+
+  // A scene that names a physics backend needs that backend's adapter and its engine file.
+  for (const name of new Set(scenes.map((f) => physicsOf(readFileSync(join(gameDir, f), 'utf8'))).filter((n) => n in BACKEND_FILES))) {
+    put(`engine/backends/${name}/index.js`, toJs(readFileSync(join(ROOT, `backends/${name}/index.ts`), 'utf8')));
+    for (const rel of BACKEND_FILES[name]) {
+      const from = join(ROOT, 'backends', name, rel);
+      if (!existsSync(from)) throw new Error(`physics backend '${name}' is not installed (install it once: npm ci --prefix backends/${name})`);
+      put(`engine/backends/${name}/${rel}`, readFileSync(from));
+    }
   }
 
   put('index.html', readFileSync(join(ROOT, 'web/index.html'), 'utf8').replace('engine/web/player.ts', 'engine/web/player.js'));

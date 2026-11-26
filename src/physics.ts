@@ -1,0 +1,190 @@
+// Rigid bodies, through a backend. The engine does not solve rigid-body physics itself:
+// an existing engine does, behind the small interface below, and this file keeps the
+// scene's entities and the backend's bodies in step.
+//
+// This is the one place in the simulation where floats appear. A backend computes in
+// floats (deterministically: the same build gives the same bits on every machine), and
+// its results are rounded to fixed-point here before the rest of the engine sees them.
+import { ONE } from './fx.ts';
+import { KilnFail } from './scene.ts';
+import type { Comp, World } from './world.ts';
+
+/** A body as a backend sees it. Lengths in world units, `at` is the centre, `spin` in radians/second. */
+export interface BodyDesc {
+  kind: 'dynamic' | 'kinematic' | 'fixed';
+  shape: 'box' | 'ball';
+  /** Half the size on x, y, z; a ball uses the first as its radius. */
+  half: number[];
+  at: number[];
+  /** Orientation as a quaternion x, y, z, w. */
+  rot: number[];
+  vel: number[];
+  spin: number[];
+  density: number;
+  bounce: number;
+  friction: number;
+}
+
+/** One simulated world inside a backend. Bodies are named by integer keys the caller chooses. */
+export interface BackendWorld {
+  addBody(key: number, body: BodyDesc): void;
+  removeBody(key: number): void;
+  /** Where a kinematic body's centre should be after the next step. */
+  moveKinematic(key: number, at: number[]): void;
+  step(): void;
+  /** Centre (3), orientation (4), velocity (3), spin (3) of a body, written into `out`. */
+  read(key: number, out: Float64Array): void;
+  /** Hash of the exact state of every dynamic body: equal hash, identical state. */
+  hash(): number;
+  /** The whole state, restorable exactly, and its size in bytes. */
+  save(): { bytes: number; state: unknown };
+  free(): void;
+}
+export interface Backend {
+  name: string;
+  create(gravity: number[], dt: number): BackendWorld;
+  /** A new world in a state that `save` returned. */
+  restore(state: unknown): BackendWorld;
+}
+
+export const BACKENDS = ['rapier'];
+const loaded = new Map<string, Backend>();
+
+/** The backend a scene's world line asks for, or '' for none. */
+export const physicsOf = (sceneText: string): string => /^world\b.*\sphysics=([\w-]+)/m.exec(sceneText)?.[1] ?? '';
+
+/**
+ * Load a backend so that scenes can use it. Backends are optional packages in
+ * backends/NAME with their own pinned dependency; the core never imports one unasked.
+ */
+export async function loadBackend(name: string, file = 'scene'): Promise<void> {
+  if (!name || loaded.has(name) || !BACKENDS.includes(name)) return;
+  try {
+    // Same extension as this module: .ts from source, .js in a built folder.
+    const ext = import.meta.url.slice(import.meta.url.lastIndexOf('.'));
+    loaded.set(name, (await import(new URL(`../backends/${name}/index${ext}`, import.meta.url).href)).default as Backend);
+  } catch (e) {
+    throw new KilnFail([{
+      code: 'K130', file, line: 0, msg: `physics backend '${name}' could not be loaded: ${(e as Error).message.split('\n')[0]}`,
+      hint: `install it once: npm ci --prefix backends/${name}`,
+    }]);
+  }
+}
+
+/** What ties a world to its backend world: which entity is which kind of body, and which tile maps are in. */
+export interface Link { world: BackendWorld; kinds: Map<number, string>; maps: Set<number> }
+export interface SavedLink { bytes: number; state: unknown; kinds: Map<number, string>; maps: Set<number> }
+
+const num = (c: Comp | undefined, f: string): number => ((c?.[f] as number | undefined) ?? 0) / ONE;
+/** Float to fixed-point, kept inside what fixed-point can hold. */
+const toFx = (x: number): number => Math.max(-2147483647, Math.min(2147483647, Math.round(x * ONE))) | 0;
+const DEG = Math.PI / 180;
+// Tile cells get keys below every entity id: map id and cell index packed into a negative number.
+const cellKey = (map: number, index: number): number => -(map * 1048576 + index) - 1;
+
+function describe(w: World, id: number, kind: BodyDesc['kind']): BodyDesc {
+  const p = w.get(id, 'pos')!, b = w.get(id, 'box')!, r = w.get(id, 'rigid'), q = w.get(id, 'quat'), v = w.get(id, 'vel');
+  const half = [num(b, 'w') / 2, num(b, 'h') / 2, num(b, 'd') / 2];
+  return {
+    kind, shape: r?.shape === 'ball' ? 'ball' : 'box', half,
+    at: [num(p, 'x') + half[0], num(p, 'y') + half[1], num(p, 'z') + half[2]],
+    // Only a rigid body's turn counts: for everything else collision ignores rotation, here too.
+    rot: kind === 'dynamic' && q ? [num(q, 'x'), num(q, 'y'), num(q, 'z'), num(q, 'w')] : [0, 0, 0, 1],
+    vel: kind === 'dynamic' ? [num(v, 'x'), num(v, 'y'), num(v, 'z')] : [0, 0, 0],
+    spin: kind === 'dynamic' ? [num(q, 'sx') * DEG, num(q, 'sy') * DEG, num(q, 'sz') * DEG] : [0, 0, 0],
+    density: r ? num(r, 'density') : 1, bounce: r ? num(r, 'bounce') : 0, friction: r ? num(r, 'friction') : 0.5,
+  };
+}
+
+/** Which kind of body an entity is, if any. */
+function kindOf(w: World, id: number): BodyDesc['kind'] | null {
+  if (w.has(id, 'rigid')) return 'dynamic';
+  // Whatever the fixed-point core moves pushes bodies out of its way; walls just stand.
+  if (w.has(id, 'vel') || w.has(id, 'push')) return 'kinematic';
+  return w.has(id, 'solid') ? 'fixed' : null;
+}
+
+const out = new Float64Array(13);
+
+/** One tick of rigid-body physics: called by `step` after the fixed-point movers have moved. */
+export function physicsStep(w: World): void {
+  let link = w.link as Link | undefined;
+  if (!link) {
+    const backend = loaded.get(w.physics);
+    if (!backend) throw new KilnFail([{ code: 'K130', file: 'scene', line: 0, msg: `physics backend '${w.physics}' is not loaded`, hint: `install it once: npm ci --prefix backends/${w.physics}` }]);
+    w.link = link = { world: backend.create([w.gx / ONE, w.gy / ONE, w.gz / ONE], 1 / w.hz), kinds: new Map(), maps: new Set() };
+  }
+  const { world, kinds, maps } = link;
+
+  // Bodies follow entities: gone or changed ones leave, new ones enter, always in id order.
+  for (const [id, kind] of kinds) {
+    if (w.names[id] == null || !w.has(id, 'pos') || !w.has(id, 'box') || kindOf(w, id) !== kind) { world.removeBody(id); kinds.delete(id); }
+  }
+  for (const id of w.query('pos', 'box')) {
+    const kind = kindOf(w, id);
+    if (!kind || kinds.has(id)) continue;
+    if (kind === 'dynamic') {
+      // A rigid body's motion is mirrored into these, so they have to exist.
+      if (!w.has(id, 'vel')) w.add(id, 'vel', { x: 0, y: 0, z: 0 });
+      if (!w.has(id, 'quat')) w.add(id, 'quat', { x: 0, y: 0, z: 0, w: ONE, sx: 0, sy: 0, sz: 0 });
+    }
+    world.addBody(id, describe(w, id, kind));
+    kinds.set(id, kind);
+  }
+  for (const m of w.query('tiles', 'pos')) {
+    if (maps.has(m)) continue;
+    maps.add(m);
+    const t = w.get(m, 'tiles')!, p = w.get(m, 'pos')!, size = num(t, 'size'), depth = num(t, 'depth'), flat = t.plane === 'xz';
+    (t.rows as string).split('\n').forEach((row, r) => {
+      for (let c = 0; c < row.length; c++) {
+        if (!(t.solid as string).includes(row[c])) continue;
+        const x = num(p, 'x') + (c + 0.5) * size;
+        world.addBody(cellKey(m, r * 4096 + c), {
+          kind: 'fixed', shape: 'box', rot: [0, 0, 0, 1], vel: [0, 0, 0], spin: [0, 0, 0], density: 1, bounce: 0, friction: 0.5,
+          half: flat ? [size / 2, depth / 2, size / 2] : [size / 2, size / 2, depth / 2],
+          at: flat ? [x, num(p, 'y') + depth / 2, num(p, 'z') + (r + 0.5) * size] : [x, num(p, 'y') + (r + 0.5) * size, num(p, 'z') + depth / 2],
+        });
+      }
+    });
+  }
+
+  for (const [id, kind] of kinds) {
+    if (kind !== 'kinematic') continue;
+    const p = w.get(id, 'pos')!, b = w.get(id, 'box')!;
+    world.moveKinematic(id, [num(p, 'x') + num(b, 'w') / 2, num(p, 'y') + num(b, 'h') / 2, num(p, 'z') + num(b, 'd') / 2]);
+  }
+  world.step();
+
+  // The backend's result, rounded to fixed-point, becomes what the rest of the engine sees.
+  for (const [id, kind] of kinds) {
+    if (kind !== 'dynamic') continue;
+    world.read(id, out);
+    const p = w.get(id, 'pos')!, b = w.get(id, 'box')!, q = w.get(id, 'quat')!, v = w.get(id, 'vel')!;
+    p.x = (toFx(out[0]) - ((b.w as number) >> 1)) | 0; p.y = (toFx(out[1]) - ((b.h as number) >> 1)) | 0; p.z = (toFx(out[2]) - ((b.d as number) >> 1)) | 0;
+    q.x = toFx(out[3]); q.y = toFx(out[4]); q.z = toFx(out[5]); q.w = toFx(out[6]);
+    v.x = toFx(out[7]); v.y = toFx(out[8]); v.z = toFx(out[9]);
+    q.sx = toFx(out[10] / DEG); q.sy = toFx(out[11] / DEG); q.sz = toFx(out[12] / DEG);
+  }
+}
+
+/** The backend's exact state as 8 hex digits, or '' when the world has no physics running. */
+export const physicsHash = (w: World): string => {
+  const link = w.link as Link | undefined;
+  return link ? (link.world.hash() >>> 0).toString(16).padStart(8, '0') : '';
+};
+
+/** The physics state of a world, for putting back later; null before physics has started. */
+export function saveLink(w: World): SavedLink | null {
+  const link = w.link as Link | undefined;
+  if (!link) return null;
+  return { ...link.world.save(), kinds: new Map(link.kinds), maps: new Set(link.maps) };
+}
+/** Give a world the physics state that was saved from another copy of it (null: not started). */
+export function restoreLink(w: World, saved: SavedLink | null): void {
+  w.link = saved ? { world: loaded.get(w.physics)!.restore(saved.state), kinds: new Map(saved.kinds), maps: new Set(saved.maps) } : undefined;
+}
+/** Release a world's backend memory. A backend lives outside the garbage collector. */
+export function freeLink(w: World): void {
+  (w.link as Link | undefined)?.world.free();
+  w.link = undefined;
+}

@@ -1,0 +1,9 @@
+{
+  "name": "kiln-backend-rapier",
+  "private": true,
+  "type": "module",
+  "description": "Optional rigid-body backend for Kiln: Rapier's deterministic WebAssembly build, pinned.",
+  "dependencies": {
+    "@dimforge/rapier3d-deterministic-compat": "0.21.0"
+  }
+}

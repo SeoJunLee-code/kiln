@@ -5,6 +5,7 @@ import { loadGltf } from '../web/gltf.ts';
 import { parseExpects } from './expect.ts';
 import { guideText } from './guide.ts';
 import { loadMods } from './load.ts';
+import { loadBackend, physicsOf } from './physics.ts';
 import { observe, run, view } from './run.ts';
 import { KilnFail, parseScene, schemaText, serialize } from './scene.ts';
 import { solve } from './solve.ts';
@@ -69,6 +70,7 @@ export async function command(cmd: string, a: CmdArgs): Promise<{ text: string; 
 
   try {
     const mods = await loadMods(text, file);
+    await loadBackend(physicsOf(text), file);
     if (cmd === 'schema') return { text: schemaText(), code: 0 };
     if (cmd === 'check') {
       const s = parseScene(text, file);

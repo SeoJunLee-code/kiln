@@ -9,7 +9,7 @@ export function guideText(): string {
 A scene is a text file. Run it headless; same scene + same input = same result.
 
 SCENE
-world hz=60 gravity=X,Y[,Z] [seed=N]     once, optional
+world hz=60 gravity=X,Y[,Z] [seed=N] [physics=rapier]   once, optional
 entity NAME                              then components, indented 2 spaces
   COMPONENT value value name=value       positional or by name; [x=..] below marks optional
 prefab NAME                              a component list without pos, used by tiles spawn

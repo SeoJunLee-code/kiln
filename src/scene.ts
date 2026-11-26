@@ -105,7 +105,10 @@ export function parseScene(text: string, file = 'scene'): Scene {
             const p = (v ?? '').split(',').map(parseFx);
             if (p.length < 2 || p.length > 3 || p.includes(null)) err('K104', line, `world gravity must be X,Y or X,Y,Z`, 'e.g. gravity=0,20');
             else { world.gx = p[0]!; world.gy = p[1]!; world.gz = p[2] ?? 0; }
-          } else err('K103', line, `unknown world setting '${k}'`, 'valid: hz, gravity, seed, tick');
+          } else if (k === 'physics') {
+            if (v !== 'rapier') err('K104', line, `unknown physics backend '${v ?? ''}'`, 'valid: physics=rapier');
+            else world.physics = v;
+          } else err('K103', line, `unknown world setting '${k}'`, 'valid: hz, gravity, seed, tick, physics');
         }
       } else if (tok[0] === 'state') {
         // Written by serialize: run-time state that is not a component.
@@ -182,6 +185,10 @@ export function parseScene(text: string, file = 'scene'): Scene {
       err('K104', line, `quat 0 0 0 0 is not an orientation`, 'no turn is quat 0 0 0 1');
       bad = true;
     }
+    if (def.name === 'rigid' && !bad && data.shape !== 'box' && data.shape !== 'ball') {
+      err('K104', line, `rigid shape must be box or ball, got '${data.shape}'`);
+      bad = true;
+    }
     if (def.name === 'trigger' && !bad) {
       for (const act of (data.action as string).split('+')) {
         if (!/^(none|despawn-self|despawn-other|despawn:#?[A-Za-z_][\w-]*|load:[\w.-]+\.kiln)$/.test(act)) {
@@ -253,7 +260,7 @@ export function parseScene(text: string, file = 'scene'): Scene {
 /** Canonical scene text for the current state. Parsing it back gives the same world. */
 export function serialize(w: World, expects: RawExpect[] = [], uses: string[] = []): string {
   const out = [...uses.map((u) => `use ${u}`),
-    `world hz=${w.hz} gravity=${fmtFx(w.gx)},${fmtFx(w.gy)}${w.gz ? `,${fmtFx(w.gz)}` : ''}${w.seed ? ` seed=${w.seed}` : ''}${w.tick ? ` tick=${w.tick}` : ''}`];
+    `world hz=${w.hz} gravity=${fmtFx(w.gx)},${fmtFx(w.gy)}${w.gz ? `,${fmtFx(w.gz)}` : ''}${w.seed ? ` seed=${w.seed}` : ''}${w.physics ? ` physics=${w.physics}` : ''}${w.tick ? ` tick=${w.tick}` : ''}`];
   w.names.forEach((name, id) => {
     if (name == null) return;
     out.push(`entity ${name}`);

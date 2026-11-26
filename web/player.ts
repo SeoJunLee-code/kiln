@@ -9,6 +9,7 @@ import { makeApi } from '../src/api.ts';
 import { evalTick, parseExpects } from '../src/expect.ts';
 import type { Expect } from '../src/expect.ts';
 import { ONE } from '../src/fx.ts';
+import { freeLink, loadBackend, physicsOf } from '../src/physics.ts';
 import type { Mods } from '../src/run.ts';
 import { parseScene } from '../src/scene.ts';
 import { hash, parseInput, step, tileRows } from '../src/sim.ts';
@@ -154,7 +155,10 @@ try {
     (await import(new URL(cfg.built ? m[1].replace(/\.ts$/, '.js') : m[1], GAME).href)).default(api);
   }
 
+  await loadBackend(physicsOf(sceneText), cfg.scene);
+
   const reset = (): void => {
+    if (world) freeLink(world);
     const s = parseScene(sceneText, cfg.scene);
     world = s.world;
     world.pre = mods.pre;

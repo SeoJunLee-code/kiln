@@ -6,7 +6,7 @@ import { ASSETS } from './build.ts';
 import { fileURLToPath } from 'node:url';
 
 const TYPES: Record<string, string> = {
-  html: 'text/html', js: 'text/javascript', json: 'application/json', svg: 'image/svg+xml',
+  html: 'text/html', js: 'text/javascript', mjs: 'text/javascript', json: 'application/json', svg: 'image/svg+xml',
   gltf: 'model/gltf+json', glb: 'model/gltf-binary', bin: 'application/octet-stream',
   png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif',
 };

@@ -70,6 +70,8 @@ input script that replays headless:
 kiln test SCENE --input FILE</pre>
   <pre id="error"></pre>
 </aside>
+<!-- The optional physics backend imports its engine by package name; this says where that file is. -->
+<script type="importmap">{ "imports": { "@dimforge/rapier3d-deterministic-compat": "./engine/backends/rapier/node_modules/@dimforge/rapier3d-deterministic-compat/dist/rapier.mjs" } }</script>
 <script type="module" src="engine/web/player.ts"></script>
 </body>
 </html>

@@ -1,4 +1,5 @@
 import { ONE, fdiv, isqrt, sinCos24, tickShare, wrapDeg } from './fx.ts';
+import { physicsHash, physicsStep } from './physics.ts';
 import { KilnFail, serialize, suggest } from './scene.ts';
 import type { Diag } from './scene.ts';
 import type { Comp, World } from './world.ts';
@@ -172,7 +173,7 @@ export function spinQuat(q: Comp, tx: number, ty: number, tz: number): void {
   q.x = Math.round((px * ONE) / len); q.y = Math.round((py * ONE) / len); q.z = Math.round((pz * ONE) / len); q.w = Math.round((pw * ONE) / len);
 }
 
-/** Advance one fixed tick. System order is fixed: input, ctrl, pace, scripts (pre), gravity, move, turn, triggers, scripts (post). */
+/** Advance one fixed tick. System order is fixed: input, ctrl, pace, scripts (pre), gravity, move, physics, turn, triggers, scripts (post). */
 export function step(w: World, script?: InputScript): void {
   for (const [action, down] of script?.get(w.tick) ?? []) {
     if (down) w.pressed.add(action);
@@ -212,6 +213,8 @@ export function step(w: World, script?: InputScript): void {
   const index = buildIndex(w, w.query('solid', 'pos', 'box'));
   const maps = w.query('tiles', 'pos');
   for (const id of w.query('pos', 'vel')) {
+    // A rigid body is moved by the physics backend, below.
+    if (w.physics && w.has(id, 'rigid')) continue;
     const p = w.get(id, 'pos')!, v = w.get(id, 'vel')!, b = w.get(id, 'box');
     const cur = [p.x as number, p.y as number, p.z as number];
     const d = [tickShare(v.x as number, k, w.hz), tickShare(v.y as number, k, w.hz), tickShare(v.z as number, k, w.hz)];
@@ -269,6 +272,8 @@ export function step(w: World, script?: InputScript): void {
     }
   }
 
+  if (w.physics) physicsStep(w);
+
   // Turning. An angle is added to exactly, like a position. A quaternion is multiplied by
   // this tick's small turn and then scaled back to unit length, all in fixed-point.
   for (const id of w.query('rot')) {
@@ -277,6 +282,7 @@ export function step(w: World, script?: InputScript): void {
   }
   for (const id of w.query('quat')) {
     const q = w.get(id, 'quat')!;
+    if (w.physics && w.has(id, 'rigid')) continue;
     if (q.sx || q.sy || q.sz) spinQuat(q, tickShare(q.sx as number, k, w.hz), tickShare(q.sy as number, k, w.hz), tickShare(q.sz as number, k, w.hz));
   }
 
@@ -306,9 +312,12 @@ export function step(w: World, script?: InputScript): void {
   for (const sys of w.post) sys(w);
 }
 
-/** FNV-1a hash of the full simulation state. Equal hash = identical state. */
+/**
+ * FNV-1a hash of the full simulation state. Equal hash = identical state. With a physics
+ * backend running, its exact state is hashed too: the scene text holds it only rounded.
+ */
 export function hash(w: World): string {
-  const s = serialize(w);
+  const s = serialize(w) + physicsHash(w);
   let h = 0x811c9dc5;
   for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
   return (h >>> 0).toString(16).padStart(8, '0');
