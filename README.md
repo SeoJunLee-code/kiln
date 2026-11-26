@@ -20,7 +20,7 @@ Kiln is a few days old. The long-term aim is an engine that agents can take from
 
 | Works today | Not yet |
 |---|---|
-| Text scenes, 11 built-in components, tile maps drawn as character grids | 3D, lighting, shaders |
+| Text scenes, 11 built-in components, levels drawn as character grids with prefabs | 3D, lighting, shaders |
 | Fixed-point simulation, swept box collision, triggers | Rotation, non-box shapes, joints |
 | `expect` checks with explanations on failure | Audio, animation, UI |
 | TypeScript scripts with a determinism check | Asset pipeline beyond single images |
@@ -70,16 +70,24 @@ expect event win by 300
 expect at 300 hero.body.grounded == 1
 ```
 
-Levels can be drawn as a grid, one character per cell (see [examples/cave.kiln](examples/cave.kiln)):
+Levels can be drawn as a grid, one character per cell. Characters named in `spawn` become entities built from a prefab (see [examples/dungeon.kiln](examples/dungeon.kiln)):
 
 ```
+prefab coin
+  box 0.5 0.5
+  tag coin
+  trigger hero coin despawn-self
+
 entity map
   pos 0 0
-  tiles
-    ############
-    #....#.....#
-    #.##.#.###.#
-    ############
+  tiles spawn=@:hero,o:coin,D:door
+    #########
+    #@..#..o#
+    #.#.#.#.#
+    #o#...#D#
+    #########
+
+expect gone #coin by 600
 ```
 
 Values are positional or `name=value`. `node src/cli.ts schema` prints the component reference in a compact form meant to be pasted into an agent's context.
@@ -150,7 +158,7 @@ One measurement so far: the maze example, with its play-through and checks, is 7
 ## Roadmap
 
 1. Connect a real agent over MCP and build a complete small game with it; fix what hurts.
-2. Animation, audio, tile triggers and legends, a WebGPU renderer.
+2. Animation, audio, a WebGPU renderer.
 3. Rotation and more collision shapes.
 4. 3D: meshes, PBR materials, a 3D scene format that stays readable.
 5. Export targets and networking built on the deterministic core (rollback, replays).

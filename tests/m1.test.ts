@@ -179,3 +179,11 @@ test('solve: an unreachable goal is reported with how far the search got', async
   const none = await command('solve', { scene: 'entity a\n  pos 0 0\nexpect at 5 a.pos.x == 0\n' });
   assert.match(none.text, /^fail nothing to solve/);
 });
+
+test('dungeon example: drawn entirely as a grid, and the engine can solve it', { timeout: 60000 }, async () => {
+  const solved = await command('solve', { file: ex('dungeon.kiln') });
+  assert.equal(solved.code, 0, solved.text);
+  const input = solved.text.trim().split('\n').slice(0, -1).join('\n') + '\n';
+  const replay = await command('test', { file: ex('dungeon.kiln'), input });
+  assert.equal(replay.code, 0, replay.text);
+});

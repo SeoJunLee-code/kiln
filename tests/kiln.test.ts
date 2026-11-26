@@ -221,3 +221,36 @@ test('cave example: solved by the recorded input, and the view shows the map', (
     '',
   ].join('\n'));
 });
+
+const dungeon = readFileSync(new URL('../examples/dungeon.kiln', import.meta.url), 'utf8');
+
+test('prefab: spawn characters become centred entities and the saved scene is plain', () => {
+  const s = parseScene(dungeon);
+  const w = s.world;
+  assert.deepEqual([...w.ids.keys()], ['map', 'hero', 'coin1', 'coin2', 'door', 'coin3']);
+  const p = w.get(w.ids.get('hero')!, 'pos')!;
+  // Centred in cell (1,1): the cell origin plus half of what the 0.8 box leaves free.
+  assert.deepEqual([p.x, p.y], [ONE + ((ONE - fx(0.8)) >> 1), ONE + ((ONE - fx(0.8)) >> 1)]);
+  assert.equal(w.get(0, 'tiles')!.spawn, '');
+  assert.doesNotMatch(w.get(0, 'tiles')!.rows as string, /[@oD]/);
+
+  const text = serialize(w, s.expects);
+  assert.doesNotMatch(text, /^prefab |spawn=/m);
+  const again = parseScene(text);
+  assert.equal(serialize(again.world, again.expects), text);
+  assert.equal(hash(again.world), hash(w));
+});
+
+test('prefab: mistakes are reported once, at the line that caused them', () => {
+  const scene = 'prefab coin\n  boxx 1 1\n  pos 0 0\nprefab coin\nentity map\n  pos 0 0\n  tiles spawn=o:coin,x:nope,bad\n    oo.x\n';
+  let fail: KilnFail | undefined;
+  try { parseScene(scene, 's'); } catch (e) { fail = e as KilnFail; }
+  assert.deepEqual(fail!.diags.map((d) => `${d.code}:${d.line}`), ['K109:3', 'K101:4', 'K110:7', 'K104:7', 'K102:2']);
+});
+
+test('scene: a default-empty string before a set field is saved by name', () => {
+  const w = parseScene('entity a\n  pos 0 0\n  sprite color=gold\n').world;
+  const text = serialize(w);
+  assert.match(text, /^  sprite color=gold$/m);
+  assert.equal(parseScene(text).world.get(0, 'sprite')!.color, 'gold');
+});

@@ -1,4 +1,5 @@
 cave.kiln tick=300 hash=bc9572e8 expects=pass
+dungeon.kiln tick=600 hash=2197ce4b expects=pass
 maze.kiln tick=240 hash=3015b961 expects=pass
 patrol.kiln tick=240 hash=54f1c06c expects=pass
 platformer.kiln tick=300 hash=a265b330 expects=pass

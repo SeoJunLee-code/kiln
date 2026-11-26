@@ -50,11 +50,18 @@ export function parseScene(text: string, file = 'scene'): Scene {
   const expects: RawExpect[] = [];
   const uses: string[] = [];
   const diags: Diag[] = [];
-  const err = (code: string, line: number, msg: string, hint?: string) => diags.push({ code, file, line, msg, hint });
+  const told = new Set<string>();
+  const err = (code: string, line: number, msg: string, hint?: string): void => {
+    const k = `${code}:${line}:${msg}`;
+    if (!told.has(k)) { told.add(k); diags.push({ code, file, line, msg, hint }); }
+  };
   let cur = -1;
+  // Prefabs: named component lists, instantiated by a tile map's `spawn` table.
+  const prefabs = new Map<string, { tok: string[]; line: number }[]>();
+  let curPrefab: string | null = null;
   // The tiles component whose rows are being read, and where each one was declared.
   let rowsOf: Comp | null = null;
-  const tileLines: [Comp, number][] = [];
+  const tileLines: [number, Comp, number][] = [];
 
   text.split(/\r?\n/).forEach((raw, i) => {
     const line = i + 1;
@@ -72,11 +79,18 @@ export function parseScene(text: string, file = 'scene'): Scene {
 
     if (!indented) {
       cur = -1;
+      curPrefab = null;
       if (tok[0] === 'entity') {
         const n = tok[1];
         if (tok.length !== 2 || !NAME.test(n)) return err('K100', line, `expected 'entity NAME' (letters, digits, _ or -)`);
         if (world.ids.has(n)) return err('K101', line, `duplicate entity '${n}'`);
         cur = world.spawn(n);
+      } else if (tok[0] === 'prefab') {
+        const n = tok[1];
+        if (tok.length !== 2 || !NAME.test(n)) return err('K100', line, `expected 'prefab NAME' (letters, digits, _ or -)`);
+        if (prefabs.has(n)) return err('K101', line, `duplicate prefab '${n}'`);
+        prefabs.set(n, []);
+        curPrefab = n;
       } else if (tok[0] === 'world') {
         for (const kv of tok.slice(1)) {
           const [k, v] = kv.split('=');
@@ -107,15 +121,24 @@ export function parseScene(text: string, file = 'scene'): Scene {
         expects.push({ line, text: tok.slice(1).join(' ') });
       } else {
         err('K108', line, `unknown directive '${tok[0]}'`,
-          registry.has(tok[0]) ? 'components must be indented under an entity' : suggest(tok[0], ['entity', 'world', 'expect', 'use', 'state']));
+          registry.has(tok[0]) ? 'components must be indented under an entity' : suggest(tok[0], ['entity', 'prefab', 'world', 'expect', 'use', 'state']));
       }
       return;
     }
 
+    if (curPrefab) {
+      if (tok[0] === 'pos') return err('K109', line, `a prefab cannot have 'pos'`, 'the tile cell that spawns it gives the position');
+      prefabs.get(curPrefab)!.push({ tok, line });
+      return;
+    }
     if (cur < 0) return err('K106', line, `component '${tok[0]}' is not under an entity`);
+    addComp(cur, tok, line);
+  });
+
+  function addComp(id: number, tok: string[], line: number): void {
     const def = registry.get(tok[0]);
     if (!def) return err('K102', line, `unknown component '${tok[0]}'`, suggest(tok[0], registry.keys()));
-    if (world.has(cur, def.name)) return err('K101', line, `duplicate component '${def.name}' on '${world.names[cur]}'`);
+    if (world.has(id, def.name)) return err('K101', line, `duplicate component '${def.name}' on '${world.names[id]}'`);
 
     const data: Comp = {};
     let n = 0, bad = false;
@@ -143,16 +166,53 @@ export function parseScene(text: string, file = 'scene'): Scene {
       else data[fd.name] = fd.def;
     }
     if (bad) return;
-    world.add(cur, def.name, data);
+    world.add(id, def.name, data);
     if (def.name === 'tiles') {
       data.rows = '';
       rowsOf = data;
-      tileLines.push([data, line]);
+      tileLines.push([id, data, line]);
     }
-  });
+  }
 
-  for (const [t, line] of tileLines) {
-    if (!t.rows) err('K105', line, `'tiles' has no rows`, 'put the rows under it, each indented 4 spaces');
+  for (const [mapId, t, line] of tileLines) {
+    if (!t.rows) { err('K105', line, `'tiles' has no rows`, 'put the rows under it, each indented 4 spaces'); continue; }
+    if (!t.spawn) continue;
+    // Replace spawn characters with entities built from prefabs. Afterwards the scene is
+    // plain entities, so saving and loading it does not spawn anything twice.
+    const table = new Map<string, string>();
+    for (const pair of (t.spawn as string).split(',')) {
+      const name = pair.slice(2);
+      if (pair[1] !== ':' || !name) err('K104', line, `spawn entry '${pair}' must be CHAR:PREFAB`, 'e.g. spawn=o:coin,@:hero');
+      else if (!prefabs.has(name)) err('K110', line, `unknown prefab '${name}'`, suggest(name, prefabs.keys()) ?? `define it with a top-level 'prefab ${name}' block`);
+      else table.set(pair[0], name);
+    }
+    const mp = world.get(mapId, 'pos');
+    if (!mp) { err('K105', line, `'tiles' with spawn needs 'pos' on the same entity`); continue; }
+    const rows = (t.rows as string).split('\n'), size = t.size as number;
+    const total = new Map<string, number>(), seq = new Map<string, number>();
+    for (const row of rows) for (const ch of row) {
+      const name = table.get(ch);
+      if (name) total.set(name, (total.get(name) ?? 0) + 1);
+    }
+    t.rows = rows.map((row, r) => [...row].map((ch, c) => {
+      const name = table.get(ch);
+      if (!name) return ch;
+      const k = (seq.get(name) ?? 0) + 1;
+      seq.set(name, k);
+      // A prefab used once keeps its plain name, so other entities can refer to it directly.
+      const ename = total.get(name) === 1 ? name : `${name}${k}`;
+      if (world.ids.has(ename)) { err('K101', line, `spawned entity '${ename}' duplicates an existing entity`); return '.'; }
+      const id = world.spawn(ename);
+      for (const l of prefabs.get(name)!) addComp(id, l.tok, l.line);
+      const b = world.get(id, 'box');
+      // Centred in its cell when it has a box.
+      world.add(id, 'pos', {
+        x: (mp.x as number) + c * size + (b ? (size - (b.w as number)) >> 1 : 0),
+        y: (mp.y as number) + r * size + (b ? (size - (b.h as number)) >> 1 : 0),
+      });
+      return '.';
+    }).join('')).join('\n');
+    t.spawn = '';
   }
   if (diags.length) throw new KilnFail(diags);
   return { world, expects, uses };
@@ -171,7 +231,13 @@ export function serialize(w: World, expects: RawExpect[] = [], uses: string[] = 
       const vals = def.fields.map((fd) => (fd.type === 'fx' ? fmtFx(c[fd.name] as number) : String(c[fd.name])));
       let end = vals.length;
       while (end > 0 && def.fields[end - 1].def !== undefined && c[def.fields[end - 1].name] === def.fields[end - 1].def) end--;
-      out.push(`  ${[def.name, ...vals.slice(0, end)].join(' ')}`);
+      // Positional until the first empty string, then name=value for what is not default.
+      const gap = vals.findIndex((v, i) => i < end && v === '');
+      const parts = gap < 0 ? vals.slice(0, end) : [
+        ...vals.slice(0, gap),
+        ...def.fields.slice(gap, end).filter((fd) => c[fd.name] !== fd.def).map((fd) => `${fd.name}=${vals[def.fields.indexOf(fd)]}`),
+      ];
+      out.push(`  ${[def.name, ...parts].join(' ')}`);
       if (def.name === 'tiles') for (const r of (c.rows as string).split('\n')) out.push(`    ${r}`);
     }
   });
