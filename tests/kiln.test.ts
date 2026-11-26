@@ -350,3 +350,8 @@ test('ride: a body standing on a moving solid goes with it, and stays put when i
   assert.equal(turned[2], 'lift');
   assert.ok(Math.abs(Number(turned[0]) - Number(turned[1]) - 0.5) < 0.1, `after the turn: rider ${turned[0]} lift ${turned[1]}`);
 });
+
+test('view: an entity that covers no cell centre is still shown', () => {
+  const w = parseScene('entity floor\n  pos 0 1\n  box 4 1\n  solid\nentity bug\n  pos 1.6 0.1\n  box 0.8 0.8\n  vel\n  sprite @\n').world;
+  assert.equal(view(w), 'origin 0,0\n..@.\n####\n');
+});

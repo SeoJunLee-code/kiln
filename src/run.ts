@@ -64,9 +64,16 @@ export function view(w: World, plane: 'xy' | 'xz' = 'xy', maxW = 100, maxH = 50)
     const p = w.get(id, 'pos')!, b = w.get(id, 'box')!;
     const ch = (w.get(id, 'sprite')?.glyph as string) || (w.has(id, 'solid') ? '#' : w.names[id]![0]);
     // A cell is drawn when the entity covers its centre.
+    let drawn = false;
     for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
       const cx = (x0 + x) * ONE + ONE / 2, cy = (y0 + y) * ONE + ONE / 2;
-      if (cx >= (p.x as number) && cx < (p.x as number) + (b.w as number) && cy >= (p[V] as number) && cy < (p[V] as number) + (b[H] as number)) grid[y][x] = ch[0];
+      if (cx >= (p.x as number) && cx < (p.x as number) + (b.w as number) && cy >= (p[V] as number) && cy < (p[V] as number) + (b[H] as number)) { grid[y][x] = ch[0]; drawn = true; }
+    }
+    // Something small sitting between cell centres would otherwise vanish from the picture:
+    // put it in the cell its own centre is in.
+    if (!drawn) {
+      const x = Math.floor(((p.x as number) + (b.w as number) / 2) / ONE) - x0, y = Math.floor(((p[V] as number) + (b[H] as number) / 2) / ONE) - y0;
+      if (x >= 0 && x < cols && y >= 0 && y < rows) grid[y][x] = ch[0];
     }
   }
   return `origin ${x0},${y0}\n${grid.map((r) => r.join('')).join('\n')}\n`;

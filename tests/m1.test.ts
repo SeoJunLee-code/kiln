@@ -339,3 +339,13 @@ test('lift example: the gap is too wide to jump, so solve rides the lift across'
   const noLift = read(ex('lift.kiln'), 'utf8').replace(/entity lift[\s\S]*?(?=\nentity )/, '');
   assert.equal((await command('solve', { scene: noLift, file: ex('lift.kiln') })).code, 1);
 });
+
+test('quest example: key, door and a sweeping guard together, solved without being hit', { timeout: 90000 }, async () => {
+  const solved = await command('solve', { file: ex('quest.kiln') });
+  assert.equal(solved.code, 0, solved.text);
+  const input = solved.text.trim().split('\n').slice(0, -1).join('\n') + '\n';
+  const replay = await command('test', { file: ex('quest.kiln'), input, events: true, view: true });
+  assert.equal(replay.code, 0, replay.text);
+  assert.deepEqual([...replay.text.matchAll(/^event \d+ (\w+)/gm)].map((m) => m[1]), ['key', 'win']);
+  assert.match(replay.text, /@/, 'the hero is visible in the final picture');
+});

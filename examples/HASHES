@@ -6,5 +6,6 @@ lift.kiln tick=900 hash=c818a260 expects=pass
 maze.kiln tick=240 hash=3015b961 expects=pass
 patrol.kiln tick=240 hash=54f1c06c expects=pass
 platformer.kiln tick=300 hash=3777b941 expects=pass
+quest.kiln tick=1800 hash=7e76f34d expects=pass
 sokoban.kiln tick=1200 hash=6bca2c72 expects=pass
 vault.kiln tick=900 hash=789cf99b expects=pass

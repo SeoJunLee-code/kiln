@@ -41,14 +41,15 @@ AI 에이전트가 1급 사용자인 오픈소스 게임 엔진. 사용자의 �
 
 검증 (2026-11-26):
 
-- `npm test` → 56개 통과.
+- `npm test` → 58개 통과.
+- 통합 예제 `quest.kiln`(열쇠·문·복도를 쓸고 다니는 적): `solve` 1.26초·12,308상태, 열쇠 194틱 → 출구 372틱, 접촉 없음.
 - 예제 9개 전부 `solve`로 풀린다(상태 수: arena3d 4,497, cave 908, dungeon 767, gauntlet 549, maze 133, patrol 195, platformer 2,365, sokoban 3,000, vault 3,039).
 - 속도(`node bench/perf.ts`, Windows 노트북 1대, 1회): 격자 색인 도입 전후로 100×100은 0.58→0.09ms/틱, 1000×100은 5.7→0.46ms, 1000×1000은 81→0.74ms. 도입 후 5000×1000은 2.8ms, 10000×5000은 7.3ms. 세 경우 모두 전후 최종 해시가 같았다(0c156764, c7a0fa02, 77dbacf8).
 - 브라우저(프리뷰 `kiln`, `?scene=arena3d.kiln`): OBJ 메시 두 개(gem.obj, spire.obj)가 그림자와 함께 그려지는 것을 스크린샷으로 확인(`docs/arena3d.jpg`).
 - 라이브 데모(https://seojunlee-code.github.io/kiln/)를 브라우저로 열어 확인: 3D 장면이 뜨고, 장면 메뉴에 예제가 나열되고, 초기 상태 해시가 헤드리스와 같았다(2d32ac16).
 - `solve` 측정(Windows 노트북 1대, 1회, 프로세스 시작 포함): cave 0.26초·908상태, maze 0.20초·133상태, patrol 0.20초·195상태, platformer 0.54초·2,365상태, dungeon 0.29초·767상태, arena3d 0.82초·4,497상태. 여섯 개 모두 답이 재생 검증을 통과했다. 우선순위 탐색 이전(너비 우선)에는 patrol 6.6초·119,454상태, platformer 6.8초·69,214상태였고 arena3d는 20만 상태 한도에서 실패했다.
 - 브라우저(프리뷰 `kiln`, `?scene=arena3d.kiln`): WebGL2로 바닥·벽·발판·주인공·보석·출구가 조명과 함께 그려지는 것을 스크린샷으로 확인. 2D 캔버스는 숨겨진다.
-- `node scripts/hashes.ts --check` → 예제 10개(arena3d, cave, dungeon, gauntlet, lift, maze, patrol, platformer, sokoban, vault) 해시가 `examples/HASHES`와 일치.
+- `node scripts/hashes.ts --check` → 예제 11개(arena3d, cave, dungeon, gauntlet, lift, maze, patrol, platformer, quest, sokoban, vault) 해시가 `examples/HASHES`와 일치.
 - GitHub Actions에서 ubuntu·macos·windows 세 작업 모두 성공. 세 OS에서 예제 해시가 같다.
 - 브라우저(프리뷰 `kiln`): platformer를 합성 키 이벤트로 플레이해 300틱 해시가 헤드리스와 같은 a265b330. 카메라 추적과 SVG 스프라이트가 그려지는 것을 스크린샷으로 확인.
 - `node bench/size.ts` → maze 기준 Kiln 729자, Godot 4,937자(6.8배). Godot 파일은 Godot에서 실행해 보지 않았고 토큰은 문자 수/4 추정이다.

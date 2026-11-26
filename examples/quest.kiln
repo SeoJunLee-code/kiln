@@ -1,0 +1,42 @@
+# Several features in one level: fetch the key (it opens the door), then get through a
+# corridor a guard sweeps end to end, using the side alcoves to let it pass.
+world hz=60
+
+prefab hero
+  box 0.8 0.8
+  vel
+  ctrl 4
+  sprite @
+prefab key
+  box 0.5 0.5
+  trigger hero key despawn-self+despawn:door
+  sprite k gold
+prefab door
+  box 1 1
+  solid
+  sprite D sienna
+prefab foe
+  box 0.8 0.8
+  vel
+  pace x 1.1 13.1 3
+  trigger hero hit despawn-other
+  sprite v crimson
+prefab exit
+  box 0.8 0.8
+  trigger hero win
+  sprite E limegreen
+
+entity map
+  pos 0 0
+  tiles spawn=@:hero,k:key,D:door,v:foe,E:exit
+    ###############
+    #@....#...k...#
+    #.###.#.#####.#
+    #...#...#...#.#
+    ###.#####.#.#.#
+    #....v........#
+    #.#########D###
+    #.........#.E.#
+    ###############
+
+expect event win by 1800
