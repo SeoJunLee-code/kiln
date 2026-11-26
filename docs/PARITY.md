@@ -37,8 +37,8 @@ Neither engine was built for this; these rows are why Kiln exists.
 |---|---|---|
 | Scene as plain text, round-trips exactly | **gated** | tests |
 | Every error at once, with codes and hints | **gated** | tests |
-| Headless run with the same result as the browser | **gated** | all 17 examples replay in a browser to the headless hash, on 3 OSes |
-| `solve`: the engine finds the input that wins a level | **gated** | tests on 14 examples |
+| Headless run with the same result as the browser | **gated** | all 18 examples replay in a browser to the headless hash, on 3 OSes |
+| `solve`: the engine finds the input that wins a level | **gated** | tests, including a level won by pushing a rigid body |
 | `check` warns about parts that silently do nothing | **gated** | tests |
 | One-call guide for an agent, kept small | **gated** | size budget in tests |
 | MCP server | **gated** (protocol) | JSON-RPC test; no real client run yet |
@@ -53,7 +53,7 @@ Neither engine was built for this; these rows are why Kiln exists.
 | Box collision, swept movement | yes | **gated** | tests, hashes |
 | Rotation | yes | **gated** (drawn only) | angle is hashed state on 3 OSes; reference image (`windmill`). Collision ignores it |
 | Circle and polygon collision | yes | none | |
-| Rigid bodies, joints | yes | none | |
+| Rigid bodies, joints | yes | none in 2D (3D backend only); no joints | |
 | Sprite animation | yes | none | |
 | Per-tile color and image | yes | none | |
 | Particles | yes | none | |
@@ -83,7 +83,7 @@ Neither engine was built for this; these rows are why Kiln exists.
 | Feature | Godot | Unreal | Kiln | Check |
 |---|---|---|---|---|
 | Deterministic across OSes | no | no | **gated** | hashes on 3 OSes |
-| 3D rigid bodies, convex shapes | yes | yes | none | feasibility: `spikes/physics` |
+| 3D rigid bodies, convex shapes | yes | yes | **gated** (boxes and balls, Rapier backend) | pinned state hash and example hash on 3 OSes; browser replay equals headless; save and restore continue exactly; `solve` through physics; WebGPU reference image (`tumble3d`). No joints, no other shapes; bodies do not block the character |
 | Navigation | yes | yes | none (`pace` only) | |
 | World streaming | no | yes | none | |
 | Networking | yes | yes | none | |

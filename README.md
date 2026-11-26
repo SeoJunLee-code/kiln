@@ -22,15 +22,18 @@ Game engines assume a human looking at an editor window. An agent using them pay
 
 ## Where it stands
 
-Kiln is a few days old. The long-term aim is an engine that agents can take from prototype to a shipped, good-looking game — the role Unreal and Godot play for human teams. Today it is a small core for box-shaped worlds, in 2D and (as a first step) 3D.
+Kiln is a few days old. The long-term aim is an engine that agents can take from prototype to a shipped, good-looking game — the role Unreal and Godot play for human teams. Today it is a small core: box-shaped worlds in 2D and 3D, with first steps into models, materials and rigid bodies.
 
 | Works today | Not yet |
 |---|---|
-| Text scenes, 17 built-in components, levels drawn as character grids with prefabs | Textures, materials, skeletal animation, shaders |
-| Fixed-point simulation on x, y and z; swept box collision; triggers that emit events and remove things (keys, doors, pickups); pacing guards; pushable crates; moving platforms that carry what stands on them | Rotation, non-box shapes, joints |
+| Text scenes, 18 built-in components, levels drawn as character grids with prefabs | Skeletal animation, custom shaders, more than one light |
+| Fixed-point simulation on x, y and z; swept box collision; triggers that emit events and remove things (keys, doors, pickups); pacing guards; pushable crates; moving platforms that carry what stands on them | Collision that follows rotation, joints |
+| Rotation as fixed-point state: an angle (`rot`) or a quaternion (`quat`), drawn in 2D and by WebGPU | Parent-child transforms |
+| Rigid bodies (boxes and balls) through an optional backend, Rapier's deterministic build: same hash on Linux, macOS and Windows, and `solve` searches through them | Rigid bodies that block the character; other shapes |
 | `expect` checks with explanations on failure | Animation, UI widgets |
 | TypeScript scripts with a determinism check | Asset pipeline beyond single images |
 | Browser player: Canvas 2D, and lit, shadowed boxes and OBJ meshes for 3D scenes, drawn with WebGPU (WebGL2 where the browser has none) | Images in 3D |
+| glTF 2.0 models (.glb, .gltf) with metallic-roughness materials and textures, on WebGPU | glTF animation and skins; files from other exporters are untested; environment lighting |
 | `look`: the scene drawn in a headless browser, returned to the agent as a picture | |
 | Several levels (a trigger loads the next scene), text labels, a tone per event | Music, sound files, menus |
 | `solve`: automatic search for a winning input |  |
@@ -41,7 +44,7 @@ No human has play-tested it yet, and the MCP server has only been exercised by i
 
 ## Try it
 
-Needs Node 24 or newer. No dependencies, no build step.
+Needs Node 24 or newer. No dependencies, no build step. (Rigid-body scenes need one optional package: `npm ci --prefix backends/rapier`.)
 
 ```
 git clone https://github.com/SeoJunLee-code/kiln
@@ -201,7 +204,21 @@ entity map
 
 `--top` prints the same picture back as text, so an agent can check a 3D level without a screenshot.
 
-`y` grows downward, so things above the floor have negative `y`. A sprite can name an OBJ file (`sprite color=gold mesh=gem.obj`); OBJ is text, so an agent can write one. The mesh is drawn fitted to the entity's box, while collision stays the box. One sun with shadows; no textures or materials yet.
+`y` grows downward, so things above the floor have negative `y`. A sprite can name an OBJ file (`sprite color=gold mesh=gem.obj`); OBJ is text, so an agent can write one. The mesh is drawn fitted to the entity's box, while collision stays the box. One sun with shadows.
+
+A sprite can also name a glTF model (`mesh=crate.glb`, or a `.gltf` with its `.bin` and images beside it). WebGPU draws it with its metallic-roughness materials and textures ([examples/gallery3d.kiln](examples/gallery3d.kiln)); `check` reports anything in the file that would not be drawn. `rot 25 axis=y` turns an entity about one axis and `quat` holds a full orientation; both are simulation state, in fixed-point, and both can spin ([examples/orrery3d.kiln](examples/orrery3d.kiln)).
+
+Rigid bodies come from a physics backend. `world ... physics=rapier` turns it on and `rigid` marks a body; the character pushes bodies, and `solve` finds the push that wins ([examples/tumble3d.kiln](examples/tumble3d.kiln)):
+
+```
+world hz=60 gravity=0,30 physics=rapier
+
+entity ball
+  pos 3.5 -0.8 4
+  box 0.8 0.8 0.8
+  rigid ball bounce=0.3
+  sprite color=tomato mesh=ball.glb
+```
 
 ## Scripts
 
@@ -245,11 +262,10 @@ same scene, same settings, same machine; average FPS, 1% low and GPU frame time.
 
 Next:
 
-1. Rotation, glTF import, PBR materials and textures on the WebGPU renderer.
-2. Rigid bodies through an existing deterministic physics engine, behind a backend interface.
-3. Sprite animation, per-tile art, audio, UI.
-4. Connect a real agent over MCP and build a complete small game with it; measure the tokens.
-5. Export targets and networking built on the deterministic core (rollback, replays).
+1. Finish what just landed: glTF files from other tools, animation and skins, environment lighting; rigid bodies that block the character, more shapes, joints.
+2. Sprite animation, per-tile art, audio, UI.
+3. Connect a real agent over MCP and build a complete small game with it; measure the tokens.
+4. Export targets and networking built on the deterministic core (rollback, replays).
 
 ## Safety
 
