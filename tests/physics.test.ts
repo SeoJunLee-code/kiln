@@ -225,6 +225,67 @@ test('physics: a script kicks a body by giving it an impulse', { skip }, () => {
   freeLink(w);
 });
 
+test('physics: a script puts a body somewhere, sets its speed, turn and spin; what it leaves alone stays exact', { skip }, () => {
+  const scene = `world gravity=0,30 physics=rapier\n${FLOOR}entity ball\n  pos 0 -1 0\n  box 1 1 1\n  rigid ball\nentity crate\n  pos 4 -1 0\n  box 1 1 1\n  rigid\n`;
+  const set = (x: World, name: string, comp: string, data: Record<string, number>): void => void Object.assign(x.get(x.ids.get(name)!, comp)!, data);
+  const move = (x: World): void => {
+    if (x.tick === 30) set(x, 'ball', 'pos', { x: 6 * ONE, y: -5 * ONE });   // lifted and moved: it falls again, over there
+    if (x.tick === 31) set(x, 'crate', 'vel', { z: 3 * ONE });               // sent sliding
+    if (x.tick === 32) set(x, 'crate', 'quat', { sy: 720 * ONE });           // set spinning
+  };
+  const w = run(scene, { ticks: 30, mods: { pre: [move], post: [] } }).world;
+  step(w);
+  assert.ok(Math.abs(at(w, 'ball', 'pos', 'x') - 6) < 0.001 && Math.abs(at(w, 'ball', 'pos', 'y') - -5) < 0.02, `ball at ${at(w, 'ball', 'pos', 'x')}, ${at(w, 'ball', 'pos', 'y')}`);
+  step(w);
+  // One tick of floor friction (0.5 x gravity 30 / 60) is already off it.
+  assert.ok(Math.abs(at(w, 'crate', 'vel', 'z') - 2.75) < 0.01, `crate speed ${at(w, 'crate', 'vel', 'z')}`);
+  const z1 = at(w, 'crate', 'pos', 'z');
+  step(w);
+  assert.ok(at(w, 'crate', 'pos', 'z') > z1 + 0.03, 'the crate should be sliding');
+  // Floor friction takes about 60 degrees/second off a flat 1x1 box each tick.
+  assert.ok(at(w, 'crate', 'quat', 'sy') > 600 && at(w, 'crate', 'quat', 'sy') < 720, `crate spin ${at(w, 'crate', 'quat', 'sy')}`);
+  for (let t = 33; t < 120; t++) step(w);
+  // The ball came down where it was put, and the crate turned.
+  assert.ok(Math.abs(at(w, 'ball', 'pos', 'x') - 6) < 0.05 && Math.abs(at(w, 'ball', 'pos', 'y') - -1) < 0.02, `ball ended at ${at(w, 'ball', 'pos', 'x')}, ${at(w, 'ball', 'pos', 'y')}`);
+  assert.ok(Math.abs(at(w, 'crate', 'quat', 'w')) < 0.999, 'the crate should have turned');
+
+  // A turn given as a quaternion of any length is taken as its direction.
+  const turned = run(scene, { ticks: 5, mods: { pre: [(x) => { if (x.tick === 3) set(x, 'crate', 'quat', { y: 2 * ONE, w: 2 * ONE }); }], post: [] } }).world;
+  assert.ok(Math.abs(at(turned, 'crate', 'quat', 'y') - Math.SQRT1_2) < 0.01 && Math.abs(at(turned, 'crate', 'quat', 'w') - Math.SQRT1_2) < 0.01, `quat ${at(turned, 'crate', 'quat', 'y')}, ${at(turned, 'crate', 'quat', 'w')}`);
+
+  // A script that only reads, or writes back what is there, changes nothing: the mirror is rounded, the body is not.
+  const plain = run(scene, { ticks: 120 }).world;
+  const echo = run(scene, { ticks: 120, mods: { pre: [(x) => { for (const id of x.query('rigid')) for (const c of ['pos', 'vel', 'quat']) if (x.has(id, c)) Object.assign(x.get(id, c)!, { ...x.get(id, c)! }); }], post: [] } }).world;
+  assert.equal(hash(echo), hash(plain));
+  assert.notEqual(hash(w), hash(plain));
+  for (const x of [w, turned, plain, echo]) freeLink(x);
+});
+
+test('physics: a body put in the character\'s way stops it on that very tick, and a saved state continues through it', { skip }, () => {
+  const scene = `${WALK}entity crate\n  pos 6 -1 -3\n  box 1 1 1\n  rigid density=256\n`;
+  // On tick 30 the heavy crate appears 0.03 in front of the walker, who covers 0.067 a tick.
+  const drop = (x: World): void => {
+    if (x.tick !== 30) return;
+    const p = x.get(x.ids.get('walker')!, 'pos')!;
+    Object.assign(x.get(x.ids.get('crate')!, 'pos')!, { x: (p.x as number) + Math.round(0.83 * ONE), z: (p.z as number) - Math.round(0.1 * ONE) });
+  };
+  const gap = (x: World): number => at(x, 'crate', 'pos', 'x') - (at(x, 'walker', 'pos', 'x') + 0.8);
+  const w = parseScene(scene).world;
+  w.pre.push(drop);
+  for (let t = 0; t < 30; t++) step(w, HOLD_RIGHT);
+  const copy = cloneWorld(w), saved = saveLink(w);
+  copy.pre.push(drop);
+  const before = at(w, 'walker', 'pos', 'x');
+  step(w, HOLD_RIGHT);
+  assert.ok(gap(w) >= 0 && gap(w) < 0.04, `gap right after the crate appeared: ${gap(w)}`);
+  assert.ok(at(w, 'walker', 'pos', 'x') - before < 0.03, 'the walker should have been stopped short');
+  for (let t = 31; t < 90; t++) { step(w, HOLD_RIGHT); assert.ok(gap(w) >= 0, `tick ${t}: the walker is ${-gap(w)} inside the crate`); }
+  restoreLink(copy, saved);
+  for (let t = 30; t < 90; t++) step(copy, HOLD_RIGHT);
+  assert.equal(hash(copy), hash(w));
+  for (const x of [w, copy]) freeLink(x);
+});
+
 test('physics: a saved state continues exactly while the character is pushing', { skip }, () => {
   const scene = `${WALK}entity crate\n  pos 1 -1 0\n  box 1 1 1\n  rigid\nentity ball\n  pos 3 -0.8 0.2\n  box 0.8 0.8 0.8\n  rigid ball bounce=0.4\n`;
   const w = parseScene(scene).world;

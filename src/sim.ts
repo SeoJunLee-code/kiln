@@ -208,6 +208,8 @@ export function step(w: World, script?: InputScript): void {
   for (const sys of w.pre) sys(w);
 
   for (const id of w.query('body', 'vel')) {
+    // The backend gives a rigid body its gravity; adding it here too would read as a script changing its speed.
+    if (w.physics && w.has(id, 'rigid')) continue;
     const v = w.get(id, 'vel')!;
     v.x = ((v.x as number) + tickShare(w.gx, k, w.hz)) | 0;
     v.y = ((v.y as number) + tickShare(w.gy, k, w.hz)) | 0;

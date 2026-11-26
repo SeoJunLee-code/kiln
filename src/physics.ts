@@ -39,6 +39,11 @@ export interface BackendWorld {
   cast(half: number[], at: number[], dir: number[], max: number): { dist: number; key: number } | null;
   /** Change a dynamic body's motion by an impulse through its centre of mass. */
   push(key: number, impulse: number[]): void;
+  /**
+   * Put a dynamic body somewhere, turn it, or change its speed or spin, at once; null leaves
+   * that part exactly as it is. `cast` has to see the body in its new place straight away.
+   */
+  place(key: number, at: number[] | null, rot: number[] | null, vel: number[] | null, spin: number[] | null): void;
   mass(key: number): number;
   step(): void;
   /** Centre (3), orientation (4), velocity (3), spin (3) of a body, written into `out`. */
@@ -131,6 +136,28 @@ export function physicsSync(w: World): void {
   // Bodies follow entities: gone or changed ones leave, new ones enter, always in id order.
   for (const [id, kind] of kinds) {
     if (w.names[id] == null || !w.has(id, 'pos') || !w.has(id, 'box') || kindOf(w, id) !== kind) { world.removeBody(id); kinds.delete(id); }
+  }
+  // A rigid body's components mirror the backend. Where one no longer says what the backend
+  // says, something (a script, usually) wrote to it since the last step, and the body follows:
+  // that is how a body is put somewhere or given a speed. Parts nobody wrote keep their exact value.
+  for (const [id, kind] of kinds) {
+    if (kind !== 'dynamic') continue;
+    world.read(id, out);
+    const p = w.get(id, 'pos')!, b = w.get(id, 'box')!, q = w.get(id, 'quat'), v = w.get(id, 'vel');
+    const hw = (b.w as number) >> 1, hh = (b.h as number) >> 1, hd = (b.d as number) >> 1;
+    const at = p.x !== ((toFx(out[0]) - hw) | 0) || p.y !== ((toFx(out[1]) - hh) | 0) || p.z !== ((toFx(out[2]) - hd) | 0)
+      ? [((p.x as number) + hw) / ONE, ((p.y as number) + hh) / ONE, ((p.z as number) + hd) / ONE] : null;
+    let rot: number[] | null = null, spin: number[] | null = null;
+    if (q) {
+      if (q.x !== toFx(out[3]) || q.y !== toFx(out[4]) || q.z !== toFx(out[5]) || q.w !== toFx(out[6])) {
+        const n = Math.hypot(num(q, 'x'), num(q, 'y'), num(q, 'z'), num(q, 'w'));
+        // A quaternion of length 0 is no direction at all: the body keeps the turn it has.
+        if (n > 0) rot = [num(q, 'x') / n, num(q, 'y') / n, num(q, 'z') / n, num(q, 'w') / n];
+      }
+      if (q.sx !== toFx(out[10] / DEG) || q.sy !== toFx(out[11] / DEG) || q.sz !== toFx(out[12] / DEG)) spin = [num(q, 'sx') * DEG, num(q, 'sy') * DEG, num(q, 'sz') * DEG];
+    }
+    const vel = v && (v.x !== toFx(out[7]) || v.y !== toFx(out[8]) || v.z !== toFx(out[9])) ? [num(v, 'x'), num(v, 'y'), num(v, 'z')] : null;
+    if (at || rot || vel || spin) world.place(id, at, rot, vel, spin);
   }
   for (const id of w.query('pos', 'box')) {
     const kind = kindOf(w, id);

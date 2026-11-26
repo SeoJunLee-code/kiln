@@ -65,6 +65,19 @@ function wrap(world: any, handles: Map<number, number>, fresh: Set<number>): Bac
     push(key: number, impulse: number[]): void {
       body(key).applyImpulse({ x: impulse[0], y: impulse[1], z: impulse[2] }, true);
     },
+    place(key: number, at: number[] | null, rot: number[] | null, vel: number[] | null, spin: number[] | null): void {
+      const b = body(key);
+      if (at) b.setTranslation({ x: at[0], y: at[1], z: at[2] }, true);
+      if (rot) b.setRotation({ x: rot[0], y: rot[1], z: rot[2], w: rot[3] }, true);
+      if (vel) b.setLinvel({ x: vel[0], y: vel[1], z: vel[2] }, true);
+      if (spin) b.setAngvel({ x: spin[0], y: spin[1], z: spin[2] }, true);
+      if (at || rot) {
+        // Until the next step the scene queries look for the body where it was. Moving its
+        // collider now and asking it directly (as for a new body) makes a cast see it here.
+        world.propagateModifiedBodyPositionsToColliders();
+        fresh.add(key);
+      }
+    },
     mass(key: number): number { return body(key).mass(); },
     moveKinematic(key: number, at: number[]): void {
       body(key).setNextKinematicTranslation({ x: at[0], y: at[1], z: at[2] });

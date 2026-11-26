@@ -13,9 +13,10 @@ export const TOPICS: Record<string, { about: string; text: string }> = {
 solid entities and solid tiles are fixed colliders. Movers (pos+vel+box, such as the ctrl
 character) stop at a body, shove it by their weight, and can stand and ride on it.
 A body does not move a mover: a rolling ball stops against the character.
-The engine owns pos, vel and quat of a rigid: a script that writes them is overwritten on
-the next tick. To move a body, add impulse or force: w.add(id, 'impulse', { x, y, z }).
-Both act through the centre of mass (no turning force). 3D only.
+pos, vel and quat of a rigid show where the backend has it, rounded. A script moves a body
+by writing them: pos puts it somewhere, vel sets its speed, quat x y z w its turn, sx sy sz
+its spin. What the script does not write keeps its exact value. Or add a push:
+w.add(id, 'impulse', { x, y, z }), through the centre of mass (no turning force). 3D only.
 Saving a running physics scene as text and loading it does not continue exactly; run it
 from the start with the same input instead.`,
   },
