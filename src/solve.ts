@@ -8,7 +8,7 @@ import type { Mods } from './run.ts';
 import { parseScene } from './scene.ts';
 import { freeLink, restoreLink, saveLink } from './physics.ts';
 import type { SavedLink } from './physics.ts';
-import { step } from './sim.ts';
+import { step, tileRows } from './sim.ts';
 import { World, registry } from './world.ts';
 
 /** Independent copy of a world. Script systems are shared, so scripts must keep their state in components. */
@@ -52,7 +52,8 @@ const GOALS = ['reach', 'gone', 'event'];
 
 /**
  * Search for an input script that satisfies every reach/gone/event expectation without
- * breaking a `never`. `at` and `count` expectations are not searched for (they are checked by `test`).
+ * breaking a `never` or a `count NAME == 0 at N`. Other `at` and `count` expectations are not
+ * searched for (they are checked by `test`).
  *   stepTicks  how long each key choice is held (smaller = finer control, larger search)
  *   maxStates  give up after this many distinct states
  *   physicsCache  bytes of physics snapshots to keep (physics scenes only)
@@ -60,7 +61,11 @@ const GOALS = ['reach', 'gone', 'event'];
 export function solve(sceneText: string, opts: { file?: string; mods?: Mods; stepTicks?: number; maxStates?: number; physicsCache?: number } = {}): SolveResult {
   const { world, expects: raw } = parseScene(sceneText, opts.file);
   if (opts.mods) { world.pre = opts.mods.pre; world.post = opts.mods.post; }
-  const expects = parseExpects(raw, world, opts.file).filter((e) => e.kind !== 'at' && e.kind !== 'count');
+  const parsed = parseExpects(raw, world, opts.file);
+  const expects = parsed.filter((e) => e.kind !== 'at' && e.kind !== 'count');
+  // `count NAME == 0 at N` says an event must not happen up to tick N. The search treats it like
+  // `never`: a run that emits NAME by then is dropped.
+  const forbidden = parsed.filter((e) => e.kind === 'count' && ((e.val === 0 && (e.op === '==' || e.op === '<=')) || (e.val === 1 && e.op === '<')));
   const goals = expects.filter((e) => GOALS.includes(e.kind)).length;
   const stepTicks = opts.stepTicks ?? 5, maxStates = opts.maxStates ?? 200000;
   const fail = (note: string, tick = 0, states = 0): SolveResult => ({ ok: false, input: '', tick, states, note });
@@ -107,24 +112,90 @@ export function solve(sceneText: string, opts: { file?: string; mods?: Mods; ste
     }
     return m;
   };
+  // Distance along the way round the walls, for top-down scenes on a tile grid. A straight line
+  // points through walls, and through a door that is still closed. Cells are the cells of the
+  // first map; walls are its solid tiles plus every solid thing that cannot move. The field for a
+  // cell is found once per set of such things (a door that is removed changes the set).
+  const map = jumper || ground ? undefined : world.query('tiles', 'pos').find((id) => world.get(id, 'tiles')!.plane === 'xy');
+  const grid = map === undefined ? null : (() => {
+    const tl = world.get(map, 'tiles')!, p = world.get(map, 'pos')!, rows = tileRows(tl);
+    return { x: p.x as number, y: p.y as number, size: tl.size as number, rows, solid: tl.solid as string, w: Math.max(...rows.map((r) => r.length)), h: rows.length };
+  })();
+  const fields = new Map<string, Int32Array | null>();
+  const cellOf = (w: World, id: number): number => {
+    const p = w.get(id, 'pos'), b = w.get(id, 'box');
+    if (!grid || !p || !b) return -1;
+    const cx = Math.floor(((p.x as number) + ((b.w as number) >> 1) - grid.x) / grid.size), cy = Math.floor(((p.y as number) + ((b.h as number) >> 1) - grid.y) / grid.size);
+    return cx < 0 || cy < 0 || cx >= grid.w || cy >= grid.h ? -1 : cy * grid.w + cx;
+  };
+  const fixed = (w: World): number[] => w.query('solid', 'pos', 'box').filter((id) => !w.has(id, 'push') && !w.has(id, 'vel') && !w.has(id, 'tiles'));
+  /** Steps from every cell to the cell of `to`; null when `to` is walled in or off the map. */
+  const field = (w: World, to: number, walls: number[], sig: string): Int32Array | null => {
+    const start = cellOf(w, to);
+    if (!grid || start < 0) return null;
+    const k = `${sig}|${start}`;
+    const had = fields.get(k);
+    if (had !== undefined) return had;
+    const blocked = new Uint8Array(grid.w * grid.h);
+    grid.rows.forEach((row, r) => { for (let c = 0; c < row.length; c++) if (grid.solid.includes(row[c])) blocked[r * grid.w + c] = 1; });
+    for (const id of walls) { const c = id === to ? -1 : cellOf(w, id); if (c >= 0) blocked[c] = 1; }
+    let out: Int32Array | null = null;
+    if (!blocked[start]) {
+      out = new Int32Array(grid.w * grid.h).fill(-1);
+      out[start] = 0;
+      const queue = [start];
+      for (let i = 0; i < queue.length; i++) {
+        const c = queue[i], cx = c % grid.w;
+        for (const nb of [cx > 0 ? c - 1 : -1, cx < grid.w - 1 ? c + 1 : -1, c - grid.w, c + grid.w]) {
+          if (nb < 0 || nb >= blocked.length || blocked[nb] || out[nb] >= 0) continue;
+          out[nb] = out[c] + 1;
+          queue.push(nb);
+        }
+      }
+    }
+    fields.set(k, out);
+    return out;
+  };
+  // A goal with no way to it yet still pulls, but less than any goal that can be walked to.
+  const NO_WAY = 2 ** 27;
+  const straight = nearest;
+  const walked = (w: World, ids: number[], others: number[]): number => {
+    if (!grid) return straight(w, ids, others);
+    const walls = fixed(w), sig = walls.join(',');
+    let m = Infinity;
+    for (const i of ids) {
+      const f = field(w, i, walls, sig);
+      for (const o of others) {
+        if (i === o) continue;
+        const g = gap(w, i, o);
+        if (g === null) continue;
+        // The straight gap, plus the cells the walls add to the way: smooth where nothing is in
+        // the way, and right about which side of a wall is nearer.
+        const from = cellOf(w, i), at = cellOf(w, o), steps = f && at >= 0 ? f[at] : -1;
+        const direct = Math.abs((from % grid.w) - (at % grid.w)) + Math.abs(Math.floor(from / grid.w) - Math.floor(at / grid.w));
+        m = Math.min(m, Math.max(g, 0) + (steps < 0 ? NO_WAY : (steps - direct) * grid.size));
+      }
+    }
+    return m;
+  };
   const heuristic = (n: Node): number => {
     let h = Infinity;
     for (const e of n.ex) {
       if (e.ok || !GOALS.includes(e.kind)) continue;
       let d = Infinity;
       if (e.kind === 'reach') {
-        d = nearest(n.w, n.w.match(e.a), n.w.match(e.b));
+        d = walked(n.w, n.w.match(e.b), n.w.match(e.a));
         // When the thing that has to arrive is not steered directly (a crate), getting the
         // steered entity next to it comes first; that is a much weaker pull than the goal itself.
         const ctrl = n.w.query('ctrl'), movers = n.w.match(e.a).filter((id) => !ctrl.includes(id));
-        if (movers.length) { const c = nearest(n.w, ctrl, movers); if (c !== Infinity) d = d * 16 + c; }
+        if (movers.length) { const c = walked(n.w, movers, ctrl); if (c !== Infinity) d = d * 16 + c; }
       }
       else {
         // gone: whoever the entity's own trigger waits for. event: the triggers that emit it.
         const ids = e.kind === 'gone' ? n.w.match(e.a) : n.w.query('trigger').filter((id) => n.w.get(id, 'trigger')!.event === e.a);
         for (const id of ids) {
           const tr = n.w.get(id, 'trigger');
-          if (tr) d = Math.min(d, nearest(n.w, [id], n.w.match(tr.target as string)));
+          if (tr) d = Math.min(d, walked(n.w, [id], n.w.match(tr.target as string)));
         }
       }
       h = Math.min(h, d);
@@ -133,7 +204,9 @@ export function solve(sceneText: string, opts: { file?: string; mods?: Mods; ste
   };
   // Order: fewer open goals first, then nearer to one, then shorter inputs; ties by age.
   // All integers, so the search order (and the answer) is the same on every machine.
-  const rank = (n: Node): number => (goals - n.done) * 2 ** 36 + heuristic(n) + n.depth * 2048;
+  // A `gone #tag` goal is met one member at a time: each one still there counts, below a whole goal.
+  const left = (n: Node): number => n.ex.reduce((s, e) => s + (e.kind === 'gone' && !e.ok ? Math.min(n.w.match(e.a).length, 63) : 0), 0);
+  const rank = (n: Node): number => (goals - n.done) * 2 ** 36 + left(n) * 2 ** 29 + heuristic(n) + n.depth * 2048;
 
   const heap: Node[] = [];
   const less = (a: Node, b: Node): boolean => a.f < b.f || (a.f === b.f && a.seq < b.seq);
@@ -187,6 +260,9 @@ export function solve(sceneText: string, opts: { file?: string; mods?: Mods; ste
       step(w);
       evalTick(w, ex);
       if (ex.some((e) => e.ok === false)) return false;
+      if (forbidden.length) for (let j = w.events.length - 1; j >= 0 && w.events[j].tick === w.tick; j--) {
+        if (forbidden.some((f) => f.a === w.events[j].name && w.tick <= f.by)) return false;
+      }
     }
     return true;
   };

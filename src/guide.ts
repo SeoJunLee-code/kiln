@@ -96,7 +96,7 @@ check    parse and validate (a folder: every scene). Says the edition the game n
 test     run, evaluate expects; --input FILE; exit 1 if any fails. Given a folder,
          tests every scene in it with the NAME.input next to it
 run      run without judging; --ticks N
-solve    search for an input that meets reach/gone/event expects; --out FILE saves it
+solve    find an input meeting reach/gone/event, keeping never and count X == 0; --out FILE saves it
 schema   component list only
 look     draw the scene in a headless browser and return a picture of the game view
          with what is in it; --tick N --input FILE --out FILE.png (needs Chrome or Edge)

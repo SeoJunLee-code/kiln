@@ -38,8 +38,8 @@ models, and nothing about another engine: the same spec has not been built on Go
 | # | Call | What went wrong | Whose fault |
 |---|---|---|---|
 | 1 | `solve` | Named its first scene `level1.scene`; `load:level2.scene` was refused (K104). The guide never said scenes are `NAME.kiln` | Kiln: fixed in the guide after this run |
-| 2, 3 | `solve` | Level 2 (four gems, two guards): gave up after 200,000 states with no gem collected. The agent rewrote the level until `solve` could win it | Kiln: `solve` does not scale to a level with several goals and moving hazards |
-| 4, 5 | `test` | The winning input walked through guards (`caught` 3 times). `solve` had met every goal it was given and "not caught" was not one of them | Kiln: no way to give `solve` a thing that must not happen along the way, other than `never A B` |
+| 2, 3 | `solve` | Level 2 (four gems, two guards): gave up after 200,000 states with no gem collected. The agent rewrote the level until `solve` could win it | Kiln: `solve` measured distance in a straight line, so the door, still closed, was the nearest goal. Fixed after this run: distance follows the walls (`tests/fixtures/vault.kiln` is this level; it now solves in 7,987 states) |
+| 4, 5 | `test` | The winning input walked through guards (`caught` 3 times). `solve` had met every goal it was given and "not caught" was not one of them | Kiln: no way to give `solve` an event that must not happen. Fixed after this run: `solve` keeps `count NAME == 0 at N` |
 | 6 | `test` | `reach hero guard1` failed with a gap of 0.00002: the trigger fired but the overlap test did not agree | Kiln: the trigger removed the hero in the step of the contact, so `reach` had nothing left to measure. For the same reason `never hero #guard` passed for a hero a guard had just removed. Fixed after this run (`tests/contact.test.ts`) |
 | 7 | Edit | Text to replace was not in the file | The agent |
 
