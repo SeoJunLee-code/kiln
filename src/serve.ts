@@ -4,6 +4,10 @@ import { stripTypeScriptTypes } from 'node:module';
 import { basename, dirname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+const TYPES: Record<string, string> = {
+  html: 'text/html', js: 'text/javascript', json: 'application/json', svg: 'image/svg+xml',
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif',
+};
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 /**
@@ -18,17 +22,18 @@ export function serve(sceneFile: string, inputFile: string | undefined, port: nu
   const gameDir = resolve(dirname(sceneFile));
   const config = JSON.stringify({ scene: basename(sceneFile), input: !!inputFile });
 
-  const send = (res: import('node:http').ServerResponse, status: number, type: string, body: string): void => {
-    res.writeHead(status, { 'content-type': `${type}; charset=utf-8`, 'cache-control': 'no-store' });
+  const send = (res: import('node:http').ServerResponse, status: number, type: string, body: string | Buffer): void => {
+    res.writeHead(status, { 'content-type': /^image\/(png|jpeg|webp|gif)$/.test(type) ? type : `${type}; charset=utf-8`, 'cache-control': 'no-store' });
     res.end(body);
   };
   const file = (res: import('node:http').ServerResponse, base: string, rel: string): void => {
     const path = resolve(base, rel);
     if (path !== base && !path.startsWith(base + sep)) return send(res, 403, 'text/plain', 'outside the served folder');
-    let text: string;
-    try { text = readFileSync(path, 'utf8'); } catch { return send(res, 404, 'text/plain', `not found: ${rel}`); }
-    if (path.endsWith('.ts')) return send(res, 200, 'text/javascript', stripTypeScriptTypes(text));
-    send(res, 200, path.endsWith('.html') ? 'text/html' : path.endsWith('.js') ? 'text/javascript' : 'text/plain', text);
+    let data: Buffer;
+    try { data = readFileSync(path); } catch { return send(res, 404, 'text/plain', `not found: ${rel}`); }
+    if (path.endsWith('.ts')) return send(res, 200, 'text/javascript', stripTypeScriptTypes(data.toString('utf8')));
+    const ext = path.slice(path.lastIndexOf('.') + 1).toLowerCase();
+    send(res, 200, TYPES[ext] ?? 'text/plain', data);
   };
 
   const server = createServer((req, res) => {

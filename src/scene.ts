@@ -82,6 +82,14 @@ export function parseScene(text: string, file = 'scene'): Scene {
             else { world.gx = p[0]; world.gy = p[1]; }
           } else err('K103', line, `unknown world setting '${k}'`, 'valid: hz, gravity, seed, tick');
         }
+      } else if (tok[0] === 'state') {
+        // Written by serialize: run-time state that is not a component.
+        for (const kv of tok.slice(1)) {
+          const [k, v = ''] = kv.split('=');
+          if (k === 'pressed') for (const a of v.split(',').filter(Boolean)) world.pressed.add(a);
+          else if (k === 'overlaps') for (const o of v.split(',').filter(Boolean)) world.overlaps.add(o);
+          else err('K103', line, `unknown state entry '${k}'`, 'valid: pressed, overlaps');
+        }
       } else if (tok[0] === 'use') {
         if (tok.length !== 2) return err('K100', line, `expected 'use PATH' (script path relative to the scene file)`);
         uses.push(tok[1]);
@@ -89,7 +97,7 @@ export function parseScene(text: string, file = 'scene'): Scene {
         expects.push({ line, text: tok.slice(1).join(' ') });
       } else {
         err('K108', line, `unknown directive '${tok[0]}'`,
-          registry.has(tok[0]) ? 'components must be indented under an entity' : suggest(tok[0], ['entity', 'world', 'expect', 'use']));
+          registry.has(tok[0]) ? 'components must be indented under an entity' : suggest(tok[0], ['entity', 'world', 'expect', 'use', 'state']));
       }
       return;
     }
@@ -147,6 +155,9 @@ export function serialize(w: World, expects: RawExpect[] = [], uses: string[] = 
       out.push(`  ${[def.name, ...vals.slice(0, end)].join(' ')}`);
     }
   });
+  if (w.pressed.size || w.overlaps.size) {
+    out.push(`state${w.pressed.size ? ` pressed=${[...w.pressed].sort()}` : ''}${w.overlaps.size ? ` overlaps=${[...w.overlaps].sort()}` : ''}`);
+  }
   for (const e of expects) out.push(`expect ${e.text}`);
   return out.join('\n') + '\n';
 }

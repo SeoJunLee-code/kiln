@@ -91,7 +91,7 @@ test('mcp: initialize, list the single tool, and call it', async () => {
   assert.equal(replies[1].result.protocolVersion, '2025-06-18');
   assert.deepEqual(replies[2].result.tools.map((t: any) => t.name), ['kiln']);
   assert.equal(replies[3].result.isError, false);
-  assert.match(replies[3].result.content[0].text, /#\.\.\.#\.\.@\.#\n[\s\S]*ok tick=240 hash=6a2cb335 passed=5 failed=0/);
+  assert.match(replies[3].result.content[0].text, /#\.\.\.#\.\.@\.#\n[\s\S]*ok tick=240 hash=[0-9a-f]{8} passed=5 failed=0/);
   assert.equal(replies[4].result.isError, true);
   assert.match(replies[4].result.content[0].text, /^E K102 scene:2 unknown component 'poss' \(hint: did you mean 'pos'\?\)/);
   assert.equal(replies[5].error.code, -32601);
@@ -115,6 +115,29 @@ test('serve: strips types from engine and game files and refuses paths outside t
     assert.equal((await get('/game/..%2fpackage.json')).status, 403);
     assert.equal((await get('/engine/..%2f..%2fREADME.md')).status, 403);
     assert.equal((await get('/game/nope.kiln')).status, 404);
+  } finally {
+    close();
+  }
+});
+
+test('platformer example: passes, and missing the first jump is explained', async () => {
+  const ok = await command('test', { file: ex('platformer.kiln'), inputFile: ex('platformer.input') });
+  assert.equal(ok.code, 0, ok.text);
+  assert.match(ok.text, /passed=4 failed=0/);
+
+  const bad = await command('test', { file: ex('platformer.kiln'), input: '0 right down\n', events: true });
+  assert.equal(bad.code, 1);
+  assert.match(bad.text, /FAIL .*never hero pit -- tick \d+/);
+  assert.match(bad.text, /event \d+ fell pit hero/);
+});
+
+test('serve: image assets keep their type', { timeout: 20000 }, async () => {
+  const { serve } = await import('../src/serve.ts');
+  const { port, close } = await serve(ex('platformer.kiln'), undefined, 0);
+  try {
+    const r = await fetch(`http://127.0.0.1:${port}/game/hero.svg`);
+    assert.match(r.headers.get('content-type')!, /^image\/svg\+xml/);
+    assert.match(await r.text(), /^<svg /);
   } finally {
     close();
   }

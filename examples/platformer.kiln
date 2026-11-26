@@ -1,0 +1,58 @@
+# Side-scroller: jump the pit, climb the ledge for the second coin, reach the flag.
+world hz=60 gravity=0,30
+
+entity hero
+  pos 1 9
+  box 0.8 1
+  vel
+  body
+  ctrl 5 12
+  camera 16 9
+  sprite @ white hero.svg
+
+entity ground1
+  pos 0 10
+  box 8 1
+  solid
+entity ground2
+  pos 11 10
+  box 13 1
+  solid
+entity ledge
+  pos 15 8
+  box 3 0.5
+  solid
+entity wall
+  pos 24 0
+  box 1 11
+  solid
+
+entity coin1
+  pos 9.25 7.5
+  box 0.5 0.5
+  tag coin
+  trigger hero coin despawn-self
+  sprite o gold
+entity coin2
+  pos 16.5 7.2
+  box 0.5 0.5
+  tag coin
+  trigger hero coin despawn-self
+  sprite o gold
+
+entity pit
+  pos 0 13
+  box 30 1
+  trigger hero fell
+  sprite ~ crimson
+
+entity flag
+  pos 21 9
+  box 1 1
+  trigger hero win
+  sprite F limegreen
+
+expect gone #coin by 300
+expect event win by 300
+expect never hero pit
+expect at 300 hero.body.grounded == 1

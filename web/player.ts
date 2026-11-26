@@ -22,6 +22,17 @@ let world: World, expects: Expect[], script: InputScript;
 let log: string[] = [];
 // Keys held right now. Tracked here because world.pressed only changes on the next tick.
 const held = new Set<string>();
+// Image cache by path. An image that fails to load falls back to the colored box.
+const images = new Map<string, HTMLImageElement>();
+const image = (path: string): HTMLImageElement | null => {
+  let im = images.get(path);
+  if (!im) {
+    im = new Image();
+    im.src = new URL(path, `${location.origin}/game/`).href;
+    images.set(path, im);
+  }
+  return im.complete && im.naturalWidth > 0 ? im : null;
+};
 let paused = false;
 let bounds = { x: 0, y: 0, w: 1, h: 1 };
 
@@ -78,8 +89,17 @@ try {
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.fillStyle = '#14161a';
     g.fillRect(0, 0, cw, ch);
-    const scale = Math.min(cw / bounds.w, ch / bounds.h);
-    const ox = (cw - bounds.w * scale) / 2 - bounds.x * scale, oy = (ch - bounds.h * scale) / 2 - bounds.y * scale;
+    // With a camera entity the view is centred on it; otherwise the whole scene is fitted.
+    let vw = bounds.w, vh = bounds.h, vx = bounds.x, vy = bounds.y;
+    const cam = world.query('camera', 'pos')[0];
+    if (cam !== undefined) {
+      const c = world.get(cam, 'camera')!, cp = world.get(cam, 'pos')!, cb = world.get(cam, 'box');
+      vw = (c.w as number) / ONE; vh = (c.h as number) / ONE;
+      vx = ((cp.x as number) + ((cb?.w as number) ?? 0) / 2) / ONE - vw / 2;
+      vy = ((cp.y as number) + ((cb?.h as number) ?? 0) / 2) / ONE - vh / 2;
+    }
+    const scale = Math.min(cw / vw, ch / vh);
+    const ox = (cw - vw * scale) / 2 - vx * scale, oy = (ch - vh * scale) / 2 - vy * scale;
     const layer = (id: number): number => (world.has(id, 'solid') ? 0 : world.has(id, 'vel') ? 2 : 1);
     for (const id of world.query('pos', 'box').sort((a, b) => layer(a) - layer(b) || a - b)) {
       const p = world.get(id, 'pos')!, b = world.get(id, 'box')!, sp = world.get(id, 'sprite');
@@ -87,6 +107,8 @@ try {
       const w = ((b.w as number) / ONE) * scale, h = ((b.h as number) / ONE) * scale;
       const color = (sp?.color as string) ?? 'white';
       g.fillStyle = world.has(id, 'solid') && color === 'white' ? '#3a404b' : color === 'white' ? '#d7dbe2' : color;
+      const im = sp?.image ? image(sp.image as string) : null;
+      if (im) { g.drawImage(im, x, y, w, h); continue; }
       g.fillRect(x, y, w, h);
       if (sp?.glyph) {
         g.fillStyle = '#14161a';

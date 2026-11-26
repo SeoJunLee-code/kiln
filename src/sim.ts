@@ -65,25 +65,36 @@ export function step(w: World, script?: InputScript): void {
       p.y = ((p.y as number) + dy) | 0;
       continue;
     }
-    p.x = ((p.x as number) + dx) | 0;
-    for (const s of solids) {
-      if (s === id) continue;
-      const sp = w.get(s, 'pos')!, sb = w.get(s, 'box')!;
-      if (!overlap(p, b, sp, sb)) continue;
-      if (dx > 0) p.x = (sp.x as number) - (b.w as number);
-      else if (dx < 0) p.x = (sp.x as number) + (sb.w as number);
-      v.x = 0;
+    // Swept test per axis: a solid anywhere along the path stops the mover, however fast it is.
+    const x0 = p.x as number, bw = b.w as number, bh = b.h as number;
+    let nx = (x0 + dx) | 0;
+    if (dx !== 0) {
+      const lo = Math.min(x0, nx), hi = Math.max(x0, nx) + bw;
+      for (const s of solids) {
+        if (s === id) continue;
+        const sp = w.get(s, 'pos')!, sb = w.get(s, 'box')!;
+        const sx = sp.x as number, sy = sp.y as number;
+        if (!(lo < sx + (sb.w as number) && hi > sx && (p.y as number) < sy + (sb.h as number) && (p.y as number) + bh > sy)) continue;
+        nx = dx > 0 ? Math.min(nx, sx - bw) : Math.max(nx, sx + (sb.w as number));
+        v.x = 0;
+      }
     }
-    p.y = ((p.y as number) + dy) | 0;
-    let grounded = 0;
-    for (const s of solids) {
-      if (s === id) continue;
-      const sp = w.get(s, 'pos')!, sb = w.get(s, 'box')!;
-      if (!overlap(p, b, sp, sb)) continue;
-      if (dy > 0) { p.y = (sp.y as number) - (b.h as number); grounded = 1; }
-      else if (dy < 0) p.y = (sp.y as number) + (sb.h as number);
-      v.y = 0;
+    p.x = nx;
+    const y0 = p.y as number;
+    let ny = (y0 + dy) | 0, grounded = 0;
+    if (dy !== 0) {
+      const lo = Math.min(y0, ny), hi = Math.max(y0, ny) + bh;
+      for (const s of solids) {
+        if (s === id) continue;
+        const sp = w.get(s, 'pos')!, sb = w.get(s, 'box')!;
+        const sx = sp.x as number, sy = sp.y as number;
+        if (!(lo < sy + (sb.h as number) && hi > sy && nx < sx + (sb.w as number) && nx + bw > sx)) continue;
+        if (dy > 0) { ny = Math.min(ny, sy - bh); grounded = 1; }
+        else ny = Math.max(ny, sy + (sb.h as number));
+        v.y = 0;
+      }
     }
+    p.y = ny;
     const body = w.get(id, 'body');
     if (body) body.grounded = grounded;
   }
@@ -111,7 +122,7 @@ export function step(w: World, script?: InputScript): void {
 
 /** FNV-1a hash of the full simulation state. Equal hash = identical state. */
 export function hash(w: World): string {
-  const s = `${serialize(w)}|${w.tick}|${[...w.pressed].sort()}|${[...w.overlaps].sort()}`;
+  const s = serialize(w);
   let h = 0x811c9dc5;
   for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
   return (h >>> 0).toString(16).padStart(8, '0');

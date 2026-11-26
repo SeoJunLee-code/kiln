@@ -72,9 +72,8 @@ test('determinism: saving mid-run and resuming reaches the same state', () => {
 
   const half = parseScene(maze).world;
   for (let i = 0; i < 90; i++) step(half, script);
+  assert.ok(half.pressed.size > 0, 'a key is held at the save point');
   const resumed = parseScene(serialize(half)).world;
-  for (const a of half.pressed) resumed.pressed.add(a);
-  for (const o of half.overlaps) resumed.overlaps.add(o);
   for (let i = 90; i < 200; i++) step(resumed, script);
   assert.equal(hash(resumed), hash(full));
 });
@@ -158,4 +157,27 @@ test('view: draws solids, glyphs and names', () => {
     '##########',
     '',
   ].join('\n'));
+});
+
+test('collision: a fast mover does not tunnel through a thin wall', () => {
+  const scene = (vx: number, vy: number) => `entity m\n  pos 10 10\n  box 1 1\n  vel ${vx} ${vy}\n` +
+    'entity r\n  pos 14 0\n  box 0.25 30\n  solid\nentity l\n  pos 6 0\n  box 0.25 30\n  solid\n' +
+    'entity d\n  pos 0 14\n  box 30 0.25\n  solid\nentity u\n  pos 0 6\n  box 30 0.25\n  solid\n';
+  const end = (vx: number, vy: number) => {
+    const p = run(scene(vx, vy), { ticks: 3 }).world.get(0, 'pos')!;
+    return [fmtFx(p.x as number), fmtFx(p.y as number)];
+  };
+  assert.deepEqual(end(900, 0), ['13', '10']);
+  assert.deepEqual(end(-900, 0), ['6.25', '10']);
+  assert.deepEqual(end(0, 900), ['10', '13']);
+  assert.deepEqual(end(0, -900), ['10', '6.25']);
+});
+
+test('scene: held keys and trigger overlaps survive a save', () => {
+  const w = parseScene(maze).world;
+  const script = parseInput(mazeInput);
+  for (let i = 0; i < 200; i++) step(w, script);
+  const text = serialize(w);
+  assert.match(text, /^state pressed=up overlaps=exit:player$/m);
+  assert.equal(hash(parseScene(text).world), hash(w));
 });
