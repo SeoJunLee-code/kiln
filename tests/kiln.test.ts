@@ -307,3 +307,27 @@ test('pace: turns at both ends on any axis, and a bad axis is an error', () => {
   assert.deepEqual([at(15), at(30), at(60), at(90)], ['1.5', '3', '0', '3']);
   assert.deepEqual(codes(() => parseScene('entity g\n  pos 0 0\n  vel\n  pace w 0 3 6\n')), ['K104']);
 });
+
+test('push: a crate is shoved until something stops it, and a second crate does', () => {
+  const scene = (extra: string) => 'entity p\n  pos 0 0\n  box 1 1\n  vel 3 0\n' +
+    'entity c\n  pos 2 0\n  box 1 1\n  solid\n  push\n' +
+    'entity wall\n  pos 8 0\n  box 1 1\n  solid\n' + extra;
+  const end = (extra: string) => {
+    const w = run(scene(extra), { ticks: 300 }).world;
+    return ['p', 'c'].map((n) => fmtFx(w.get(w.ids.get(n)!, 'pos')!.x as number));
+  };
+  assert.deepEqual(end(''), ['6', '7'], 'crate against the wall, pusher behind it');
+  assert.deepEqual(end('entity c2\n  pos 5 0\n  box 1 1\n  solid\n  push\n'), ['3', '4'], 'no chain pushing');
+  // Not in the path sideways: the crate does not move when the mover only slides past it.
+  assert.deepEqual(end('').length, 2);
+  const beside = run('entity p\n  pos 0 0\n  box 1 1\n  vel 3 0\nentity c\n  pos 2 1.5\n  box 1 1\n  solid\n  push\n', { ticks: 120 }).world;
+  assert.equal(fmtFx(beside.get(1, 'pos')!.x as number), '2');
+});
+
+test('push: results are the same run to run', () => {
+  const sokoban = readFileSync(new URL('../examples/sokoban.kiln', import.meta.url), 'utf8');
+  const input = readFileSync(new URL('../examples/sokoban.input', import.meta.url), 'utf8');
+  const a = run(sokoban, { input }), b = run(sokoban, { input });
+  assert.equal(a.hash, b.hash);
+  assert.ok(a.ok, a.expects.map((e) => `${e.text} ${e.ok} ${e.note}`).join('; '));
+});

@@ -304,3 +304,10 @@ test('gauntlet example: pacing guards make it a timing puzzle, and solve times t
   assert.equal(replay.code, 0, replay.text);
   assert.doesNotMatch(replay.text, /event \d+ hit/);
 });
+
+test('sokoban example: solve pushes the crate around the corner onto the pad', { timeout: 90000 }, async () => {
+  const solved = await command('solve', { file: ex('sokoban.kiln') });
+  assert.equal(solved.code, 0, solved.text);
+  const input = solved.text.trim().split('\n').slice(0, -1).join('\n') + '\n';
+  assert.equal((await command('test', { file: ex('sokoban.kiln'), input })).code, 0);
+});

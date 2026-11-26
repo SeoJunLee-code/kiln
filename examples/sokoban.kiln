@@ -1,0 +1,29 @@
+# Push the crate onto the pad. It has to go down, then left, so the hero must walk
+# around it between the two pushes. No script: `push` makes the crate shovable.
+world hz=60
+
+prefab hero
+  box 0.8 0.8
+  vel
+  ctrl 4
+  sprite @
+prefab crate
+  box 0.8 0.8
+  solid
+  push
+  sprite c peru
+prefab pad
+  box 0.8 0.8
+  sprite p steelblue
+
+entity map
+  pos 0 0
+  tiles spawn=@:hero,c:crate,p:pad
+    ########
+    #......#
+    #.@.c..#
+    #....#.#
+    #..p...#
+    ########
+
+expect reach crate pad by 1200

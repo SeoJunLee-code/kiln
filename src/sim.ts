@@ -54,8 +54,8 @@ export function tileAt(w: World, map: number, x: number, y: number): string {
   return row?.[fdiv(x - (mp.x as number), t.size as number)] ?? '';
 }
 
-/** A blocking box: position on x, y, z followed by size on x, y, z. */
-export type Block = [x: number, y: number, z: number, w: number, h: number, d: number];
+/** A blocking box: position on x, y, z, size on x, y, z, then the entity id (-1 for a tile). */
+export type Block = [x: number, y: number, z: number, w: number, h: number, d: number, id: number];
 
 /**
  * Solids bucketed on a coarse x/y grid, rebuilt every tick. A query then looks only at
@@ -71,12 +71,13 @@ export function buildIndex(w: World, solids: number[]): SolidIndex {
   const ids: number[] = [], box: Block[] = [], cells = new Map<number, number[]>(), big: number[] = [];
   for (const s of solids) {
     const sp = w.get(s, 'pos')!, sb = w.get(s, 'box')!;
-    const r: Block = [sp.x as number, sp.y as number, sp.z as number, sb.w as number, sb.h as number, sb.d as number];
+    const r: Block = [sp.x as number, sp.y as number, sp.z as number, sb.w as number, sb.h as number, sb.d as number, s];
     const i = ids.push(s) - 1;
     box.push(r);
     const x0 = r[0] >> CELL_SHIFT, x1 = (r[0] + r[3] - 1) >> CELL_SHIFT, y0 = r[1] >> CELL_SHIFT, y1 = (r[1] + r[4] - 1) >> CELL_SHIFT;
     // Something that covers many cells (a floor, a wall) is cheaper to test every time.
-    if ((x1 - x0 + 1) * (y1 - y0 + 1) > 64) { big.push(i); continue; }
+    // Crates are kept there too: they move during the tick, and a cell entry would go stale.
+    if ((x1 - x0 + 1) * (y1 - y0 + 1) > 64 || w.has(s, 'push')) { big.push(i); continue; }
     for (let cx = x0; cx <= x1; cx++) for (let cy = y0; cy <= y1; cy++) {
       const k = cellKey(cx, cy);
       const list = cells.get(k);
@@ -117,11 +118,27 @@ export function blockers(w: World, self: number, index: SolidIndex, maps: number
     for (let r = r0; r <= r1; r++) {
       const row = rows[r];
       for (let c = c0; c <= c1 && c < row.length; c++) {
-        if (solid.includes(row[c])) out.push([mx + c * size, my + r * size, mz, size, size, depth]);
+        if (solid.includes(row[c])) out.push([mx + c * size, my + r * size, mz, size, size, depth, -1]);
       }
     }
   }
   return out;
+}
+
+/** Move a crate along one axis by up to `want`, stopping at whatever blocks it. Returns how far it went. */
+function shove(w: World, crate: Block, a: number, want: number, index: SolidIndex, maps: number[]): number {
+  const from = crate[a];
+  let to = (from + want) | 0;
+  const lo = [crate[0], crate[1], crate[2]], hi = [crate[0] + crate[3], crate[1] + crate[4], crate[2] + crate[5]];
+  lo[a] = Math.min(from, to);
+  hi[a] = Math.max(from, to) + crate[a + 3];
+  for (const r of blockers(w, crate[6], index, maps, lo, hi)) {
+    to = want > 0 ? Math.min(to, r[a] - crate[a + 3]) : Math.max(to, r[a] + r[a + 3]);
+  }
+  // The same array sits in the index, so later queries this tick see the crate where it now is.
+  crate[a] = to;
+  w.get(crate[6], 'pos')![P[a]] = to;
+  return to - from;
 }
 
 /** Advance one fixed tick. System order is fixed: input, ctrl, pace, scripts (pre), gravity, move, triggers, scripts (post). */
@@ -176,13 +193,25 @@ export function step(w: World, script?: InputScript): void {
     let grounded = 0;
     for (let a = 0; a < 3; a++) {
       if (d[a] === 0) continue;
-      const from = cur[a];
-      let to = (from + d[a]) | 0;
+      const from = cur[a], free = (from + d[a]) | 0;
+      let to = free;
       const lo = [...cur], hi = [cur[0] + size[0], cur[1] + size[1], cur[2] + size[2]];
       lo[a] = Math.min(from, to);
       hi[a] = Math.max(from, to) + size[a];
-      for (const r of blockers(w, id, index, maps, lo, hi)) {
-        to = d[a] > 0 ? Math.min(to, r[a] - size[a]) : Math.max(to, r[a] + r[a + 3]);
+      const stop = (r: Block): void => { to = d[a] > 0 ? Math.min(to, r[a] - size[a]) : Math.max(to, r[a] + r[a + 3]); };
+      const hits = blockers(w, id, index, maps, lo, hi);
+      // Crates in the way. With gravity on y, y is up/down and crates are not pushed along it;
+      // without gravity (top-down) y is a ground axis like x. Only the nearest crate is shoved.
+      const crates = a === 1 && w.gy !== 0 ? [] : hits.filter((r) => r[6] >= 0 && w.has(r[6], 'push'));
+      for (const r of hits) if (!crates.includes(r)) stop(r);
+      if (crates.length) {
+        const near = crates.reduce((m, r) => ((d[a] > 0 ? r[a] < m[a] : r[a] > m[a]) ? r : m));
+        const contact = d[a] > 0 ? near[a] - size[a] : near[a] + near[a + 3];
+        // `to` is where the mover would end up without crates; anything past the contact point is the shove.
+        if (d[a] > 0 ? to > contact : to < contact) to = contact + shove(w, near, a, to - contact, index, maps);
+        for (const r of crates) if (r !== near) stop(r);
+      }
+      if (to !== free) {
         v[P[a]] = 0;
         if (a === 1 && d[a] > 0) grounded = 1;
       }

@@ -75,7 +75,8 @@ export function solve(sceneText: string, opts: { file?: string; mods?: Mods; ste
   const key = (n: Node): string => {
     let s = n.ex.map((e) => (e.ok === undefined ? '?' : +e.ok)).join('');
     n.w.names.forEach((name, id) => {
-      if (name == null || n.w.has(id, 'solid') || n.w.has(id, 'tiles')) return;
+      // Walls and maps never change; a crate is solid but does move.
+      if (name == null || (n.w.has(id, 'solid') && !n.w.has(id, 'push')) || n.w.has(id, 'tiles')) return;
       s += `|${name}`;
       for (const [comp, m] of n.w.comps) {
         const d = m.get(id);
@@ -101,7 +102,13 @@ export function solve(sceneText: string, opts: { file?: string; mods?: Mods; ste
     for (const e of n.ex) {
       if (e.ok || !GOALS.includes(e.kind)) continue;
       let d = Infinity;
-      if (e.kind === 'reach') d = nearest(n.w, n.w.match(e.a), n.w.match(e.b));
+      if (e.kind === 'reach') {
+        d = nearest(n.w, n.w.match(e.a), n.w.match(e.b));
+        // When the thing that has to arrive is not steered directly (a crate), getting the
+        // steered entity next to it comes first; that is a much weaker pull than the goal itself.
+        const ctrl = n.w.query('ctrl'), movers = n.w.match(e.a).filter((id) => !ctrl.includes(id));
+        if (movers.length) { const c = nearest(n.w, ctrl, movers); if (c !== Infinity) d = d * 16 + c; }
+      }
       else {
         // gone: whoever the entity's own trigger waits for. event: the triggers that emit it.
         const ids = e.kind === 'gone' ? n.w.match(e.a) : n.w.query('trigger').filter((id) => n.w.get(id, 'trigger')!.event === e.a);

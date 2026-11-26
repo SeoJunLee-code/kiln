@@ -5,4 +5,5 @@ gauntlet.kiln tick=900 hash=b6a4fd98 expects=pass
 maze.kiln tick=240 hash=3015b961 expects=pass
 patrol.kiln tick=240 hash=54f1c06c expects=pass
 platformer.kiln tick=300 hash=a265b330 expects=pass
+sokoban.kiln tick=1200 hash=6bca2c72 expects=pass
 vault.kiln tick=900 hash=789cf99b expects=pass
