@@ -4,6 +4,7 @@ export interface Field { name: string; type: FieldType; def?: number | string }
 export interface CompDef { name: string; doc: string; fields: Field[] }
 export type Comp = Record<string, number | string>;
 export interface GameEvent { tick: number; name: string; a: string; b: string }
+export type System = (w: World) => void;
 
 export const registry = new Map<string, CompDef>();
 
@@ -39,6 +40,30 @@ export class World {
   /** "triggerName:otherName" pairs currently overlapping */
   overlaps = new Set<string>();
   events: GameEvent[] = [];
+  /** PRNG state; part of the saved and hashed state */
+  seed = 0;
+  /** script systems: `pre` run before physics, `post` after triggers */
+  pre: System[] = [];
+  post: System[] = [];
+
+  /** Is an input action currently held? */
+  on(action: string): boolean {
+    return this.pressed.has(action);
+  }
+
+  /** Deterministic random uint32 (xorshift32). The only randomness scripts may use. */
+  rand(): number {
+    let s = this.seed || 0x9e3779b9;
+    s ^= s << 13;
+    s ^= s >>> 17;
+    s ^= s << 5;
+    this.seed = s | 0;
+    return s >>> 0;
+  }
+
+  emit(name: string, a = '', b = ''): void {
+    this.events.push({ tick: this.tick, name, a, b });
+  }
 
   spawn(name: string): number {
     if (this.ids.has(name)) throw new Error(`duplicate entity '${name}'`);

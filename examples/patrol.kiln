@@ -1,0 +1,28 @@
+# A guard walks the direct route. Detour below it to reach the goal untouched.
+use ./patrol.ts
+world hz=60
+
+entity player
+  pos 0 1
+  box 0.8 0.8
+  vel
+  ctrl 4
+  sprite @
+
+entity guard
+  pos 2 1
+  box 1 1
+  vel
+  patrol 2 6 2
+  trigger player caught
+  sprite G
+
+entity goal
+  pos 9 1
+  box 1 1
+  trigger player win
+  sprite E
+
+expect never player guard
+expect reach player goal by 240
+expect at 120 guard.pos.x == 6

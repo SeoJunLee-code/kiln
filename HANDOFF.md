@@ -14,7 +14,7 @@ AI 에이전트가 1급 사용자인 오픈소스 게임 엔진. 사용자의 �
 - 초당 값을 틱으로 나눌 때는 `tickShare`를 쓴다. 단순 나눗셈은 속도 6, 60Hz에서 30틱 뒤 2.99973이 되는 누적 오차가 있었다.
 - 5시간 한도 98%에서 멈춘다. 덩어리 하나가 몇 %를 쓰므로 95% 근처에서는 새 덩어리를 시작하지 않는다. 조회는 `mcp__ccd_session_mgmt__get_usage`.
 
-## 현재 상태 (M0 완료)
+## 현재 상태 (M0 + M1 일부 완료)
 
 | 파일 | 역할 |
 |---|---|
@@ -24,13 +24,19 @@ AI 에이전트가 1급 사용자인 오픈소스 게임 엔진. 사용자의 �
 | `src/sim.ts` | 틱 진행(입력→ctrl→중력→이동·충돌→트리거), 상태 해시 |
 | `src/expect.ts` | `expect` 5종 평가, 실패 시 관측값 설명 |
 | `src/run.ts` | 헤드리스 실행, ASCII 뷰, 엔티티 덤프 |
-| `src/cli.ts` | `check` / `run` / `test` / `schema` |
+| `src/load.ts` | 씬의 `use` 스크립트 로드, 비결정 API 검사(K121) |
+| `src/commands.ts` | 명령 실행부. CLI와 MCP가 같이 쓴다 |
+| `src/cli.ts` | `check` / `run` / `test` / `schema` / `mcp` |
+| `src/mcp.ts` | stdio MCP 서버, 도구는 `kiln` 하나 |
 
-검증: `npm test` → 15개 통과. `node src/cli.ts test examples/maze.kiln --input examples/maze.input` → 5개 통과, hash=6a2cb335.
+검증: `npm test` → 22개 통과. `node src/cli.ts test examples/maze.kiln --input examples/maze.input` → 5개 통과, hash=6a2cb335. `examples/patrol.kiln`(스크립트 사용) → 3개 통과, hash=431e704e.
 
 ## 알려진 한계
 
-- 렌더러, 오디오, 에셋, 스크립팅이 없다. 게임 로직은 내장 컴포넌트 조합으로만 표현된다.
+- 렌더러, 오디오, 에셋이 없다.
+- 스크립트의 비결정 검사는 줄 단위 정규식이다. `Math.random` 같은 뻔한 것만 잡고, float 연산이나 우회 접근은 못 잡는다.
+- 컴포넌트 레지스트리가 프로세스 전역이라, 한 프로세스에서 서로 다른 스크립트가 같은 이름을 정의하면 나중 것이 덮어쓴다.
+- MCP 서버는 테스트에서 직접 JSON-RPC로만 확인했다. 실제 Claude Code 클라이언트에 연결해 본 적은 없다.
 - 충돌은 AABB 축 분리 방식이고 연속 충돌 검사가 없어서, 한 틱에 상대 두께보다 많이 움직이면 뚫고 지나간다.
 - 씬 파일로 저장할 때 눌린 키와 트리거 겹침 상태는 저장되지 않는다(테스트에서는 수동으로 복사해 재개).
 - 다른 OS·CPU에서 해시가 같은지는 실측하지 않았다. Windows x64 한 대에서만 돌렸다.
@@ -38,8 +44,8 @@ AI 에이전트가 1급 사용자인 오픈소스 게임 엔진. 사용자의 �
 
 ## 다음 일 (M1)
 
-1. 스크립팅: 씬에서 `use ./game.ts`로 사용자 컴포넌트·시스템 등록(`defineComponent`는 이미 공개돼 있다).
-2. MCP 서버: check/run/test/view/schema를 도구로 노출.
+1. (완료) 스크립팅 `use`, MCP 서버.
+2. MCP 서버를 실제 Claude Code에 연결해 소형 게임 하나를 끝까지 만들어 보기.
 3. 2D 렌더러: 같은 월드를 브라우저 Canvas/WebGPU로 그리기. 시뮬레이션과 분리.
 4. 토큰 벤치마크: 같은 소형 게임을 Kiln 씬과 Godot `.tscn`+GDScript로 표현해 토큰 수 비교.
 5. 연속 충돌 검사, 스냅샷에 입력·겹침 상태 포함.

@@ -10,7 +10,7 @@ Existing engines assume a human looking at an editor window. An agent using them
 - **Cheap observation.** An ASCII view and one-line-per-entity dumps instead of screenshots.
 - **Machine-readable errors.** Every error has a code, a `file:line`, and a hint. All errors are reported in one pass.
 
-Status: **M0 (core)**. No renderer yet. See [HANDOFF.md](HANDOFF.md) for the roadmap and known limits.
+Status: **core + scripting + MCP server**. No renderer yet. See [HANDOFF.md](HANDOFF.md) for the roadmap and known limits.
 
 ## Try it
 
@@ -18,6 +18,7 @@ Needs Node 24+. No dependencies, no build step.
 
 ```
 node src/cli.ts test examples/maze.kiln --input examples/maze.input --view
+node src/cli.ts test examples/patrol.kiln --input examples/patrol.input
 npm test
 ```
 
@@ -53,6 +54,30 @@ Expectations (`A`/`B` are entity names or `#tags`):
 | `at N A.comp.field OP VALUE` | the comparison holds at tick N |
 
 Input scripts are one `TICK ACTION down|up` per line. Actions: `left right up down a b`.
+
+## Scripts
+
+A scene line `use ./game.ts` loads a script that adds components and systems. See [examples/patrol.ts](examples/patrol.ts).
+
+```ts
+export default (k) => {
+  k.component('patrol', 'walks between x=min and x=max', [
+    { name: 'min', type: 'fx' }, { name: 'max', type: 'fx' }, { name: 'speed', type: 'fx' }]);
+  k.system((w) => {
+    for (const id of w.query('patrol', 'pos', 'vel')) { /* ... */ }
+  });
+};
+```
+
+Scripts must stay deterministic. `Math.random`, `Date`, timers and similar are rejected at load (K121); use `w.rand()` and `w.tick`.
+
+## Use from an agent (MCP)
+
+```json
+{ "mcpServers": { "kiln": { "command": "node", "args": ["/path/to/kiln/src/cli.ts", "mcp"] } } }
+```
+
+The server exposes one tool, `kiln`, with a `cmd` argument (`check`, `run`, `test`, `schema`). One tool instead of many keeps the definition the agent carries in context small.
 
 ## License
 

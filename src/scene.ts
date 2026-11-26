@@ -15,7 +15,7 @@ export class KilnFail extends Error {
 }
 
 export interface RawExpect { line: number; text: string }
-export interface Scene { world: World; expects: RawExpect[] }
+export interface Scene { world: World; expects: RawExpect[]; uses: string[] }
 
 function lev(a: string, b: string): number {
   const d = Array.from({ length: b.length + 1 }, (_, i) => i);
@@ -48,6 +48,7 @@ const sig = (c: CompDef): string =>
 export function parseScene(text: string, file = 'scene'): Scene {
   const world = new World();
   const expects: RawExpect[] = [];
+  const uses: string[] = [];
   const diags: Diag[] = [];
   const err = (code: string, line: number, msg: string, hint?: string) => diags.push({ code, file, line, msg, hint });
   let cur = -1;
@@ -72,17 +73,23 @@ export function parseScene(text: string, file = 'scene'): Scene {
           if (k === 'hz' || k === 'tick') {
             if (!/^\d+$/.test(v ?? '') || (k === 'hz' && +v < 1)) err('K104', line, `world ${k} must be a positive integer`);
             else world[k] = +v;
+          } else if (k === 'seed') {
+            if (!/^-?\d+$/.test(v ?? '')) err('K104', line, `world seed must be an integer`);
+            else world.seed = +v | 0;
           } else if (k === 'gravity') {
             const p = (v ?? '').split(',').map(parseFx);
             if (p.length !== 2 || p[0] === null || p[1] === null) err('K104', line, `world gravity must be X,Y`, 'e.g. gravity=0,20');
             else { world.gx = p[0]; world.gy = p[1]; }
-          } else err('K103', line, `unknown world setting '${k}'`, 'valid: hz, gravity, tick');
+          } else err('K103', line, `unknown world setting '${k}'`, 'valid: hz, gravity, seed, tick');
         }
+      } else if (tok[0] === 'use') {
+        if (tok.length !== 2) return err('K100', line, `expected 'use PATH' (script path relative to the scene file)`);
+        uses.push(tok[1]);
       } else if (tok[0] === 'expect') {
         expects.push({ line, text: tok.slice(1).join(' ') });
       } else {
         err('K108', line, `unknown directive '${tok[0]}'`,
-          registry.has(tok[0]) ? 'components must be indented under an entity' : suggest(tok[0], ['entity', 'world', 'expect']));
+          registry.has(tok[0]) ? 'components must be indented under an entity' : suggest(tok[0], ['entity', 'world', 'expect', 'use']));
       }
       return;
     }
@@ -121,12 +128,13 @@ export function parseScene(text: string, file = 'scene'): Scene {
   });
 
   if (diags.length) throw new KilnFail(diags);
-  return { world, expects };
+  return { world, expects, uses };
 }
 
 /** Canonical scene text for the current state. Parsing it back gives the same world. */
-export function serialize(w: World, expects: RawExpect[] = []): string {
-  const out = [`world hz=${w.hz} gravity=${fmtFx(w.gx)},${fmtFx(w.gy)}${w.tick ? ` tick=${w.tick}` : ''}`];
+export function serialize(w: World, expects: RawExpect[] = [], uses: string[] = []): string {
+  const out = [...uses.map((u) => `use ${u}`),
+    `world hz=${w.hz} gravity=${fmtFx(w.gx)},${fmtFx(w.gy)}${w.seed ? ` seed=${w.seed}` : ''}${w.tick ? ` tick=${w.tick}` : ''}`];
   w.names.forEach((name, id) => {
     if (name == null) return;
     out.push(`entity ${name}`);

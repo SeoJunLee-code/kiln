@@ -3,13 +3,15 @@ import { evalTick, finish, lastTick, parseExpects } from './expect.ts';
 import type { Expect } from './expect.ts';
 import { parseScene } from './scene.ts';
 import { hash, parseInput, step } from './sim.ts';
-import type { World } from './world.ts';
+import type { System, World } from './world.ts';
 
-export interface RunResult { world: World; hash: string; expects: Expect[]; ok: boolean }
+export interface RunResult { world: World; hash: string; expects: Expect[]; ok: boolean; uses: string[] }
+export interface Mods { pre: System[]; post: System[] }
 
 /** Load a scene, run it headless, and evaluate its `expect` lines. */
-export function run(sceneText: string, opts: { input?: string; ticks?: number; file?: string; inputFile?: string } = {}): RunResult {
-  const { world, expects: raw } = parseScene(sceneText, opts.file);
+export function run(sceneText: string, opts: { input?: string; ticks?: number; file?: string; inputFile?: string; mods?: Mods } = {}): RunResult {
+  const { world, expects: raw, uses } = parseScene(sceneText, opts.file);
+  if (opts.mods) { world.pre = opts.mods.pre; world.post = opts.mods.post; }
   const expects = parseExpects(raw, world, opts.file);
   const script = opts.input === undefined ? undefined : parseInput(opts.input, opts.inputFile);
   const end = world.tick + (opts.ticks ?? Math.max(lastTick(expects) - world.tick, 0));
@@ -19,7 +21,7 @@ export function run(sceneText: string, opts: { input?: string; ticks?: number; f
     evalTick(world, expects);
   }
   finish(expects);
-  return { world, hash: hash(world), expects, ok: expects.every((e) => e.ok) };
+  return { world, hash: hash(world), expects, ok: expects.every((e) => e.ok), uses };
 }
 
 /** ASCII picture of the world, one character per world unit. Cheap for an agent to read. */

@@ -48,6 +48,8 @@ export function step(w: World, script?: InputScript): void {
     } else v.y = (on('down') - on('up')) * speed;
   }
 
+  for (const sys of w.pre) sys(w);
+
   for (const id of w.query('body', 'vel')) {
     const v = w.get(id, 'vel')!;
     v.x = ((v.x as number) + tickShare(w.gx, k, w.hz)) | 0;
@@ -104,6 +106,7 @@ export function step(w: World, script?: InputScript): void {
     }
   }
   for (const id of doomed) w.despawn(id);
+  for (const sys of w.post) sys(w);
 }
 
 /** FNV-1a hash of the full simulation state. Equal hash = identical state. */
