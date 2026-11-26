@@ -260,8 +260,15 @@ against both engines, and one rule — a feature counts only when a check in CI 
 if it breaks. Comparisons of speed follow [bench/PROTOCOL.md](bench/PROTOCOL.md):
 same scene, same settings, same machine; average FPS, 1% low and GPU frame time.
 
+The plan is three editions over one shared kernel, so a small game does not carry
+what a large one needs: **Lite** (2D and simple 3D, no dependencies), **Core**
+(most games) and **Pro** (large worlds, high-end graphics). One scene format and
+the same agent tools in all three; none of the split is built yet. See
+[docs/EDITIONS.md](docs/EDITIONS.md).
+
 Next:
 
+0. Draw the edition line in code: `check` reports the lowest edition a game needs, and each edition gets a size budget in CI.
 1. Finish what just landed: glTF files from other tools, animation and skins, environment lighting; bodies that move the character, more shapes, joints.
 2. Sprite animation, per-tile art, audio, UI.
 3. Connect a real agent over MCP and build a complete small game with it; measure the tokens.

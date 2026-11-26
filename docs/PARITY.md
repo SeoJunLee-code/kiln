@@ -29,6 +29,24 @@ Three kinds of check, because they fail differently:
   calls, bytes). Wall-clock time is measured on the reference PC only, by
   [`bench/PROTOCOL.md`](../bench/PROTOCOL.md).
 
+## Editions
+
+Kiln is planned in three editions over one shared kernel; the plan and its rules
+are in [`EDITIONS.md`](EDITIONS.md). Each gate at the end of this file belongs to
+one edition: **Lite** is the Godot 2D class, **Core** the Godot 3D class, **Pro**
+the Unreal class. The agent-first rows belong to the kernel and hold in all three.
+
+| Feature | Kiln | Check |
+|---|---|---|
+| `check` names the lowest edition a game needs, and why | none | |
+| A feature above a given ceiling (`--edition`) is an error | none | |
+| A game ships only the parts it uses | works (physics backend only) | build test covers the backend; the player still loads the WebGPU renderer and glTF reader for a 2D game |
+| Exported size within a byte budget, per edition | none | |
+| A game of a lower edition reaches the same hash under a higher one | none | |
+| Lite features drawn by both renderers | **gated** | the reference images shared by WebGL2 and WebGPU |
+| No allocation per tick in the simulation path | none | not measured; Kiln runs on a garbage-collected language |
+| Parallel simulation reaches the serial hash | none | no parallel code yet |
+
 ## Agent-first (Kiln's own axis)
 
 Neither engine was built for this; these rows are why Kiln exists.
@@ -44,6 +62,8 @@ Neither engine was built for this; these rows are why Kiln exists.
 | MCP server | **gated** (protocol) | JSON-RPC test; no real client run yet |
 | `look`: an agent sees what was drawn | **gated** | tests; over MCP the picture comes back in the reply |
 | Real token cost of building a game, measured | none | one size estimate only |
+| A real agent builds a game to the end and repairs its own failures | none | no real client has connected; count the failures fixed without a person |
+| The first tick where two runs differ is reported | none | |
 
 ## 2D (Godot 2D is the bar)
 
@@ -100,17 +120,17 @@ Neither engine was built for this; these rows are why Kiln exists.
 
 ## Gates
 
-### Godot 2D class
+### Lite: Godot 2D class
 
-Three of Godot's official 2D demos rebuilt in Kiln, each solved by `solve`, each
+The edition rows above **gated**, and a real agent has built a Lite game to the end. Three of Godot's official 2D demos rebuilt in Kiln, each solved by `solve`, each
 row they use **gated**.
 
-### Godot 3D class
+### Core: Godot 3D class
 
 The glTF sample scenes within image tolerance of their references; a
 third-person demo at 60 fps on the reference PC.
 
-### Unreal class
+### Pro: Unreal class
 
 Every row measured against UE5 on the **same scene, same settings, same
 hardware**, by `bench/PROTOCOL.md`. Numbers are targets, to be revised when the
@@ -121,10 +141,10 @@ first measurements exist.
 | Geometry | A scene of 100M+ source triangles, no hand-made LODs, 1080p at 60 fps; frame time at or below UE5 |
 | Lighting | Dynamic global illumination; perceptual error against a path-traced reference at or below UE5 |
 | Characters | Skeletal animation, blending and IK; 100 characters at 60 fps |
-| Physics | 10,000 rigid bodies stable; replay from input gives the same hash |
+| Physics | 10,000 rigid bodies stable; replay from input gives the same hash; destruction of bodies into pieces under the same rule |
 | World | 16 km² streamed with a stated frame-time ceiling during loading |
 | Network | A 64-player session demo |
-| Tools | glTF and USD import, a viewer and inspector for people, a profiler |
+| Tools | glTF and USD import, a viewer and inspector for people, a profiler, a timeline for cinematics |
 | Platforms | Windows, macOS, Linux executables and the web |
 | Shipped | Games made with Kiln by people outside the project |
 | **Agent cost** | The same game spec built with UE5 + agent and with Kiln + agent: tokens, time, and whether it was finished |
