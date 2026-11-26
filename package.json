@@ -1,0 +1,12 @@
+{
+  "name": "kiln-engine",
+  "version": "0.0.1",
+  "description": "Agent-first deterministic game engine: text scenes, headless verification, machine-readable errors.",
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "kiln": "node src/cli.ts",
+    "test": "node --test tests/*.test.ts"
+  }
+}

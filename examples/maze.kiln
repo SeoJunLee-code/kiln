@@ -1,0 +1,48 @@
+# Top-down room: go under the inner wall, grab the coin, reach the exit.
+world hz=60 gravity=0,0
+
+entity player
+  pos 1 1
+  box 0.8 0.8
+  vel
+  ctrl 4
+  sprite @
+
+entity top
+  pos 0 0
+  box 10 1
+  solid
+entity bottom
+  pos 0 6
+  box 10 1
+  solid
+entity left
+  pos 0 1
+  box 1 5
+  solid
+entity right
+  pos 9 1
+  box 1 5
+  solid
+entity inner
+  pos 4 1
+  box 1 3
+  solid
+
+entity coin
+  pos 5 4.6
+  box 0.5 0.5
+  trigger player coin despawn-self
+  sprite o
+
+entity exit
+  pos 7 1
+  box 1 1
+  trigger player win
+  sprite E
+
+expect gone coin by 240
+expect reach player exit by 240
+expect event win by 240
+expect never player inner
+expect at 60 player.pos.y > 4.9

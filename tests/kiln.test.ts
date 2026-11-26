@@ -1,0 +1,161 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { test } from 'node:test';
+import { ONE, div, fmtFx, fx, mul, parseFx } from '../src/fx.ts';
+import { run, view } from '../src/run.ts';
+import { KilnFail, parseScene, serialize } from '../src/scene.ts';
+import { hash, parseInput, step } from '../src/sim.ts';
+
+const maze = readFileSync(new URL('../examples/maze.kiln', import.meta.url), 'utf8');
+const mazeInput = readFileSync(new URL('../examples/maze.input', import.meta.url), 'utf8');
+const codes = (fn: () => unknown): string[] => {
+  try { fn(); } catch (e) { if (e instanceof KilnFail) return e.diags.map((d) => d.code); throw e; }
+  return [];
+};
+
+test('fx: arithmetic matches exact results', () => {
+  assert.equal(mul(fx(1.5), fx(2)), fx(3));
+  assert.equal(mul(fx(-1.5), fx(2)), fx(-3));
+  assert.equal(mul(fx(200), fx(100)), fx(20000));
+  assert.equal(div(fx(3), fx(2)), fx(1.5));
+  assert.equal(div(fx(-7), fx(2)), fx(-3.5));
+  assert.throws(() => div(ONE, 0));
+});
+
+test('fx: text round-trips for every representable step', () => {
+  for (const v of [0, 1, -1, 65535, 65537, fx(4.6), fx(-0.1), fx(123.456), 2 ** 31 - 1, -(2 ** 31)]) {
+    assert.equal(parseFx(fmtFx(v)), v, `value ${v} via '${fmtFx(v)}'`);
+  }
+  assert.equal(parseFx('1e3'), null);
+  assert.equal(parseFx('abc'), null);
+  assert.equal(parseFx('40000'), null);
+});
+
+test('scene: serialize then parse is a fixed point', () => {
+  const s = parseScene(maze);
+  const a = serialize(s.world, s.expects);
+  const s2 = parseScene(a);
+  assert.equal(serialize(s2.world, s2.expects), a);
+  assert.equal(hash(s2.world), hash(s.world));
+});
+
+test('scene: reports every error at once, with codes and hints', () => {
+  let fail: KilnFail | undefined;
+  try {
+    parseScene('entity p\n  boxx 1 1\n  pos 1\n  vel 1 2 3\n  ctrl sped=4\n  pos x\nentity p\nsolid\n  box 1 1\n', 'bad.kiln');
+  } catch (e) { fail = e as KilnFail; }
+  assert.ok(fail);
+  assert.deepEqual(fail.diags.map((d) => `${d.code}:${d.line}`), ['K102:2', 'K105:3', 'K107:4', 'K103:5', 'K104:6', 'K101:7', 'K108:8', 'K106:9']);
+  assert.match(fail.diags[0].hint!, /did you mean 'box'/);
+  assert.match(fail.diags[3].hint!, /did you mean 'speed'/);
+  assert.match(fail.message, /^E K102 bad\.kiln:2 /);
+});
+
+test('scene: comments and #tag references coexist', () => {
+  const s = parseScene('entity a # trailing comment\n  tag foe\n  pos 0 0\n  box 1 1\n  trigger #foe hit\n');
+  assert.equal(s.world.get(0, 'trigger')!.target, '#foe');
+  assert.deepEqual(s.world.match('#foe'), [0]);
+});
+
+test('determinism: same scene + input gives the same hash, different input does not', () => {
+  const a = run(maze, { input: mazeInput });
+  const b = run(maze, { input: mazeInput });
+  const c = run(maze, { input: mazeInput.replace('60 right down', '61 right down') });
+  assert.equal(a.hash, b.hash);
+  assert.notEqual(a.hash, c.hash);
+});
+
+test('determinism: saving mid-run and resuming reaches the same state', () => {
+  const script = parseInput(mazeInput);
+  const full = parseScene(maze).world;
+  for (let i = 0; i < 200; i++) step(full, script);
+
+  const half = parseScene(maze).world;
+  for (let i = 0; i < 90; i++) step(half, script);
+  const resumed = parseScene(serialize(half)).world;
+  for (const a of half.pressed) resumed.pressed.add(a);
+  for (const o of half.overlaps) resumed.overlaps.add(o);
+  for (let i = 90; i < 200; i++) step(resumed, script);
+  assert.equal(hash(resumed), hash(full));
+});
+
+test('maze example: all expectations pass with the recorded input', () => {
+  const r = run(maze, { input: mazeInput });
+  assert.deepEqual(r.expects.filter((e) => !e.ok).map((e) => `${e.text} -- ${e.note}`), []);
+  assert.deepEqual(r.world.events.map((e) => e.name), ['coin', 'win']);
+});
+
+test('maze example: without input the failures explain what happened', () => {
+  const r = run(maze);
+  assert.equal(r.ok, false);
+  const reach = r.expects.find((e) => e.kind === 'reach')!;
+  assert.equal(reach.ok, false);
+  assert.match(reach.note, /closest gap [\d.]+ at tick 0, player at 1,1/);
+  assert.match(r.expects.find((e) => e.kind === 'gone')!.note, /still alive/);
+});
+
+test('collision: a mover stops flush against a solid on each side', () => {
+  const scene = (vx: number, vy: number) => `entity m\n  pos 5 5\n  box 1 1\n  vel ${vx} ${vy}\n` +
+    'entity l\n  pos 2 0\n  box 1 20\n  solid\nentity r\n  pos 9 0\n  box 1 20\n  solid\n' +
+    'entity t\n  pos 0 2\n  box 20 1\n  solid\nentity b\n  pos 0 9\n  box 20 1\n  solid\n';
+  const end = (vx: number, vy: number) => {
+    const w = run(scene(vx, vy), { ticks: 120 }).world;
+    const p = w.get(0, 'pos')!;
+    return [fmtFx(p.x as number), fmtFx(p.y as number)];
+  };
+  assert.deepEqual(end(7, 0), ['8', '5']);
+  assert.deepEqual(end(-7, 0), ['3', '5']);
+  assert.deepEqual(end(0, 7), ['5', '8']);
+  assert.deepEqual(end(0, -7), ['5', '3']);
+});
+
+test('platformer: gravity grounds the body and up jumps only when grounded', () => {
+  const scene = 'world gravity=0,30\nentity p\n  pos 2 0\n  box 1 1\n  vel\n  body\n  ctrl 4 10\n' +
+    'entity floor\n  pos 0 5\n  box 10 1\n  solid\n';
+  const landed = run(scene, { ticks: 120 }).world;
+  assert.equal(fmtFx(landed.get(0, 'pos')!.y as number), '4');
+  assert.equal(landed.get(0, 'body')!.grounded, 1);
+
+  const jumped = run(scene, { ticks: 130, input: '120 up down\n121 up up\n' }).world;
+  assert.ok((jumped.get(0, 'pos')!.y as number) < fx(3.5), 'left the floor');
+  assert.equal(jumped.get(0, 'body')!.grounded, 0);
+
+  const midair = run(scene, { ticks: 10, input: '5 up down\n' }).world;
+  assert.ok((midair.get(0, 'vel')!.y as number) > 0, 'no jump while falling');
+});
+
+test('trigger: fires once per entry and despawn-other removes the target', () => {
+  const scene = 'entity p\n  pos 0 0\n  box 1 1\n  vel 2 0\n  tag hero\n' +
+    'entity zone\n  pos 2 0\n  box 1 1\n  trigger #hero enter\n' +
+    'entity pit\n  pos 6 0\n  box 1 1\n  trigger p fell despawn-other\n';
+  const w = run(scene, { ticks: 400 }).world;
+  assert.deepEqual(w.events.map((e) => `${e.name}:${e.a}:${e.b}`), ['enter:zone:p', 'fell:pit:p']);
+  assert.deepEqual(w.match('p'), []);
+});
+
+test('expect: bad references and syntax are diagnosed before running', () => {
+  assert.deepEqual(codes(() => run('entity a\n  pos 0 0\nexpect reach a bb by 10\n')), ['K110']);
+  assert.deepEqual(codes(() => run('entity a\n  pos 0 0\nexpect at 5 a.pos.z > 1\nexpect reach a\n')), ['K111', 'K111']);
+  assert.deepEqual(codes(() => parseInput('0 jump down\nx\n')), ['K200', 'K200']);
+});
+
+test('expect: at-tick comparisons read live state', () => {
+  const scene = 'entity a\n  pos 0 0\n  vel 6 0\nexpect at 30 a.pos.x == 3\nexpect at 30 a.pos.x < 2\n';
+  const r = run(scene);
+  assert.deepEqual(r.expects.map((e) => [e.ok, e.note]), [[true, 'actual 3'], [false, 'actual 3']]);
+});
+
+test('view: draws solids, glyphs and names', () => {
+  const v = view(run(maze, { input: mazeInput }).world);
+  assert.equal(v, [
+    'origin 0,0',
+    '##########',
+    '#...#..@.#',
+    '#...#....#',
+    '#...#....#',
+    '#........#',
+    '#........#',
+    '##########',
+    '',
+  ].join('\n'));
+});

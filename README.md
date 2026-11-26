@@ -1,0 +1,59 @@
+# Kiln
+
+An open-source game engine whose primary user is an AI agent, not a person in a GUI editor.
+
+Existing engines assume a human looking at an editor window. An agent using them pays for that in tokens: binary or verbose scene files, results it can only check by looking at pixels, and runs that differ every time. Kiln is designed the other way round:
+
+- **Everything is text.** Scenes are short, diffable files. There is no required editor.
+- **Deterministic core.** Fixed tick, fixed-point math, fixed system order. Same scene + same input = same state hash, on every machine.
+- **Headless verification.** `kiln test` runs a scene without a window and checks `expect` lines written in the scene itself.
+- **Cheap observation.** An ASCII view and one-line-per-entity dumps instead of screenshots.
+- **Machine-readable errors.** Every error has a code, a `file:line`, and a hint. All errors are reported in one pass.
+
+Status: **M0 (core)**. No renderer yet. See [HANDOFF.md](HANDOFF.md) for the roadmap and known limits.
+
+## Try it
+
+Needs Node 24+. No dependencies, no build step.
+
+```
+node src/cli.ts test examples/maze.kiln --input examples/maze.input --view
+npm test
+```
+
+## Scene format
+
+```
+world hz=60 gravity=0,0
+
+entity player
+  pos 1 1
+  box 0.8 0.8
+  vel
+  ctrl 4
+
+entity exit
+  pos 7 1
+  box 1 1
+  trigger player win
+
+expect reach player exit by 240
+```
+
+Component values are positional or `name=value`. `node src/cli.ts schema` prints the full component reference in a form meant to be pasted into an agent's context.
+
+Expectations (`A`/`B` are entity names or `#tags`):
+
+| Form | Passes when |
+|---|---|
+| `reach A B by N` | A overlaps B at some tick ≤ N |
+| `never A B` | A never overlaps B during the run |
+| `gone A by N` | A was despawned by tick N |
+| `event NAME by N` | a trigger emitted NAME by tick N |
+| `at N A.comp.field OP VALUE` | the comparison holds at tick N |
+
+Input scripts are one `TICK ACTION down|up` per line. Actions: `left right up down a b`.
+
+## License
+
+MIT
