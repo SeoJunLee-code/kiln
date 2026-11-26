@@ -10,7 +10,7 @@ Existing engines assume a human looking at an editor window. An agent using them
 - **Cheap observation.** An ASCII view and one-line-per-entity dumps instead of screenshots.
 - **Machine-readable errors.** Every error has a code, a `file:line`, and a hint. All errors are reported in one pass.
 
-Status: **core + scripting + MCP server**. No renderer yet. See [HANDOFF.md](HANDOFF.md) for the roadmap and known limits.
+Status: **core + scripting + MCP server + 2D browser player**. Early; see the limits below. See [HANDOFF.md](HANDOFF.md) for the roadmap and known limits.
 
 ## Try it
 
@@ -54,6 +54,14 @@ Expectations (`A`/`B` are entity names or `#tags`):
 | `at N A.comp.field OP VALUE` | the comparison holds at tick N |
 
 Input scripts are one `TICK ACTION down|up` per line. Actions: `left right up down a b`.
+
+## Play in a browser
+
+```
+node src/cli.ts play examples/maze.kiln
+```
+
+The page runs the same simulation modules as the headless CLI (the server strips types on request; there is still no build step). What you press is recorded as an input script, so a human play session can be replayed headless with `kiln test SCENE --input FILE` and gives the same state hash.
 
 ## Scripts
 

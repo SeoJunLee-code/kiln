@@ -96,3 +96,26 @@ test('mcp: initialize, list the single tool, and call it', async () => {
   assert.match(replies[4].result.content[0].text, /^E K102 scene:2 unknown component 'poss' \(hint: did you mean 'pos'\?\)/);
   assert.equal(replies[5].error.code, -32601);
 });
+
+test('serve: strips types from engine and game files and refuses paths outside them', { timeout: 20000 }, async () => {
+  const { serve } = await import('../src/serve.ts');
+  const { port, close } = await serve(ex('patrol.kiln'), ex('patrol.input'), 0);
+  try {
+    const get = async (p: string) => { const r = await fetch(`http://127.0.0.1:${port}${p}`); return { status: r.status, type: r.headers.get('content-type'), text: await r.text() }; };
+
+    assert.match((await get('/')).text, /<title>Kiln player<\/title>/);
+    assert.deepEqual(JSON.parse((await get('/config.json')).text), { scene: 'patrol.kiln', input: true });
+    const engine = await get('/engine/src/world.ts');
+    assert.match(engine.type!, /text\/javascript/);
+    assert.doesNotMatch(engine.text, /export interface|: FieldType/);
+    assert.doesNotThrow(() => new Function(engine.text.replace(/^export /gm, '')));
+    assert.match((await get('/game/patrol.kiln')).text, /^use \.\/patrol\.ts$/m);
+    assert.match((await get('/game/patrol.ts')).type!, /text\/javascript/);
+    assert.match((await get('/input')).text, /^0 down down/);
+    assert.equal((await get('/game/..%2fpackage.json')).status, 403);
+    assert.equal((await get('/engine/..%2f..%2fREADME.md')).status, 403);
+    assert.equal((await get('/game/nope.kiln')).status, 404);
+  } finally {
+    close();
+  }
+});

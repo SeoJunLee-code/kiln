@@ -1,25 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { ONE, div, fmtFx, fx, mul, tickShare } from './fx.ts';
+import { makeApi } from './api.ts';
 import type { Mods } from './run.ts';
 import { KilnFail } from './scene.ts';
 import type { Diag } from './scene.ts';
-import { defineComponent } from './world.ts';
-import type { Field, System } from './world.ts';
 
-/** What a script's default export receives. */
-export interface Kiln {
-  component(name: string, doc: string, fields?: Field[]): void;
-  /** stage 'pre' runs before physics each tick, 'post' after triggers */
-  system(fn: System, stage?: 'pre' | 'post'): void;
-  ONE: number;
-  fx: typeof fx;
-  mul: typeof mul;
-  div: typeof div;
-  fmtFx: typeof fmtFx;
-  tickShare: typeof tickShare;
-}
+export type { Kiln } from './api.ts';
 
 // Anything that would make two runs of the same scene differ.
 const NONDET = /\bMath\.random\b|\bDate\b|\bperformance\b|\bsetTimeout\b|\bsetInterval\b|\bprocess\b|\bfetch\b/;
@@ -28,11 +15,7 @@ const NONDET = /\bMath\.random\b|\bDate\b|\bperformance\b|\bsetTimeout\b|\bsetIn
 export async function loadMods(sceneText: string, sceneFile: string): Promise<Mods> {
   const mods: Mods = { pre: [], post: [] };
   const diags: Diag[] = [];
-  const api: Kiln = {
-    component: defineComponent,
-    system: (fn, stage = 'pre') => void mods[stage].push(fn),
-    ONE, fx, mul, div, fmtFx, tickShare,
-  };
+  const api = makeApi(mods);
   const lines = sceneText.split(/\r?\n/);
   for (let i = 0; i < lines.length; i++) {
     const m = /^use\s+(\S+)\s*$/.exec(lines[i]);

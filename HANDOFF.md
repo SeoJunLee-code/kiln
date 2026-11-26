@@ -28,12 +28,18 @@ AI 에이전트가 1급 사용자인 오픈소스 게임 엔진. 사용자의 �
 | `src/commands.ts` | 명령 실행부. CLI와 MCP가 같이 쓴다 |
 | `src/cli.ts` | `check` / `run` / `test` / `schema` / `mcp` |
 | `src/mcp.ts` | stdio MCP 서버, 도구는 `kiln` 하나 |
+| `src/api.ts` | 스크립트 API. Node API를 안 써서 브라우저에서도 돈다 |
+| `src/serve.ts` | `play`용 HTTP 서버. `.ts`를 요청 시 타입 제거해 브라우저에 준다 |
+| `web/` | 브라우저 플레이어(Canvas 2D). 시뮬레이션은 `src/`를 그대로 쓴다 |
 
-검증: `npm test` → 22개 통과. `node src/cli.ts test examples/maze.kiln --input examples/maze.input` → 5개 통과, hash=6a2cb335. `examples/patrol.kiln`(스크립트 사용) → 3개 통과, hash=431e704e.
+검증: `npm test` → 23개 통과. `node src/cli.ts test examples/maze.kiln --input examples/maze.input` → 5개 통과, hash=6a2cb335. `examples/patrol.kiln`(스크립트 사용) → 3개 통과, hash=431e704e.
+
+브라우저 확인(2026-11-26, 프리뷰 `kiln`): maze를 입력 재생 모드로 240틱 돌린 해시가 헤드리스와 같은 6a2cb335였다. 실시간 입력 모드에서 합성 키 이벤트로 같은 조작을 넣으면 기록된 입력이 `examples/maze.input`과 같고 해시도 같았다. 합성 이벤트였고, 사람이 실제 키보드로 플레이한 확인은 아니다.
 
 ## 알려진 한계
 
-- 렌더러, 오디오, 에셋이 없다.
+- 렌더러는 색 사각형과 글리프만 그리는 Canvas 2D다. 이미지 스프라이트, 카메라, 애니메이션, 오디오, 에셋 파이프라인이 없다.
+- 브라우저와 Node는 둘 다 V8이다. 다른 JS 엔진(Firefox, Safari)에서 해시가 같은지는 확인하지 않았다.
 - 스크립트의 비결정 검사는 줄 단위 정규식이다. `Math.random` 같은 뻔한 것만 잡고, float 연산이나 우회 접근은 못 잡는다.
 - 컴포넌트 레지스트리가 프로세스 전역이라, 한 프로세스에서 서로 다른 스크립트가 같은 이름을 정의하면 나중 것이 덮어쓴다.
 - MCP 서버는 테스트에서 직접 JSON-RPC로만 확인했다. 실제 Claude Code 클라이언트에 연결해 본 적은 없다.
@@ -46,7 +52,7 @@ AI 에이전트가 1급 사용자인 오픈소스 게임 엔진. 사용자의 �
 
 1. (완료) 스크립팅 `use`, MCP 서버.
 2. MCP 서버를 실제 Claude Code에 연결해 소형 게임 하나를 끝까지 만들어 보기.
-3. 2D 렌더러: 같은 월드를 브라우저 Canvas/WebGPU로 그리기. 시뮬레이션과 분리.
+3. (일부 완료) 2D 플레이어. 남은 것: 이미지 스프라이트, 카메라 추적, WebGPU 백엔드.
 4. 토큰 벤치마크: 같은 소형 게임을 Kiln 씬과 Godot `.tscn`+GDScript로 표현해 토큰 수 비교.
 5. 연속 충돌 검사, 스냅샷에 입력·겹침 상태 포함.
 6. GitHub Actions로 Linux·macOS에서 해시 일치 확인.

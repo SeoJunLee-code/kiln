@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kiln player</title>
+<style>
+  :root { color-scheme: dark; --bg: #14161a; --panel: #1c1f25; --line: #2c313a; --text: #d7dbe2; --dim: #8a919d; --ok: #6cc48a; --bad: #e0736d; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { display: grid; grid-template-columns: minmax(0, 1fr) 340px; background: var(--bg); color: var(--text); font: 13px/1.5 ui-monospace, Consolas, monospace; }
+  canvas { width: 100%; height: 100%; display: block; }
+  aside { background: var(--panel); border-left: 1px solid var(--line); padding: 14px 16px; overflow: auto; }
+  h2 { margin: 16px 0 6px; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+  h2:first-child { margin-top: 0; }
+  pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .pass { color: var(--ok); } .fail { color: var(--bad); } .open { color: var(--dim); }
+  button { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 4px 10px; cursor: pointer; }
+  button:hover { border-color: var(--dim); }
+  button:focus-visible { outline: 2px solid var(--ok); outline-offset: 1px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  #error { color: var(--bad); }
+  @media (max-width: 760px) { body { grid-template-columns: 1fr; grid-template-rows: 60vh auto; } aside { border-left: 0; border-top: 1px solid var(--line); } }
+</style>
+</head>
+<body>
+<canvas id="view" aria-label="Game view"></canvas>
+<aside>
+  <h2>State</h2>
+  <pre id="state"></pre>
+  <div class="row" style="margin-top:8px">
+    <button id="restart" type="button">Restart (R)</button>
+    <button id="pause" type="button">Pause (P)</button>
+    <button id="copy" type="button">Copy input script</button>
+  </div>
+  <h2>Expectations</h2>
+  <pre id="expects"></pre>
+  <h2>Events</h2>
+  <pre id="events"></pre>
+  <h2>Controls</h2>
+  <pre class="open">arrows / WASD  move
+Z, X           a, b
+Everything you press is recorded as an
+input script that replays headless:
+kiln test SCENE --input FILE</pre>
+  <pre id="error"></pre>
+</aside>
+<script type="module" src="/engine/web/player.ts"></script>
+</body>
+</html>
