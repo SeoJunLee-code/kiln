@@ -18,6 +18,8 @@ export interface LookOptions {
   height?: number;
   /** Extra query parameters for the player page, e.g. 'pad'. */
   query?: string;
+  /** Let WebGPU present to the canvas as it does for a player, instead of drawing only for the picture. */
+  onscreen?: boolean;
   /** A browser to reuse; without one, look starts its own and closes it. */
   browser?: Browser;
 }
@@ -50,7 +52,8 @@ export async function openPlayer(sceneFile: string, options: LookOptions = {}): 
     server.close();
   };
   try {
-    const url = `http://127.0.0.1:${server.port}/?paused${options.query ? `&${options.query}` : ''}`;
+    // Pictures come from a texture, so WebGPU is not asked to show anything unless the caller wants that.
+    const url = `http://127.0.0.1:${server.port}/?paused${options.onscreen ? '' : '&offscreen'}${options.query ? `&${options.query}` : ''}`;
     const page = await browser.open(url, { width: options.width ?? 960, height: options.height ?? 600 });
     const state = await page.eval<{ error: string; ready: boolean }>(`new Promise((done) => {
       const started = Date.now();

@@ -67,6 +67,26 @@ test('browser: WebGPU is the 3D renderer when the browser has it, and draws what
   assert.ok(d.sameSize && d.changed < 0.01, `WebGPU differs from WebGL2 in ${(d.changed * 100).toFixed(2)}% of pixels`);
 });
 
+// Checks take their pictures from a texture. This one covers what a player sees instead:
+// the WebGPU canvas itself has to show that same frame.
+const noCanvas = process.platform === 'linux' && 'presenting a WebGPU canvas loses the device under software rendering on Linux';
+test('browser: the WebGPU canvas shows the frame that checks read', { skip: skip || noCanvas }, async () => {
+  const player = await openPlayer(ex('arena3d.kiln'), { inputFile: ex('arena3d.input'), browser, onscreen: true, query: 'renderer=webgpu' });
+  try {
+    const shots = await player.page.eval<{ renderer: string; canvas: string; read: string }>(`(async () => {
+      const first = await kiln.shot();
+      kiln.runTo(120);
+      const canvas = document.getElementById('view3d').toDataURL('image/png');
+      return { renderer: first.renderer, canvas, read: (await kiln.shot()).png };
+    })()`);
+    if (shots.renderer !== 'webgpu') return; // no WebGPU here
+    const png = (url: string) => decodePng(Buffer.from(url.slice(url.indexOf(',') + 1), 'base64'));
+    const d = compare(png(shots.canvas), png(shots.read));
+    assert.ok(d.sameSize && d.changed < 0.001, `canvas and texture differ in ${(d.changed * 100).toFixed(2)}% of pixels`);
+    assert.deepEqual(player.page.errors(), []);
+  } finally { await player.close(); }
+});
+
 for (const renderer of ['webgl2', 'webgpu']) test(`browser: a 3D scene is drawn by ${renderer}, with its meshes`, { skip }, async () => {
   const seen = await look(ex('arena3d.kiln'), { browser, query: `renderer=${renderer}` });
   // Asking for a renderer the browser lacks leaves the 2D view; nothing to check then.

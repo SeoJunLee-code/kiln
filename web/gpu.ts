@@ -67,20 +67,25 @@ struct Varying {
   return vec4f(mix(c, frame.sky.rgb, fog), 1.0);
 }`;
 
-/** Resolves to null when WebGPU is not available; the caller then falls back to WebGL2. */
-export async function makeRendererGpu(canvas: HTMLCanvasElement): Promise<Renderer3 | null> {
+/**
+ * Resolves to null when WebGPU is not available; the caller then falls back to WebGL2.
+ * With `offscreen` nothing is shown: frames exist only for `read`. That is for taking
+ * pictures on machines where presenting to a canvas is the part that does not work.
+ */
+export async function makeRendererGpu(canvas: HTMLCanvasElement, offscreen = false): Promise<Renderer3 | null> {
   const gpu = (navigator as any).gpu;
   if (!gpu) return null;
   const adapter = await gpu.requestAdapter();
   if (!adapter) return null;
   const device = await adapter.requestDevice();
   // A canvas keeps the first kind of context it gives out, so this is asked for last.
-  const context = canvas.getContext('webgpu') as any;
-  if (!context) return null;
-  const format = gpu.getPreferredCanvasFormat();
-  context.configure({ device, format, alphaMode: 'opaque' });
-  // Validation errors would otherwise pass silently and leave a blank frame.
+  const context = offscreen ? null : canvas.getContext('webgpu') as any;
+  if (!offscreen && !context) return null;
+  const format = offscreen ? 'rgba8unorm' : gpu.getPreferredCanvasFormat();
+  context?.configure({ device, format, alphaMode: 'opaque' });
+  // Validation errors and a lost device would otherwise pass silently and leave a blank frame.
   device.addEventListener('uncapturederror', (e: any) => console.error(`webgpu: ${e.error.message}`));
+  device.lost.then((info: any) => console.error(`webgpu: device lost (${info.reason}): ${info.message}`));
   const USAGE = (globalThis as any).GPUBufferUsage, TEX = (globalThis as any).GPUTextureUsage;
 
   interface Mesh { buffer: any; count: number }
@@ -226,7 +231,7 @@ export async function makeRendererGpu(canvas: HTMLCanvasElement): Promise<Render
     draw(boxes, eye, target, fovDeg) {
       last = [boxes, eye, target, fovDeg];
       fit();
-      render(boxes, eye, target, fovDeg, context.getCurrentTexture());
+      if (context) render(boxes, eye, target, fovDeg, context.getCurrentTexture());
     },
     // The canvas cannot be read back reliably: with software rendering on Linux it comes
     // back blank. So the last frame is drawn again into a texture and copied out of that.

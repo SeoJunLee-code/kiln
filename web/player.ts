@@ -32,7 +32,8 @@ const wantRenderer = (): void => {
   const only = new URLSearchParams(location.search).get('renderer');
   loading.push((async () => {
     let made: Renderer3 | null = null;
-    if (only !== 'webgl2') made = await makeRendererGpu(canvas3).catch(() => null);
+    // ?offscreen: WebGPU frames are made for pictures only and never shown (see look).
+    if (only !== 'webgl2') made = await makeRendererGpu(canvas3, new URLSearchParams(location.search).has('offscreen')).catch(() => null);
     if (!made && only !== 'webgpu') made = makeRenderer3(canvas3);
     for (const [path, text] of meshText) made?.addMesh(path, text);
     gl3 = made;
