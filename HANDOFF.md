@@ -36,12 +36,14 @@ AI 에이전트가 1급 사용자인 오픈소스 게임 엔진. 사용자의 �
 | `.github/workflows/pages.yml` | push마다 예제를 빌드해 GitHub Pages(https://seojunlee-code.github.io/kiln/)에 배포 |
 | `web/` | 브라우저 플레이어(Canvas 2D, 이미지 스프라이트, 카메라, 입력 기록). `eye`가 있으면 `web/gl.ts`의 WebGL2로 조명과 그림자(태양 하나, 2048 섀도 맵)가 있는 상자와 OBJ 메시(`sprite mesh=`, 상자 크기에 맞춰 늘림)를 원근 투영해 그린다 |
 | `scripts/hashes.ts` | 예제 해시를 `examples/HASHES`와 비교. 의도한 변경이면 `--write` |
+| `docs/ARCHITECTURE.md` | 기여자용 영문 설계 문서: 계층, 틱 순서, 결정론 규칙, 상태와 해시 |
 | `bench/` | Godot 4 대응 구현과 크기 비교(`size.ts`), 시뮬레이션 속도 측정(`perf.ts` → `PERF.md`) |
 | `.github/workflows/ci.yml` | Linux·macOS·Windows에서 테스트와 해시 비교 |
 
 검증 (2026-11-26):
 
-- `npm test` → 58개 통과.
+- `npm test` → 59개 통과.
+- `node src/cli.ts test examples` → 예제 11개 전부 통과(폴더 단위 테스트).
 - 통합 예제 `quest.kiln`(열쇠·문·복도를 쓸고 다니는 적): `solve` 1.26초·12,308상태, 열쇠 194틱 → 출구 372틱, 접촉 없음.
 - 예제 9개 전부 `solve`로 풀린다(상태 수: arena3d 4,497, cave 908, dungeon 767, gauntlet 549, maze 133, patrol 195, platformer 2,365, sokoban 3,000, vault 3,039).
 - 속도(`node bench/perf.ts`, Windows 노트북 1대, 1회): 격자 색인 도입 전후로 100×100은 0.58→0.09ms/틱, 1000×100은 5.7→0.46ms, 1000×1000은 81→0.74ms. 도입 후 5000×1000은 2.8ms, 10000×5000은 7.3ms. 세 경우 모두 전후 최종 해시가 같았다(0c156764, c7a0fa02, 77dbacf8).

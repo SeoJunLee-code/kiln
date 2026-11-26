@@ -13,6 +13,8 @@ node scripts/hashes.ts --check
 
 Both must pass before a pull request. CI runs them on Linux, macOS and Windows.
 
+Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) first: it explains the layers, the tick, and why the rules below exist.
+
 ## Rules that keep the engine what it is
 
 1. **No floats in the simulation.** Code under `src/` that changes world state uses the fixed-point helpers in `src/fx.ts`. Floats are fine for drawing (`web/`) and for reporting.

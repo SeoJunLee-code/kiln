@@ -42,7 +42,8 @@ INPUT  one per line: TICK ACTION down|up     actions: left right up down a b
 
 COMMANDS  (CLI: node src/cli.ts CMD SCENE [options]; MCP: tool kiln, argument cmd)
 check    parse and validate
-test     run, evaluate expects; --input FILE; exit 1 if any fails
+test     run, evaluate expects; --input FILE; exit 1 if any fails. Given a folder,
+         tests every scene in it with the NAME.input next to it
 run      run without judging; --ticks N
 solve    search for an input that meets reach/gone/event expects; --out FILE saves it
 schema   component list only

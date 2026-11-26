@@ -1,4 +1,5 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { parseExpects } from './expect.ts';
 import { guideText } from './guide.ts';
 import { loadMods } from './load.ts';
@@ -35,6 +36,24 @@ export async function command(cmd: string, a: CmdArgs): Promise<{ text: string; 
   if (!COMMANDS.includes(cmd)) return out.push(`E K003 unknown command '${cmd}' (hint: valid: ${COMMANDS.join(' ')})`), done(2);
   if (cmd === 'guide') return { text: guideText(), code: 0 };
   if (cmd === 'schema' && !a.file && a.scene === undefined) return { text: schemaText(), code: 0 };
+
+  // `test DIR`: every scene in the folder, each with the input file of the same name if there is one.
+  if (cmd === 'test' && a.file && a.scene === undefined && existsSync(a.file) && statSync(a.file).isDirectory()) {
+    const scenes = readdirSync(a.file).filter((f) => f.endsWith('.kiln')).sort();
+    if (!scenes.length) return out.push(`E K001 no .kiln files in ${a.file}`), done(2);
+    let worst = 0, passed = 0;
+    for (const f of scenes) {
+      const input = join(a.file, f.replace(/\.kiln$/, '.input'));
+      const r = await command('test', { file: join(a.file, f), inputFile: existsSync(input) ? input : undefined });
+      const lines = r.text.trimEnd().split('\n');
+      // One line per scene when it passes; everything it said when it does not.
+      if (r.code === 0) { passed++; out.push(`${f} ${lines.at(-1)}`); }
+      else out.push(...lines.map((l) => `${f} ${l}`));
+      worst = Math.max(worst, r.code);
+    }
+    out.push(`${worst ? 'fail' : 'ok'} scenes=${scenes.length} passed=${passed} failed=${scenes.length - passed}`);
+    return done(worst);
+  }
 
   const file = a.file ?? 'scene';
   let text = a.scene, input = a.input;

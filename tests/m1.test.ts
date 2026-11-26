@@ -349,3 +349,20 @@ test('quest example: key, door and a sweeping guard together, solved without bei
   assert.deepEqual([...replay.text.matchAll(/^event \d+ (\w+)/gm)].map((m) => m[1]), ['key', 'win']);
   assert.match(replay.text, /@/, 'the hero is visible in the final picture');
 });
+
+test('test DIR: every scene with its own input, one line each, failures in full', async () => {
+  const all = await command('test', { file: ex('') });
+  assert.equal(all.code, 0, all.text);
+  const lines = all.text.trim().split('\n');
+  assert.match(lines.at(-1)!, /^ok scenes=(\d+) passed=\1 failed=0$/);
+  assert.ok(lines.some((l) => /^quest\.kiln ok tick=1800 hash=[0-9a-f]{8} passed=1 failed=0$/.test(l)));
+
+  const dir = mkdtempSync(join(tmpdir(), 'kiln-dir-'));
+  writeFileSync(join(dir, 'good.kiln'), 'entity a\n  pos 0 0\n  vel 6 0\nexpect at 10 a.pos.x == 1\n');
+  writeFileSync(join(dir, 'bad.kiln'), 'entity a\n  pos 0 0\nexpect at 10 a.pos.x == 1\n');
+  const mixed = await command('test', { file: dir });
+  assert.equal(mixed.code, 1);
+  assert.match(mixed.text, /^bad\.kiln FAIL .*actual 0$/m);
+  assert.match(mixed.text, /^good\.kiln ok /m);
+  assert.match(mixed.text, /^fail scenes=2 passed=1 failed=1$/m);
+});

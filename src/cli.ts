@@ -4,7 +4,8 @@ import type { CmdArgs } from './commands.ts';
 const HELP = `kiln <command> [scene] [options]
   check SCENE            parse and validate only
   run SCENE              run headless, print state hash
-  test SCENE             run and evaluate the scene's expect lines (exit 1 on failure)
+  test SCENE|DIR         run and evaluate the scene's expect lines (exit 1 on failure);
+                         with a folder: every scene in it, each with its NAME.input if present
   solve SCENE            search for an input script that meets the scene's reach/gone/event expects
                          (--step N ticks per key choice, --max-states N, --out FILE saves the input)
   schema [SCENE]         print the component reference (with SCENE: including its scripts)
