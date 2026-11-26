@@ -299,6 +299,51 @@ test('physics: a saved state continues exactly while the character is pushing', 
   for (const x of [w, copy]) freeLink(x);
 });
 
+test('physics: a body that runs into the character moves it, by their weights, and never through a wall', { skip }, () => {
+  const HERO = 'entity hero\n  pos 0 -2 0\n  box 1 2 1\n  vel 0 0 0\n  body\n';
+  const ball = (x: number, speed: number, density: number, more = ''): string => `entity ball\n  pos ${x} -1 0\n  box 1 1 1\n  vel ${speed} 0 0\n  rigid ball ${density}\n${more}`;
+  const play = (ents: string, ticks = 240, each?: (w: World) => void): World => {
+    const w = parseScene(`world gravity=0,30 physics=rapier\n${FLOOR}${ents}`).world;
+    for (let t = 0; t < ticks; t++) { step(w); each?.(w); }
+    return w;
+  };
+  // The hero weighs its box, 2. A ball of 2.6 moves it more than a ball of 0.1, and both come to rest.
+  const heavy = play(HERO + ball(-4, 4, 5)), light = play(HERO + ball(-4, 4, 0.2));
+  const far = at(heavy, 'hero', 'pos', 'x'), near = at(light, 'hero', 'pos', 'x');
+  assert.ok(far > 0.03 && near > 0 && far > near * 5, `the hero went ${far} for the heavy ball, ${near} for the light one`);
+  assert.equal(at(heavy, 'ball', 'vel', 'x'), 0);
+  assert.equal(at(heavy, 'hero', 'pos', 'y'), -2);
+  // The same bits on every OS: CI runs this on three.
+  assert.equal(hash(heavy), 'ee3ca884');
+  // From the other side, and with the ball made before the hero, it is the mirror image
+  // (not to the last bit: the backend's floats round differently at -3.5 and at 4.5).
+  const mirrored = play(ball(4, -4, 5) + HERO);
+  assert.ok(Math.abs(at(mirrored, 'hero', 'pos', 'x') + far) < 0.001, `mirrored, the hero went ${at(mirrored, 'hero', 'pos', 'x')}, not ${-far}`);
+  // With its back to a wall the hero cannot give way, and does not.
+  const walled = play(`${HERO}entity wall\n  pos 1 -3 -2\n  box 1 3 4\n  solid\n${ball(-4, 4, 5)}`);
+  assert.equal(at(walled, 'hero', 'pos', 'x'), 0);
+  // A ball that something keeps pushing takes the hero along, up to the wall, and never ends up inside it.
+  let gap = Infinity;
+  const driven = play(`${HERO}entity wall\n  pos 4 -3 -2\n  box 1 3 4\n  solid\n${ball(-3, 0, 5, '  force 40 0 0\n')}`, 900, (w) => {
+    gap = Math.min(gap, at(w, 'hero', 'pos', 'x') - (at(w, 'ball', 'pos', 'x') + 1));
+  });
+  assert.equal(at(driven, 'hero', 'pos', 'x'), 3);
+  assert.ok(gap > -0.02, `the ball was ${-gap} inside the hero`);
+  // What rests on the hero's head presses it down, but the floor is in the way.
+  const loaded = play(`${HERO}entity crate\n  pos 0.1 -4 0.1\n  box 0.8 0.8 0.8\n  rigid box 2\n`);
+  assert.equal(at(loaded, 'hero', 'pos', 'y'), -2);
+  assert.ok(Math.abs(at(loaded, 'crate', 'pos', 'y') - -2.8) < 0.01, `the crate is at ${at(loaded, 'crate', 'pos', 'y')}`);
+  // A state saved in the middle of being pushed continues exactly.
+  const w = play(HERO + ball(-3, 0, 5, '  force 40 0 0\n'), 60);
+  assert.ok(at(w, 'hero', 'pos', 'x') > 0, 'the hero was not being pushed yet');
+  const copy = cloneWorld(w), saved = saveLink(w);
+  for (let t = 0; t < 120; t++) step(w);
+  restoreLink(copy, saved);
+  for (let t = 0; t < 120; t++) step(copy);
+  assert.equal(hash(copy), hash(w));
+  for (const x of [heavy, light, mirrored, walled, driven, loaded, w, copy]) freeLink(x);
+});
+
 test('physics: a saved state continues exactly as the run it was taken from', { skip }, () => {
   const scene = `world gravity=0,30 physics=rapier\n${FLOOR}` +
     'entity a\n  pos 0 -3 0\n  box 1 1 1\n  rigid\n  quat sx=120\nentity b\n  pos 0.3 -5 0.2\n  box 1 1 1\n  rigid ball bounce=0.6\n';

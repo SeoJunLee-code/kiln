@@ -12,7 +12,8 @@ export const TOPICS: Record<string, { about: string; text: string }> = {
     text: `Put physics=rapier on the world line. An entity with rigid + pos + box is a dynamic body.
 solid entities and solid tiles are fixed colliders. Movers (pos+vel+box, such as the ctrl
 character) stop at a body, shove it by their weight, and can stand and ride on it.
-A body does not move a mover: a rolling ball stops against the character.
+A body that hits a mover moves it a little, more the heavier the body (a mover weighs its
+box's volume); one that a force keeps pushing takes the mover along, never through a solid.
 pos, vel and quat of a rigid show where the backend has it, rounded. A script moves a body
 by writing them: pos puts it somewhere, vel sets its speed, quat x y z w its turn, sx sy sz
 its spin. What the script does not write keeps its exact value. Or add a push:

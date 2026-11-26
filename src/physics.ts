@@ -46,6 +46,11 @@ export interface BackendWorld {
   place(key: number, at: number[] | null, rot: number[] | null, vel: number[] | null, spin: number[] | null): void;
   mass(key: number): number;
   step(): void;
+  /**
+   * What pressed on a kinematic body in the last step: for each dynamic body that touched it,
+   * the impulse that body gave it (the body itself lost as much), lowest key first.
+   */
+  touching(key: number): { key: number; j: number[] }[];
   /** Centre (3), orientation (4), velocity (3), spin (3) of a body, written into `out`. */
   read(key: number, out: Float64Array): void;
   /** Hash of the exact state of every dynamic body: equal hash, identical state. */
@@ -210,15 +215,20 @@ export function physicsSweep(w: World, cur: number[], size: number[], a: number,
   if (go >= want * sign) return null;
   world.read(hit.key, out);
   const closing = ((pace * w.hz) / ONE - out[7 + a]) * sign;
-  if (closing > 0) {
+  // A mover that is only being moved aside (pace 0) does not strike what it comes up against.
+  if (pace !== 0 && closing > 0) {
     const mine = half[0] * half[1] * half[2] * 8, its = world.mass(hit.key);
     world.push(hit.key, AXES[a].map((x) => (x * sign * closing * mine * its) / (mine + its)));
   }
   return { go: go * sign, id: hit.key };
 }
 
-/** One tick of rigid-body physics: called by `step` after the fixed-point movers have moved. */
-export function physicsStep(w: World): void {
+/**
+ * One tick of rigid-body physics: called by `step` after the fixed-point movers have moved.
+ * `nudge` moves a mover along one axis by up to a fixed-point distance, stopping at whatever
+ * is in its way, and returns how far it went.
+ */
+export function physicsStep(w: World, nudge: (id: number, a: number, want: number) => number): void {
   const { world, kinds } = w.link as Link;
   for (const [id, kind] of kinds) {
     if (kind !== 'kinematic') continue;
@@ -237,6 +247,30 @@ export function physicsStep(w: World): void {
     w.drop(id, 'impulse');
   }
   world.step();
+
+  // Bodies move the movers they ran into. To the backend a mover has no mass to speak of: it
+  // is a wall that walks, and a body that hits it loses all its speed towards it. Here the
+  // mover takes its share of that blow, as if it weighed its box's volume, and is moved by
+  // what the share amounts to in one tick; the body gets back what the mover did not take.
+  // A mover that cannot give way (its back to a wall, its feet on the floor) takes nothing,
+  // and the blow stays what the backend made of it.
+  for (const [id, kind] of kinds) {
+    if (kind !== 'kinematic' || w.has(id, 'solid') || !w.has(id, 'vel')) continue;
+    const b = w.get(id, 'box')!, mine = num(b, 'w') * num(b, 'h') * num(b, 'd');
+    for (const t of world.touching(id)) {
+      const its = world.mass(t.key), back = [0, 0, 0];
+      let moved = false;
+      for (let a = 0; a < 3; a++) {
+        const want = toFx(t.j[a] / (mine + its) / w.hz);
+        if (want === 0) continue;
+        const went = nudge(id, a, want);
+        if (went === 0) continue;
+        back[a] = (t.j[a] * its * went) / ((mine + its) * want);
+        moved = true;
+      }
+      if (moved) world.push(t.key, back);
+    }
+  }
 
   // The backend's result, rounded to fixed-point, becomes what the rest of the engine sees.
   for (const [id, kind] of kinds) {

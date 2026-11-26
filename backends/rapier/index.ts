@@ -83,6 +83,23 @@ function wrap(world: any, handles: Map<number, number>, fresh: Set<number>): Bac
       body(key).setNextKinematicTranslation({ x: at[0], y: at[1], z: at[2] });
     },
     step(): void { world.step(); fresh.clear(); },
+    touching(key: number): { key: number; j: number[] }[] {
+      const mine = body(key).collider(0), others: any[] = [], found: { key: number; j: number[] }[] = [];
+      world.contactPairsWith(mine, (other: any) => { if (other.parent()?.isDynamic()) others.push(other); });
+      for (const other of others) {
+        const j = [0, 0, 0];
+        world.contactPair(mine, other, (m: any, flipped: boolean) => {
+          // The normal points from the pair's first collider to its second; `flipped` says ours is the second.
+          const n = m.normal(), sign = flipped ? 1 : -1;
+          for (let i = 0; i < m.numContacts(); i++) {
+            const k = m.contactImpulse(i) * sign;
+            j[0] += n.x * k; j[1] += n.y * k; j[2] += n.z * k;
+          }
+        });
+        if (j[0] !== 0 || j[1] !== 0 || j[2] !== 0) found.push({ key: keys.get(other.parent().handle)!, j });
+      }
+      return found.sort((a, b) => a.key - b.key);
+    },
     read(key: number, out: Float64Array): void {
       const b = body(key), p = b.translation(), r = b.rotation(), v = b.linvel(), w = b.angvel();
       out[0] = p.x; out[1] = p.y; out[2] = p.z;

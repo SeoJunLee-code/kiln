@@ -287,7 +287,23 @@ export function step(w: World, script?: InputScript): void {
     }
   }
 
-  if (w.physics) physicsStep(w);
+  // A rigid body that ran into a mover moves it aside: along one axis, as far as nothing solid is in the way.
+  if (w.physics) physicsStep(w, (id, a, want) => {
+    const p = w.get(id, 'pos')!, b = w.get(id, 'box')!;
+    const cur = [p.x as number, p.y as number, p.z as number], size = [b.w as number, b.h as number, b.d as number];
+    const from = cur[a];
+    let to = (from + want) | 0;
+    const lo = [...cur], hi = [cur[0] + size[0], cur[1] + size[1], cur[2] + size[2]];
+    lo[a] = Math.min(from, to);
+    hi[a] = Math.max(from, to) + size[a];
+    for (const r of blockers(w, id, index, maps, lo, hi)) to = want > 0 ? Math.max(from, Math.min(to, r[a] - size[a])) : Math.min(from, Math.max(to, r[a] + r[a + 3]));
+    if (to !== from) {
+      const hit = physicsSweep(w, cur, size, a, to - from, 0);
+      if (hit) to = from + hit.go;
+    }
+    p[P[a]] = to;
+    return to - from;
+  });
 
   // Turning. An angle is added to exactly, like a position. A quaternion is multiplied by
   // this tick's small turn and then scaled back to unit length, all in fixed-point.
