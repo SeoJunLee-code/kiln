@@ -2,6 +2,8 @@
 
 [![ci](https://github.com/SeoJunLee-code/kiln/actions/workflows/ci.yml/badge.svg)](https://github.com/SeoJunLee-code/kiln/actions/workflows/ci.yml)
 
+English | [한국어](README.ko.md)
+
 An open-source game engine whose primary user is an AI agent, not a person in a GUI editor.
 
 **[Play the examples in your browser](https://seojunlee-code.github.io/kiln/)** — built from this repository by `kiln build`; pick a scene from the menu.
