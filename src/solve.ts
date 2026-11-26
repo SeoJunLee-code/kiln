@@ -1,8 +1,8 @@
 // Because a run is fully determined by scene + input, the engine can search the input
-// space itself: breadth-first over "which keys are held for the next few ticks", with
-// identical states merged. A result is a proof that the level can be finished, as an
+// space itself: over "which keys are held for the next few ticks", nearest-to-a-goal
+// first, with identical states merged. A result is a proof that the level can be finished, as an
 // input script that `kiln test` replays.
-import { evalTick, parseExpects } from './expect.ts';
+import { evalTick, gap, parseExpects } from './expect.ts';
 import type { Expect } from './expect.ts';
 import type { Mods } from './run.ts';
 import { parseScene } from './scene.ts';
@@ -12,7 +12,7 @@ import { World, registry } from './world.ts';
 /** Independent copy of a world. Script systems are shared, so scripts must keep their state in components. */
 export function cloneWorld(w: World): World {
   const c = new World();
-  c.tick = w.tick; c.hz = w.hz; c.gx = w.gx; c.gy = w.gy; c.seed = w.seed;
+  c.tick = w.tick; c.hz = w.hz; c.gx = w.gx; c.gy = w.gy; c.gz = w.gz; c.seed = w.seed;
   c.names = [...w.names];
   c.ids = new Map(w.ids);
   for (const [name, m] of w.comps) {
@@ -28,7 +28,7 @@ export function cloneWorld(w: World): World {
   return c;
 }
 
-interface Node { w: World; ex: Expect[]; parent: Node | null; keys: string[]; done: number }
+interface Node { w: World; ex: Expect[]; parent: Node | null; keys: string[]; done: number; depth: number; f: number; seq: number }
 
 export interface SolveResult {
   ok: boolean;
@@ -58,10 +58,12 @@ export function solve(sceneText: string, opts: { file?: string; mods?: Mods; ste
   const limit = Math.max(...expects.filter((e) => GOALS.includes(e.kind)).map((e) => e.by));
 
   // Key choices: jumping controllers need up combined with a direction; 4-way ones do not.
-  const jumper = world.query('ctrl').some((id) => (world.get(id, 'ctrl')!.jump as number) > 0);
-  const choices = jumper
-    ? [[], ['right'], ['left'], ['up'], ['up', 'right'], ['up', 'left']]
-    : [[], ['right'], ['left'], ['down'], ['up']];
+  const ctrls = world.query('ctrl').map((id) => world.get(id, 'ctrl')!);
+  const jumper = ctrls.some((c) => (c.jump as number) > 0), ground = ctrls.some((c) => c.plane === 'xz');
+  const walk = [[], ['right'], ['left'], ['down'], ['up']];
+  const choices = ground
+    ? (jumper ? [...walk, ...walk.map((k) => ['a', ...k])] : walk)
+    : jumper ? [[], ['right'], ['left'], ['up'], ['up', 'right'], ['up', 'left']] : walk;
 
   const count = (ex: Expect[]): number => ex.filter((e) => GOALS.includes(e.kind) && e.ok).length;
   // Two states count as the same when every non-static entity matches to 1/64 of a unit.
@@ -85,17 +87,77 @@ export function solve(sceneText: string, opts: { file?: string; mods?: Mods; ste
     return s;
   };
 
+  // Distance still to cover for the nearest open goal, in fixed-point units.
+  const nearest = (w: World, ids: number[], others: number[]): number => {
+    let m = Infinity;
+    for (const i of ids) for (const o of others) {
+      const g = i === o ? null : gap(w, i, o);
+      if (g !== null) m = Math.min(m, Math.max(g, 0));
+    }
+    return m;
+  };
+  const heuristic = (n: Node): number => {
+    let h = Infinity;
+    for (const e of n.ex) {
+      if (e.ok || !GOALS.includes(e.kind)) continue;
+      let d = Infinity;
+      if (e.kind === 'reach') d = nearest(n.w, n.w.match(e.a), n.w.match(e.b));
+      else {
+        // gone: whoever the entity's own trigger waits for. event: the triggers that emit it.
+        const ids = e.kind === 'gone' ? n.w.match(e.a) : n.w.query('trigger').filter((id) => n.w.get(id, 'trigger')!.event === e.a);
+        for (const id of ids) {
+          const tr = n.w.get(id, 'trigger');
+          if (tr) d = Math.min(d, nearest(n.w, [id], n.w.match(tr.target as string)));
+        }
+      }
+      h = Math.min(h, d);
+    }
+    return h === Infinity ? 0 : h;
+  };
+  // Order: fewer open goals first, then nearer to one, then shorter inputs; ties by age.
+  // All integers, so the search order (and the answer) is the same on every machine.
+  const rank = (n: Node): number => (goals - n.done) * 2 ** 36 + heuristic(n) + n.depth * 2048;
+
+  const heap: Node[] = [];
+  const less = (a: Node, b: Node): boolean => a.f < b.f || (a.f === b.f && a.seq < b.seq);
+  const push = (n: Node): void => {
+    let i = heap.push(n) - 1;
+    while (i > 0) {
+      const up = (i - 1) >> 1;
+      if (!less(heap[i], heap[up])) break;
+      [heap[i], heap[up]] = [heap[up], heap[i]];
+      i = up;
+    }
+  };
+  const pop = (): Node => {
+    const top = heap[0], last = heap.pop()!;
+    if (heap.length) {
+      heap[0] = last;
+      for (let i = 0; ;) {
+        const l = 2 * i + 1, r = l + 1;
+        let m = i;
+        if (l < heap.length && less(heap[l], heap[m])) m = l;
+        if (r < heap.length && less(heap[r], heap[m])) m = r;
+        if (m === i) break;
+        [heap[i], heap[m]] = [heap[m], heap[i]];
+        i = m;
+      }
+    }
+    return top;
+  };
+
   evalTick(world, expects);
-  const root: Node = { w: world, ex: expects, parent: null, keys: [], done: count(expects) };
+  let seq = 0;
+  const root: Node = { w: world, ex: expects, parent: null, keys: [], done: count(expects), depth: 0, f: 0, seq: seq++ };
   const seen = new Set([key(root)]);
-  const queue = [root];
+  push(root);
   let best = root, goal: Node | null = root.done === goals ? root : null;
 
-  for (let head = 0; head < queue.length && !goal; head++) {
-    const n = queue[head];
+  while (heap.length && !goal && seen.size <= maxStates) {
+    const n = pop();
     if (n.w.tick >= limit) continue;
     for (const keys of choices) {
-      const c: Node = { w: cloneWorld(n.w), ex: n.ex.map((e) => ({ ...e })), parent: n, keys, done: 0 };
+      const c: Node = { w: cloneWorld(n.w), ex: n.ex.map((e) => ({ ...e })), parent: n, keys, done: 0, depth: n.depth + 1, f: 0, seq: seq++ };
       c.w.pressed = new Set(keys);
       let dead = false;
       for (let i = 0; i < stepTicks && !dead; i++) {
@@ -110,9 +172,9 @@ export function solve(sceneText: string, opts: { file?: string; mods?: Mods; ste
       c.done = count(c.ex);
       if (c.done > best.done) best = c;
       if (c.done === goals) { goal = c; break; }
-      queue.push(c);
+      c.f = rank(c);
+      push(c);
     }
-    if (seen.size > maxStates) break;
   }
 
   if (!goal) {

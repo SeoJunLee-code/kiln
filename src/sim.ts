@@ -25,9 +25,16 @@ export function parseInput(text: string, file = 'input'): InputScript {
   return script;
 }
 
+// Axis tables: position field and the matching size field. 2D scenes simply never move on z.
+const P = ['x', 'y', 'z'], S = ['w', 'h', 'd'];
+
+/** Do two boxes overlap on all three axes? (Every box has depth 1 at z 0 unless the scene says otherwise.) */
 export function overlap(ap: Comp, ab: Comp, bp: Comp, bb: Comp): boolean {
-  const ax = ap.x as number, ay = ap.y as number, bx = bp.x as number, by = bp.y as number;
-  return ax < bx + (bb.w as number) && ax + (ab.w as number) > bx && ay < by + (bb.h as number) && ay + (ab.h as number) > by;
+  for (let a = 0; a < 3; a++) {
+    const x = ap[P[a]] as number, y = bp[P[a]] as number;
+    if (!(x < y + (bb[S[a]] as number) && x + (ab[S[a]] as number) > y)) return false;
+  }
+  return true;
 }
 
 const rowCache = new WeakMap<Comp, { src: string; rows: string[] }>();
@@ -47,34 +54,36 @@ export function tileAt(w: World, map: number, x: number, y: number): string {
   return row?.[fdiv(x - (mp.x as number), t.size as number)] ?? '';
 }
 
-export type Rect = [x: number, y: number, w: number, h: number];
+/** A blocking box: position on x, y, z followed by size on x, y, z. */
+export type Block = [x: number, y: number, z: number, w: number, h: number, d: number];
 
-/** Solid boxes and solid tiles that overlap the region [x0,x1) x [y0,y1), except `self`. */
-export function blockers(w: World, self: number, solids: number[], maps: number[], x0: number, y0: number, x1: number, y1: number): Rect[] {
-  const out: Rect[] = [];
+/** Solid boxes and solid tiles that overlap the region lo..hi (half-open on each axis), except `self`. */
+export function blockers(w: World, self: number, solids: number[], maps: number[], lo: number[], hi: number[]): Block[] {
+  const out: Block[] = [];
   for (const s of solids) {
     if (s === self) continue;
     const sp = w.get(s, 'pos')!, sb = w.get(s, 'box')!;
-    const sx = sp.x as number, sy = sp.y as number, sw = sb.w as number, sh = sb.h as number;
-    if (x0 < sx + sw && x1 > sx && y0 < sy + sh && y1 > sy) out.push([sx, sy, sw, sh]);
+    const r: Block = [sp.x as number, sp.y as number, sp.z as number, sb.w as number, sb.h as number, sb.d as number];
+    if (lo[0] < r[0] + r[3] && hi[0] > r[0] && lo[1] < r[1] + r[4] && hi[1] > r[1] && lo[2] < r[2] + r[5] && hi[2] > r[2]) out.push(r);
   }
   for (const m of maps) {
     const t = w.get(m, 'tiles')!, mp = w.get(m, 'pos')!;
     const size = t.size as number, solid = t.solid as string, rows = tileRows(t);
-    const mx = mp.x as number, my = mp.y as number;
-    const c0 = Math.max(0, fdiv(x0 - mx, size)), c1 = fdiv(x1 - 1 - mx, size);
-    const r0 = Math.max(0, fdiv(y0 - my, size)), r1 = Math.min(rows.length - 1, fdiv(y1 - 1 - my, size));
+    const mx = mp.x as number, my = mp.y as number, mz = mp.z as number, depth = t.depth as number;
+    if (!(lo[2] < mz + depth && hi[2] > mz)) continue;
+    const c0 = Math.max(0, fdiv(lo[0] - mx, size)), c1 = fdiv(hi[0] - 1 - mx, size);
+    const r0 = Math.max(0, fdiv(lo[1] - my, size)), r1 = Math.min(rows.length - 1, fdiv(hi[1] - 1 - my, size));
     for (let r = r0; r <= r1; r++) {
       const row = rows[r];
       for (let c = c0; c <= c1 && c < row.length; c++) {
-        if (solid.includes(row[c])) out.push([mx + c * size, my + r * size, size, size]);
+        if (solid.includes(row[c])) out.push([mx + c * size, my + r * size, mz, size, size, depth]);
       }
     }
   }
   return out;
 }
 
-/** Advance one fixed tick. System order is fixed: input, ctrl, gravity, move, triggers. */
+/** Advance one fixed tick. System order is fixed: input, ctrl, scripts (pre), gravity, move, triggers, scripts (post). */
 export function step(w: World, script?: InputScript): void {
   for (const [action, down] of script?.get(w.tick) ?? []) {
     if (down) w.pressed.add(action);
@@ -85,10 +94,14 @@ export function step(w: World, script?: InputScript): void {
 
   for (const id of w.query('ctrl', 'vel')) {
     const c = w.get(id, 'ctrl')!, v = w.get(id, 'vel')!;
-    const speed = c.speed as number;
+    const speed = c.speed as number, jump = c.jump as number;
     v.x = (on('right') - on('left')) * speed;
-    if ((c.jump as number) > 0) {
-      if (on('up') && w.get(id, 'body')?.grounded) v.y = -(c.jump as number);
+    if (c.plane === 'xz') {
+      // Ground plane is x/z: up/down walk along z, and `a` jumps.
+      v.z = (on('down') - on('up')) * speed;
+      if (jump > 0 && on('a') && w.get(id, 'body')?.grounded) v.y = -jump;
+    } else if (jump > 0) {
+      if (on('up') && w.get(id, 'body')?.grounded) v.y = -jump;
     } else v.y = (on('down') - on('up')) * speed;
   }
 
@@ -98,38 +111,37 @@ export function step(w: World, script?: InputScript): void {
     const v = w.get(id, 'vel')!;
     v.x = ((v.x as number) + tickShare(w.gx, k, w.hz)) | 0;
     v.y = ((v.y as number) + tickShare(w.gy, k, w.hz)) | 0;
+    v.z = ((v.z as number) + tickShare(w.gz, k, w.hz)) | 0;
   }
 
   const solids = w.query('solid', 'pos', 'box');
   const maps = w.query('tiles', 'pos');
   for (const id of w.query('pos', 'vel')) {
     const p = w.get(id, 'pos')!, v = w.get(id, 'vel')!, b = w.get(id, 'box');
-    const dx = tickShare(v.x as number, k, w.hz), dy = tickShare(v.y as number, k, w.hz);
-    const x0 = p.x as number, y0 = p.y as number;
+    const cur = [p.x as number, p.y as number, p.z as number];
+    const d = [tickShare(v.x as number, k, w.hz), tickShare(v.y as number, k, w.hz), tickShare(v.z as number, k, w.hz)];
     if (!b || w.has(id, 'solid')) {
-      p.x = (x0 + dx) | 0;
-      p.y = (y0 + dy) | 0;
+      for (let a = 0; a < 3; a++) p[P[a]] = (cur[a] + d[a]) | 0;
       continue;
     }
     // Swept test per axis: a solid anywhere along the path stops the mover, however fast it is.
-    const bw = b.w as number, bh = b.h as number;
-    let nx = (x0 + dx) | 0;
-    if (dx !== 0) {
-      for (const [sx, , sw] of blockers(w, id, solids, maps, Math.min(x0, nx), y0, Math.max(x0, nx) + bw, y0 + bh)) {
-        nx = dx > 0 ? Math.min(nx, sx - bw) : Math.max(nx, sx + sw);
-        v.x = 0;
+    const size = [b.w as number, b.h as number, b.d as number];
+    let grounded = 0;
+    for (let a = 0; a < 3; a++) {
+      if (d[a] === 0) continue;
+      const from = cur[a];
+      let to = (from + d[a]) | 0;
+      const lo = [...cur], hi = [cur[0] + size[0], cur[1] + size[1], cur[2] + size[2]];
+      lo[a] = Math.min(from, to);
+      hi[a] = Math.max(from, to) + size[a];
+      for (const r of blockers(w, id, solids, maps, lo, hi)) {
+        to = d[a] > 0 ? Math.min(to, r[a] - size[a]) : Math.max(to, r[a] + r[a + 3]);
+        v[P[a]] = 0;
+        if (a === 1 && d[a] > 0) grounded = 1;
       }
+      cur[a] = to;
     }
-    p.x = nx;
-    let ny = (y0 + dy) | 0, grounded = 0;
-    if (dy !== 0) {
-      for (const [, sy, , sh] of blockers(w, id, solids, maps, nx, Math.min(y0, ny), nx + bw, Math.max(y0, ny) + bh)) {
-        if (dy > 0) { ny = Math.min(ny, sy - bh); grounded = 1; }
-        else ny = Math.max(ny, sy + sh);
-        v.y = 0;
-      }
-    }
-    p.y = ny;
+    for (let a = 0; a < 3; a++) p[P[a]] = cur[a];
     const body = w.get(id, 'body');
     if (body) body.grounded = grounded;
   }

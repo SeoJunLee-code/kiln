@@ -16,15 +16,15 @@ Game engines assume a human looking at an editor window. An agent using them pay
 
 ## Where it stands
 
-Kiln is a few days old. The long-term aim is an engine that agents can take from prototype to a shipped, good-looking game — the role Unreal and Godot play for human teams. Today it is a small 2D core.
+Kiln is a few days old. The long-term aim is an engine that agents can take from prototype to a shipped, good-looking game — the role Unreal and Godot play for human teams. Today it is a small core for box-shaped worlds, in 2D and (as a first step) 3D.
 
 | Works today | Not yet |
 |---|---|
-| Text scenes, 11 built-in components, levels drawn as character grids with prefabs | 3D, lighting, shaders |
-| Fixed-point simulation, swept box collision, triggers | Rotation, non-box shapes, joints |
+| Text scenes, 12 built-in components, levels drawn as character grids with prefabs | Meshes, materials, shadows, shaders |
+| Fixed-point simulation on x, y and z; swept box collision; triggers | Rotation, non-box shapes, joints |
 | `expect` checks with explanations on failure | Audio, animation, UI |
 | TypeScript scripts with a determinism check | Asset pipeline beyond single images |
-| Browser player with input recording, image sprites, camera | WebGPU renderer (Canvas 2D for now) |
+| Browser player: Canvas 2D, and lit boxes in WebGL2 for 3D scenes | WebGPU renderer, images in 3D |
 | `solve`: automatic search for a winning input |  |
 | MCP server, CLI | Networking, export to desktop or mobile |
 
@@ -41,6 +41,8 @@ npm test
 node src/cli.ts test examples/platformer.kiln --input examples/platformer.input --view
 node src/cli.ts play examples/platformer.kiln
 ```
+
+For the 3D example, open the printed URL with `?scene=arena3d.kiln` (arrows or WASD to walk, Space to jump).
 
 `play` prints a local URL; add `?scene=cave.kiln` to open another scene from the same folder. What you press there is recorded as an input script, so a play session can be replayed headless with `kiln test SCENE --input FILE` and gives the same state hash.
 
@@ -119,13 +121,36 @@ $ node src/cli.ts solve examples/cave.kiln --out cave.input
 ok solved tick=250 states=2507 wrote=cave.input
 ```
 
-Because a run is fully determined by scene and input, the engine can search the input space: breadth-first over which keys are held for the next few ticks, merging states that are the same. An answer is replayed through the normal path before it is reported. If nothing works it says how far it got:
+Because a run is fully determined by scene and input, the engine can search the input space: over which keys are held for the next few ticks, merging states that are the same. An answer is replayed through the normal path before it is reported. If nothing works it says how far it got:
 
 ```
 fail no input reaches the goals by tick 120; best run met 0/1, still open: gone gem by 120
 ```
 
-The four examples solve in 0.4 to 7 seconds on one laptop. This is a plain breadth-first search: it handles one controllable character in a small level, and will run out of states on large levels or many moving things. `at` expectations are not searched for.
+The six examples, including the 3D one, each solve in under a second on one laptop. The search tries inputs that get nearer to a goal first; it has only been tried with one controllable character in small levels, and it gives up (and says so) when it runs out of states. `at` expectations are not searched for.
+
+## 3D
+
+`pos`, `vel` and `box` take an optional third value, and a scene that uses it is simulated on three axes with the same code and the same guarantees. Adding an `eye` component makes the player draw it in perspective (see [examples/arena3d.kiln](examples/arena3d.kiln)):
+
+```
+world hz=60 gravity=0,30
+
+entity hero
+  pos 1 -1 1
+  box 0.8 1 0.8
+  vel
+  body
+  ctrl 5 10 xz
+  eye 0 -8 9
+
+entity floor
+  pos 0 0 0
+  box 12 1 12
+  solid
+```
+
+`y` grows downward, so things above the floor have negative `y`. `--top` prints a floor plan (the x/z plane) instead of a screenshot. This is 3D for box worlds only: no meshes, textures or shadows yet.
 
 ## Scripts
 
@@ -160,7 +185,7 @@ One measurement so far: the maze example, with its play-through and checks, is 7
 1. Connect a real agent over MCP and build a complete small game with it; fix what hurts.
 2. Animation, audio, a WebGPU renderer.
 3. Rotation and more collision shapes.
-4. 3D: meshes, PBR materials, a 3D scene format that stays readable.
+4. 3D beyond boxes: meshes, PBR materials, shadows, a mesh format that stays readable.
 5. Export targets and networking built on the deterministic core (rollback, replays).
 
 ## Contributing

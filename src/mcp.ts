@@ -21,6 +21,7 @@ const TOOL = {
       ticks: { type: 'integer', minimum: 0 },
       step: { type: 'integer', minimum: 1, description: 'solve: ticks per key choice (default 5)' },
       view: { type: 'boolean', description: 'append ASCII picture of the final state' },
+      top: { type: 'boolean', description: 'append ASCII floor plan (x/z plane) for 3D scenes' },
       observe: { type: 'boolean', description: 'append one line per entity' },
       events: { type: 'boolean', description: 'append emitted events' },
     },
@@ -53,7 +54,7 @@ async function handle(msg: Msg): Promise<unknown> {
         inputFile: a.input_file as string | undefined,
         ticks: a.ticks as number | undefined,
         stepTicks: a.step as number | undefined,
-        view: !!a.view, observe: !!a.observe, events: !!a.events,
+        view: !!a.view, top: !!a.top, observe: !!a.observe, events: !!a.events,
       });
       return { content: [{ type: 'text', text: r.text }], isError: r.code === 2 };
     }

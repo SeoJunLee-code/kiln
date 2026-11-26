@@ -36,7 +36,7 @@ Tests live in `tests/` and use Node's built-in runner. A behavior change needs a
 - More `expect` forms (for example comparing two entities, or counting entities with a tag).
 - Collision shapes beyond boxes.
 - Tile colors and images: map a tile character to how it is drawn.
-- A smarter `solve`: order the search by distance to the goal.
+- Trying `solve` on bigger levels and reporting where it gives up.
 - Trying the MCP server with a real agent and reporting where it wastes tokens.
 
 ## License

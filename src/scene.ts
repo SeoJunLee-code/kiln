@@ -71,7 +71,8 @@ export function parseScene(text: string, file = 'scene'): Scene {
       rowsOf.rows = rowsOf.rows ? `${rowsOf.rows}\n${row}` : row;
       return;
     }
-    const body = raw.replace(/#(?![\w-]).*$|^\s*#.*$/, '').trimEnd();
+    // A `tiles` line keeps its '#': there it is the usual solid character, not a comment.
+    const body = (/^\s+tiles(\s|$)/.test(raw) ? raw : raw.replace(/#(?![\w-]).*$|^\s*#.*$/, '')).trimEnd();
     if (!body.trim()) return;
     rowsOf = null;
     const indented = /^\s/.test(body);
@@ -102,8 +103,8 @@ export function parseScene(text: string, file = 'scene'): Scene {
             else world.seed = +v | 0;
           } else if (k === 'gravity') {
             const p = (v ?? '').split(',').map(parseFx);
-            if (p.length !== 2 || p[0] === null || p[1] === null) err('K104', line, `world gravity must be X,Y`, 'e.g. gravity=0,20');
-            else { world.gx = p[0]; world.gy = p[1]; }
+            if (p.length < 2 || p.length > 3 || p.includes(null)) err('K104', line, `world gravity must be X,Y or X,Y,Z`, 'e.g. gravity=0,20');
+            else { world.gx = p[0]!; world.gy = p[1]!; world.gz = p[2] ?? 0; }
           } else err('K103', line, `unknown world setting '${k}'`, 'valid: hz, gravity, seed, tick');
         }
       } else if (tok[0] === 'state') {
@@ -209,6 +210,7 @@ export function parseScene(text: string, file = 'scene'): Scene {
       world.add(id, 'pos', {
         x: (mp.x as number) + c * size + (b ? (size - (b.w as number)) >> 1 : 0),
         y: (mp.y as number) + r * size + (b ? (size - (b.h as number)) >> 1 : 0),
+        z: mp.z as number,
       });
       return '.';
     }).join('')).join('\n');
@@ -221,7 +223,7 @@ export function parseScene(text: string, file = 'scene'): Scene {
 /** Canonical scene text for the current state. Parsing it back gives the same world. */
 export function serialize(w: World, expects: RawExpect[] = [], uses: string[] = []): string {
   const out = [...uses.map((u) => `use ${u}`),
-    `world hz=${w.hz} gravity=${fmtFx(w.gx)},${fmtFx(w.gy)}${w.seed ? ` seed=${w.seed}` : ''}${w.tick ? ` tick=${w.tick}` : ''}`];
+    `world hz=${w.hz} gravity=${fmtFx(w.gx)},${fmtFx(w.gy)}${w.gz ? `,${fmtFx(w.gz)}` : ''}${w.seed ? ` seed=${w.seed}` : ''}${w.tick ? ` tick=${w.tick}` : ''}`];
   w.names.forEach((name, id) => {
     if (name == null) return;
     out.push(`entity ${name}`);

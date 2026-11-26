@@ -42,7 +42,7 @@ test('scene: serialize then parse is a fixed point', () => {
 test('scene: reports every error at once, with codes and hints', () => {
   let fail: KilnFail | undefined;
   try {
-    parseScene('entity p\n  boxx 1 1\n  pos 1\n  vel 1 2 3\n  ctrl sped=4\n  pos x\nentity p\nsolid\n  box 1 1\n', 'bad.kiln');
+    parseScene('entity p\n  boxx 1 1\n  pos 1\n  vel 1 2 3 4\n  ctrl sped=4\n  pos x\nentity p\nsolid\n  box 1 1\n', 'bad.kiln');
   } catch (e) { fail = e as KilnFail; }
   assert.ok(fail);
   assert.deepEqual(fail.diags.map((d) => `${d.code}:${d.line}`), ['K102:2', 'K105:3', 'K107:4', 'K103:5', 'K104:6', 'K101:7', 'K108:8', 'K106:9']);
@@ -134,7 +134,7 @@ test('trigger: fires once per entry and despawn-other removes the target', () =>
 
 test('expect: bad references and syntax are diagnosed before running', () => {
   assert.deepEqual(codes(() => run('entity a\n  pos 0 0\nexpect reach a bb by 10\n')), ['K110']);
-  assert.deepEqual(codes(() => run('entity a\n  pos 0 0\nexpect at 5 a.pos.z > 1\nexpect reach a\n')), ['K111', 'K111']);
+  assert.deepEqual(codes(() => run('entity a\n  pos 0 0\nexpect at 5 a.pos.q > 1\nexpect reach a\n')), ['K111', 'K111']);
   assert.deepEqual(codes(() => parseInput('0 jump down\nx\n')), ['K200', 'K200']);
 });
 
@@ -253,4 +253,36 @@ test('scene: a default-empty string before a set field is saved by name', () => 
   const text = serialize(w);
   assert.match(text, /^  sprite color=gold$/m);
   assert.equal(parseScene(text).world.get(0, 'sprite')!.color, 'gold');
+});
+
+const arena = readFileSync(new URL('../examples/arena3d.kiln', import.meta.url), 'utf8');
+
+test('3d: z is a real axis for movement, collision and triggers', () => {
+  const scene = 'world gravity=0,30\n' +
+    'entity m\n  pos 1 -1 1\n  box 1 1 1\n  vel 0 0 6\n  body\n' +
+    'entity floor\n  pos 0 0 0\n  box 10 1 10\n  solid\n' +
+    'entity wall\n  pos 0 -3 5\n  box 10 3 1\n  solid\n' +
+    'entity near\n  pos 1 -1 3\n  box 1 1 0.5\n  trigger m near\n' +
+    'entity aside\n  pos 4 -1 3\n  box 1 1 0.5\n  trigger m aside\n';
+  const w = run(scene, { ticks: 120 }).world;
+  const p = w.get(0, 'pos')!;
+  assert.deepEqual([fmtFx(p.x as number), fmtFx(p.y as number), fmtFx(p.z as number)], ['1', '-1', '4']);
+  assert.equal(w.get(0, 'body')!.grounded, 1);
+  assert.deepEqual(w.events.map((e) => e.name), ['near']);
+});
+
+test('3d: a scene without z behaves exactly as before and saves without z', () => {
+  const text = serialize(parseScene('world gravity=0,20\nentity a\n  pos 1 2\n  box 1 1\n  vel 3 0\n').world);
+  assert.equal(text, 'world hz=60 gravity=0,20\nentity a\n  pos 1 2\n  vel 3\n  box 1 1\n');
+  const w3 = parseScene('world gravity=0,30,2\nentity a\n  pos 1 2 3\n  box 1 1 4\n').world;
+  assert.match(serialize(w3), /^world hz=60 gravity=0,30,2\nentity a\n  pos 1 2 3\n  box 1 1 4\n$/);
+});
+
+test('3d: the floor plan view looks down on x/z', () => {
+  const v = view(parseScene(arena).world, 'xz');
+  const rows = v.split('\n');
+  assert.equal(rows[0], 'origin -4,-4');
+  assert.equal(rows[1], '~'.repeat(20), 'the pit lies below everything, so it only shows around the floor');
+  assert.equal(rows[6], '~~~~#@########E#~~~~');
+  assert.equal(rows[14], '~~~~#########*##~~~~');
 });

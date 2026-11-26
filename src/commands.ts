@@ -16,6 +16,8 @@ export interface CmdArgs {
   inputFile?: string;
   ticks?: number;
   view?: boolean;
+  /** like view, but looking down on the x/z plane (3D floor plan) */
+  top?: boolean;
   observe?: boolean;
   events?: boolean;
   out?: string;
@@ -70,6 +72,7 @@ export async function command(cmd: string, a: CmdArgs): Promise<{ text: string; 
     if (a.events) for (const ev of r.world.events) out.push(`event ${ev.tick} ${ev.name} ${ev.a} ${ev.b}`.trimEnd());
     if (a.observe) out.push(observe(r.world).trimEnd());
     if (a.view) out.push(view(r.world).trimEnd());
+    if (a.top) out.push(view(r.world, 'xz').trimEnd());
     if (a.out) writeFileSync(a.out, serialize(r.world, [], r.uses));
     const failed = r.expects.filter((e) => !e.ok).length;
     const bad = cmd === 'test' && failed > 0;

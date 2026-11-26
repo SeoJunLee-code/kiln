@@ -14,6 +14,7 @@ options:
   --input FILE           input script (TICK ACTION down|up per line)
   --ticks N              ticks to run (default: last tick any expect needs)
   --view                 print an ASCII picture of the final state
+  --top                  the same, looking down on the x/z plane (3D scenes)
   --observe              print one line per entity
   --events               print emitted events
   --out FILE             write the final state as a scene file
@@ -43,7 +44,7 @@ if (cmd === 'mcp') {
       if (Number.isNaN(n)) { console.log(`E K002 ${k} must be a positive integer`); process.exit(2); }
       a[k === '--step' ? 'stepTicks' : 'maxStates'] = n;
     }
-    else if (k === '--view' || k === '--observe' || k === '--events') a[k.slice(2) as 'view' | 'observe' | 'events'] = true;
+    else if (k === '--view' || k === '--top' || k === '--observe' || k === '--events') a[k.slice(2) as 'view' | 'top' | 'observe' | 'events'] = true;
     else { console.log(`E K002 unknown option '${k}'`); process.exit(2); }
   }
   const r = await command(cmd, a);

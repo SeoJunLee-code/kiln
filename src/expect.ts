@@ -78,18 +78,21 @@ export function parseExpects(raw: RawExpect[], w: World, file = 'scene'): Expect
 /** Last tick the run must reach to decide every expectation. */
 export const lastTick = (es: Expect[]): number => es.reduce((m, e) => (Number.isFinite(e.by) ? Math.max(m, e.by) : m), 0);
 
-function gap(w: World, a: number, b: number): number | null {
+/** Free distance between two boxes summed over the axes; -1 when they overlap, null when either has no pos+box. */
+export function gap(w: World, a: number, b: number): number | null {
   const ap = w.get(a, 'pos'), ab = w.get(a, 'box'), bp = w.get(b, 'pos'), bb = w.get(b, 'box');
   if (!ap || !ab || !bp || !bb) return null;
   if (overlap(ap, ab, bp, bb)) return -1;
-  const gx = Math.max(0, (ap.x as number) - (bp.x as number) - (bb.w as number), (bp.x as number) - (ap.x as number) - (ab.w as number));
-  const gy = Math.max(0, (ap.y as number) - (bp.y as number) - (bb.h as number), (bp.y as number) - (ap.y as number) - (ab.h as number));
-  return gx + gy;
+  let g = 0;
+  for (const [p, s] of [['x', 'w'], ['y', 'h'], ['z', 'd']]) {
+    g += Math.max(0, (ap[p] as number) - (bp[p] as number) - (bb[s] as number), (bp[p] as number) - (ap[p] as number) - (ab[s] as number));
+  }
+  return g;
 }
 
 const where = (w: World, ref: string): string => {
   const p = w.match(ref).map((id) => w.get(id, 'pos')).find(Boolean);
-  return p ? `${ref} at ${fmtFx(p.x as number)},${fmtFx(p.y as number)}` : `${ref} has no pos`;
+  return p ? `${ref} at ${fmtFx(p.x as number)},${fmtFx(p.y as number)}${p.z ? `,${fmtFx(p.z as number)}` : ''}` : `${ref} has no pos`;
 };
 
 /** Evaluate after every step (and once before the first). */

@@ -14,20 +14,23 @@ export function defineComponent(name: string, doc: string, fields: Field[] = [])
 
 const f = (name: string, type: FieldType, def?: number | string): Field => ({ name, type, def });
 
-defineComponent('pos', 'top-left corner in world units', [f('x', 'fx'), f('y', 'fx')]);
-defineComponent('vel', 'velocity in units/second', [f('x', 'fx', 0), f('y', 'fx', 0)]);
-defineComponent('box', 'axis-aligned size; needed for collision and triggers', [f('w', 'fx'), f('h', 'fx')]);
+defineComponent('pos', 'corner with the smallest x, y, z in world units. y grows downward; z is depth and only matters in 3D scenes',
+  [f('x', 'fx'), f('y', 'fx'), f('z', 'fx', 0)]);
+defineComponent('vel', 'velocity in units/second', [f('x', 'fx', 0), f('y', 'fx', 0), f('z', 'fx', 0)]);
+defineComponent('box', 'axis-aligned size on x, y and (3D) z; needed for collision and triggers', [f('w', 'fx'), f('h', 'fx'), f('d', 'fx', 65536)]);
 defineComponent('solid', 'blocks entities that have pos+vel+box');
 defineComponent('body', 'receives world gravity; grounded is engine-written state', [f('grounded', 'int', 0)]);
-defineComponent('ctrl', 'input-driven. jump=0: 4-way (left/right/up/down). jump>0: platformer, up jumps when grounded',
-  [f('speed', 'fx'), f('jump', 'fx', 0)]);
+defineComponent('ctrl', 'input-driven. jump=0: 4-way (left/right/up/down). jump>0: platformer, up jumps when grounded. plane=xz (3D): up/down walk along z and `a` jumps',
+  [f('speed', 'fx'), f('jump', 'fx', 0), f('plane', 'str', 'xy')]);
 defineComponent('tag', 'group label; reference it elsewhere as #name', [f('name', 'str')]);
 defineComponent('trigger', 'emits event when target (entity name or #tag) starts overlapping. action: none|despawn-self|despawn-other',
   [f('target', 'str'), f('event', 'str'), f('action', 'str', 'none')]);
 defineComponent('tiles', 'grid of square cells at pos. rows follow the line, each indented 4 spaces, one character per cell. size: cell size. solid: characters that block movers. spawn: CHAR:PREFAB pairs, e.g. o:coin,@:hero, replaced by entities when the scene loads',
-  [f('size', 'fx', 65536), f('solid', 'str', '#'), f('spawn', 'str', '')]);
+  [f('size', 'fx', 65536), f('solid', 'str', '#'), f('spawn', 'str', ''), f('depth', 'fx', 65536)]);
 defineComponent('sprite', 'appearance. glyph: character for the ASCII view. color: CSS color. image: file next to the scene (svg/png), drawn by the player',
   [f('glyph', 'str', ''), f('color', 'str', 'white'), f('image', 'str', '')]);
+defineComponent('eye', 'makes the player draw the scene in 3D: a perspective camera at this entity plus the offset, looking at the entity; ignored headless',
+  [f('x', 'fx'), f('y', 'fx'), f('z', 'fx'), f('fov', 'int', 55)]);
 defineComponent('camera', 'the player view follows this entity and shows w x h world units; ignored headless', [f('w', 'fx'), f('h', 'fx')]);
 
 export class World {
@@ -35,6 +38,7 @@ export class World {
   hz = 60;
   gx = 0;
   gy = 0;
+  gz = 0;
   /** index = entity id; null once despawned */
   names: (string | null)[] = [];
   ids = new Map<string, number>();

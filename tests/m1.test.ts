@@ -187,3 +187,20 @@ test('dungeon example: drawn entirely as a grid, and the engine can solve it', {
   const replay = await command('test', { file: ex('dungeon.kiln'), input });
   assert.equal(replay.code, 0, replay.text);
 });
+
+test('solve: a 3D scene with a jump is solved, and the same search gives the same answer', { timeout: 60000 }, async () => {
+  const a = await command('solve', { file: ex('arena3d.kiln') });
+  const b = await command('solve', { file: ex('arena3d.kiln') });
+  assert.equal(a.code, 0, a.text);
+  assert.equal(a.text, b.text);
+  assert.match(a.text, /^\d+ a down$/m, 'the gem is on a step, so the answer has to jump');
+  const input = a.text.trim().split('\n').slice(0, -1).join('\n') + '\n';
+  const replay = await command('test', { file: ex('arena3d.kiln'), input });
+  assert.equal(replay.code, 0, replay.text);
+});
+
+test('solve: the search limit is reported, not hidden', async () => {
+  const r = await command('solve', { file: ex('arena3d.kiln'), maxStates: 50 });
+  assert.equal(r.code, 1);
+  assert.match(r.text, /^fail gave up after 50 states; best run met \d\/2, still open: /);
+});

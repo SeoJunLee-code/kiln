@@ -1,5 +1,7 @@
 // Browser player. It runs the same simulation modules as the headless CLI and only
 // adds drawing and keyboard input. Floats appear here for drawing, never in the simulation.
+import { makeRenderer3 } from './gl.ts';
+import type { Box3, Renderer3 } from './gl.ts';
 import { makeApi } from '../src/api.ts';
 import { evalTick, parseExpects } from '../src/expect.ts';
 import type { Expect } from '../src/expect.ts';
@@ -12,11 +14,30 @@ import type { World } from '../src/world.ts';
 
 const KEYS: Record<string, string> = {
   ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down',
-  a: 'left', d: 'right', w: 'up', s: 'down', z: 'a', x: 'b',
+  a: 'left', d: 'right', w: 'up', s: 'down', z: 'a', ' ': 'a', x: 'b',
 };
 const $ = (id: string): HTMLElement => document.getElementById(id)!;
 const canvas = $('view') as HTMLCanvasElement;
 const g = canvas.getContext('2d')!;
+const canvas3 = $('view3d') as HTMLCanvasElement;
+// Created on first use, so 2D scenes never ask for a WebGL context.
+let gl3: Renderer3 | null | undefined;
+
+// CSS color name -> rgb 0..1, resolved by the browser and cached.
+const rgbCache = new Map<string, number[]>();
+const probe = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!;
+const rgb = (css: string): number[] => {
+  let c = rgbCache.get(css);
+  if (!c) {
+    probe.clearRect(0, 0, 1, 1);
+    probe.fillStyle = '#d7dbe2';
+    probe.fillStyle = css;
+    probe.fillRect(0, 0, 1, 1);
+    const d = probe.getImageData(0, 0, 1, 1).data;
+    rgbCache.set(css, (c = [d[0] / 255, d[1] / 255, d[2] / 255]));
+  }
+  return c;
+};
 
 let world: World, expects: Expect[], script: InputScript;
 let log: string[] = [];
@@ -90,7 +111,34 @@ try {
     log.push(`${world.tick} ${action} ${down ? 'down' : 'up'}`);
   };
 
+  const draw3 = (eyeId: number): void => {
+    const boxes: Box3[] = [];
+    const u = (n: number | string): number => (n as number) / ONE;
+    for (const m of world.query('tiles', 'pos')) {
+      const t = world.get(m, 'tiles')!, p = world.get(m, 'pos')!, size = u(t.size);
+      tileRows(t).forEach((row, r) => {
+        for (let c = 0; c < row.length; c++) {
+          if (row[c] === '.') continue;
+          boxes.push({ p: [u(p.x) + c * size, u(p.y) + r * size, u(p.z)], s: [size, size, u(t.depth)], color: rgb((t.solid as string).includes(row[c]) ? '#59616e' : '#7a8494') });
+        }
+      });
+    }
+    for (const id of world.query('pos', 'box')) {
+      const p = world.get(id, 'pos')!, b = world.get(id, 'box')!, color = (world.get(id, 'sprite')?.color as string) ?? 'white';
+      boxes.push({ p: [u(p.x), u(p.y), u(p.z)], s: [u(b.w), u(b.h), u(b.d)], color: rgb(color === 'white' ? (world.has(id, 'solid') ? '#59616e' : '#d7dbe2') : color) });
+    }
+    const e = world.get(eyeId, 'eye')!, p = world.get(eyeId, 'pos')!, b = world.get(eyeId, 'box');
+    const target = [u(p.x) + u(b?.w ?? 0) / 2, u(p.y) + u(b?.h ?? 0) / 2, u(p.z) + u(b?.d ?? 0) / 2];
+    gl3!.draw(boxes, [target[0] + u(e.x), target[1] + u(e.y), target[2] + u(e.z)], target, e.fov as number);
+  };
+
   const draw = (): void => {
+    const eyeId = world.query('eye', 'pos')[0];
+    if (eyeId !== undefined && gl3 === undefined) gl3 = makeRenderer3(canvas3);
+    const use3 = eyeId !== undefined && !!gl3;
+    canvas3.hidden = !use3;
+    canvas.hidden = use3;
+    if (use3) return draw3(eyeId);
     const dpr = window.devicePixelRatio || 1;
     const cw = canvas.clientWidth, ch = canvas.clientHeight;
     if (canvas.width !== Math.round(cw * dpr) || canvas.height !== Math.round(ch * dpr)) {
