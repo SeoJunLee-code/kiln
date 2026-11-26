@@ -300,3 +300,10 @@ test('trigger: despawn:REF removes another entity, so a key can open a door', ()
   assert.equal(fmtFx(locked.get(0, 'pos')!.x as number), '4', 'stopped flush against the door');
   assert.deepEqual(codes(() => parseScene('entity a\n  pos 0 0\n  box 1 1\n  trigger a x despawn-slef\n')), ['K104']);
 });
+
+test('pace: turns at both ends on any axis, and a bad axis is an error', () => {
+  const scene = 'entity g\n  pos 2 0 0\n  box 1 1\n  vel\n  pace z 0 3 6\n';
+  const at = (ticks: number) => fmtFx(run(scene, { ticks }).world.get(0, 'pos')!.z as number);
+  assert.deepEqual([at(15), at(30), at(60), at(90)], ['1.5', '3', '0', '3']);
+  assert.deepEqual(codes(() => parseScene('entity g\n  pos 0 0\n  vel\n  pace w 0 3 6\n')), ['K104']);
+});

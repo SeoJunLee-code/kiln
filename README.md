@@ -26,8 +26,8 @@ Kiln is a few days old. The long-term aim is an engine that agents can take from
 
 | Works today | Not yet |
 |---|---|
-| Text scenes, 12 built-in components, levels drawn as character grids with prefabs | Textures, materials, skeletal animation, shaders |
-| Fixed-point simulation on x, y and z; swept box collision; triggers that emit events and remove things (keys, doors, pickups) | Rotation, non-box shapes, joints |
+| Text scenes, 13 built-in components, levels drawn as character grids with prefabs | Textures, materials, skeletal animation, shaders |
+| Fixed-point simulation on x, y and z; swept box collision; triggers that emit events and remove things (keys, doors, pickups); pacing guards | Rotation, non-box shapes, joints |
 | `expect` checks with explanations on failure | Audio, animation, UI |
 | TypeScript scripts with a determinism check | Asset pipeline beyond single images |
 | Browser player: Canvas 2D, and lit, shadowed boxes and OBJ meshes in WebGL2 for 3D scenes | WebGPU renderer, images in 3D |
@@ -150,7 +150,7 @@ Because a run is fully determined by scene and input, the engine can search the 
 fail no input reaches the goals by tick 120; best run met 0/1, still open: gone gem by 120
 ```
 
-The seven examples, including the 3D one and a key-and-door puzzle ([examples/vault.kiln](examples/vault.kiln)), each solve in under a second on one laptop. The search tries inputs that get nearer to a goal first; it has only been tried with one controllable character in small levels, and it gives up (and says so) when it runs out of states. `at` expectations are not searched for.
+The eight examples each solve in under a second on one laptop. They include the 3D one, a key-and-door puzzle ([examples/vault.kiln](examples/vault.kiln)) and a corridor of pacing guards where the crossing has to be timed ([examples/gauntlet.kiln](examples/gauntlet.kiln)). The search tries inputs that get nearer to a goal first; it has only been tried with one controllable character in small levels, and it gives up (and says so) when it runs out of states. `at` expectations are not searched for.
 
 ## 3D
 

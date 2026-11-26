@@ -18,7 +18,7 @@ AI 에이전트가 1급 사용자인 오픈소스 게임 엔진. 사용자의 �
 | 파일 | 역할 |
 |---|---|
 | `src/fx.ts` | 고정소수점 연산, 텍스트 왕복 |
-| `src/world.ts` | ECS, 컴포넌트 레지스트리 12종(`camera`, `tiles`, `eye` 포함). `pos`·`vel`·`box`는 선택적 z/d 값을 갖는다 |
+| `src/world.ts` | ECS, 컴포넌트 레지스트리 13종(`camera`, `tiles`, `eye`, `pace` 포함). `pos`·`vel`·`box`는 선택적 z/d 값을 갖는다 |
 | `src/scene.ts` | 씬 파서·직렬화(`state` 줄, `prefab` 블록, 타일 `spawn` 전개), 진단 |
 | `src/sim.ts` | 틱 진행(입력→ctrl→스크립트 pre→중력→이동·스윕 충돌→트리거→스크립트 post), 상태 해시. 이동·충돌·트리거는 x·y·z 3축 |
 | `src/expect.ts` | `expect` 5종 평가, 실패 시 관측값 설명 |
@@ -41,13 +41,13 @@ AI 에이전트가 1급 사용자인 오픈소스 게임 엔진. 사용자의 �
 
 검증 (2026-11-26):
 
-- `npm test` → 48개 통과.
+- `npm test` → 50개 통과.
 - 속도(`node bench/perf.ts`, Windows 노트북 1대, 1회): 격자 색인 도입 전후로 100×100은 0.58→0.09ms/틱, 1000×100은 5.7→0.46ms, 1000×1000은 81→0.74ms. 도입 후 5000×1000은 2.8ms, 10000×5000은 7.3ms. 세 경우 모두 전후 최종 해시가 같았다(0c156764, c7a0fa02, 77dbacf8).
 - 브라우저(프리뷰 `kiln`, `?scene=arena3d.kiln`): OBJ 메시 두 개(gem.obj, spire.obj)가 그림자와 함께 그려지는 것을 스크린샷으로 확인(`docs/arena3d.jpg`).
 - 라이브 데모(https://seojunlee-code.github.io/kiln/)를 브라우저로 열어 확인: 3D 장면이 뜨고, 장면 메뉴에 예제가 나열되고, 초기 상태 해시가 헤드리스와 같았다(2d32ac16).
 - `solve` 측정(Windows 노트북 1대, 1회, 프로세스 시작 포함): cave 0.26초·908상태, maze 0.20초·133상태, patrol 0.20초·195상태, platformer 0.54초·2,365상태, dungeon 0.29초·767상태, arena3d 0.82초·4,497상태. 여섯 개 모두 답이 재생 검증을 통과했다. 우선순위 탐색 이전(너비 우선)에는 patrol 6.6초·119,454상태, platformer 6.8초·69,214상태였고 arena3d는 20만 상태 한도에서 실패했다.
 - 브라우저(프리뷰 `kiln`, `?scene=arena3d.kiln`): WebGL2로 바닥·벽·발판·주인공·보석·출구가 조명과 함께 그려지는 것을 스크린샷으로 확인. 2D 캔버스는 숨겨진다.
-- `node scripts/hashes.ts --check` → 예제 7개(arena3d, cave, dungeon, maze, patrol, platformer, vault) 해시가 `examples/HASHES`와 일치.
+- `node scripts/hashes.ts --check` → 예제 8개(arena3d, cave, dungeon, gauntlet, maze, patrol, platformer, vault) 해시가 `examples/HASHES`와 일치.
 - GitHub Actions에서 ubuntu·macos·windows 세 작업 모두 성공. 세 OS에서 예제 해시가 같다.
 - 브라우저(프리뷰 `kiln`): platformer를 합성 키 이벤트로 플레이해 300틱 해시가 헤드리스와 같은 a265b330. 카메라 추적과 SVG 스프라이트가 그려지는 것을 스크린샷으로 확인.
 - `node bench/size.ts` → maze 기준 Kiln 729자, Godot 4,937자(6.8배). Godot 파일은 Godot에서 실행해 보지 않았고 토큰은 문자 수/4 추정이다.
@@ -55,6 +55,8 @@ AI 에이전트가 1급 사용자인 오픈소스 게임 엔진. 사용자의 �
 ## 알려진 한계
 
 - 속도 측정은 상자가 떨어져 쌓이지 않고 미끄러지는 한 가지 장면뿐이다. 스크립트가 많은 게임, 타일맵, 트리거가 많은 경우는 재지 않았다. 트리거는 아직 전수 비교(트리거 수 × 대상 수)다.
+- 움직이는 고체(`solid` + `vel`)는 다른 것을 밀거나 태우지 않고 그냥 지나간다. 움직이는 발판, 밀 수 있는 상자가 안 된다.
+- 2c600d7 커밋의 `bench/PERF.md`에 측정한 PC의 CPU 모델명이 들어갔다. 다음 커밋에서 뺐지만 git 이력에는 남아 있다.
 - 사람이 실제 키보드로 플레이한 확인이 없다. 브라우저 확인은 전부 합성 키 이벤트였다.
 - MCP 서버는 테스트에서 JSON-RPC로만 확인했다. 실제 Claude Code 클라이언트에 연결해 본 적이 없다.
 - 렌더러는 Canvas 2D이고 사각형·글리프·단일 이미지·타일 격자만 그린다. 애니메이션, 오디오, UI, 3D가 없다.

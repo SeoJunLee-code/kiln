@@ -290,3 +290,17 @@ test('mesh: OBJ text becomes unit-cube triangles with outward normals', async ()
   // A quad is split into two triangles; junk lines and bad indices are skipped.
   assert.equal(parseObj('v 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\nvn 0 0 1\nf 1/1/1 2/2/1 3/3/1 4/4/1\nf 1 2 99\n').length, 2 * 3 * 6);
 });
+
+test('gauntlet example: pacing guards make it a timing puzzle, and solve times the crossing', { timeout: 60000 }, async () => {
+  // Walking straight in gets the hero removed by the first guard it meets.
+  const rush = await command('test', { file: ex('gauntlet.kiln'), input: '0 right down\n', events: true });
+  assert.equal(rush.code, 1);
+  assert.match(rush.text, /event \d+ hit foe\d hero/);
+
+  const solved = await command('solve', { file: ex('gauntlet.kiln') });
+  assert.equal(solved.code, 0, solved.text);
+  const input = solved.text.trim().split('\n').slice(0, -1).join('\n') + '\n';
+  const replay = await command('test', { file: ex('gauntlet.kiln'), input, events: true });
+  assert.equal(replay.code, 0, replay.text);
+  assert.doesNotMatch(replay.text, /event \d+ hit/);
+});

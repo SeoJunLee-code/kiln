@@ -1,0 +1,31 @@
+# Three guards pace across the corridor. Touching one removes the hero, so the
+# crossing has to be timed. No script: `pace` moves the guards.
+world hz=60
+
+prefab hero
+  box 0.8 0.8
+  vel
+  ctrl 4
+  sprite @
+prefab foe
+  box 0.8 0.8
+  vel
+  pace y 1.1 3.1 3
+  tag foe
+  trigger hero hit despawn-other
+  sprite v crimson
+prefab exit
+  box 0.8 0.8
+  trigger hero win
+  sprite E limegreen
+
+entity map
+  pos 0 0
+  tiles spawn=@:hero,v:foe,E:exit
+    ###############
+    #...v.....v...#
+    #@.....v.....E#
+    #.............#
+    ###############
+
+expect event win by 900

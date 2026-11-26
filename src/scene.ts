@@ -166,6 +166,10 @@ export function parseScene(text: string, file = 'scene'): Scene {
       if (fd.def === undefined) { if (!bad) err('K105', line, `'${def.name}' is missing '${fd.name}'`, `usage: ${sig(def)}`); bad = true; }
       else data[fd.name] = fd.def;
     }
+    if (def.name === 'pace' && !bad && !['x', 'y', 'z'].includes(data.axis as string)) {
+      err('K104', line, `pace axis must be x, y or z, got '${data.axis}'`, 'usage: pace axis min max speed');
+      bad = true;
+    }
     if (def.name === 'trigger' && !bad) {
       for (const act of (data.action as string).split('+')) {
         if (!/^(none|despawn-self|despawn-other|despawn:#?[A-Za-z_][\w-]*)$/.test(act)) {

@@ -124,7 +124,7 @@ export function blockers(w: World, self: number, index: SolidIndex, maps: number
   return out;
 }
 
-/** Advance one fixed tick. System order is fixed: input, ctrl, scripts (pre), gravity, move, triggers, scripts (post). */
+/** Advance one fixed tick. System order is fixed: input, ctrl, pace, scripts (pre), gravity, move, triggers, scripts (post). */
 export function step(w: World, script?: InputScript): void {
   for (const [action, down] of script?.get(w.tick) ?? []) {
     if (down) w.pressed.add(action);
@@ -144,6 +144,12 @@ export function step(w: World, script?: InputScript): void {
     } else if (jump > 0) {
       if (on('up') && w.get(id, 'body')?.grounded) v.y = -jump;
     } else v.y = (on('down') - on('up')) * speed;
+  }
+
+  for (const id of w.query('pace', 'pos', 'vel')) {
+    const c = w.get(id, 'pace')!, p = w.get(id, 'pos')!, v = w.get(id, 'vel')!, a = c.axis as string;
+    if ((p[a] as number) >= (c.max as number)) v[a] = -(c.speed as number);
+    else if ((p[a] as number) <= (c.min as number) || v[a] === 0) v[a] = c.speed;
   }
 
   for (const sys of w.pre) sys(w);
