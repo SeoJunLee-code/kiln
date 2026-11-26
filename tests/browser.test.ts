@@ -217,18 +217,10 @@ test('browser: glTF models are drawn by WebGPU with their materials, and as boxe
   } finally { await player.close(); }
 });
 
-test('browser: a built folder plays a physics scene and a glTF scene from a plain static host', { skip }, async () => {
-  const { build } = await import('../src/build.ts');
-  const { run } = await import('../src/run.ts');
-  const { loadBackend } = await import('../src/physics.ts');
+// A host that knows nothing about Kiln: files by extension, under a sub-path as on a project page.
+async function host(out: string): Promise<{ url: string; close: () => void }> {
   const { createServer } = await import('node:http');
-  const { existsSync, mkdtempSync } = await import('node:fs');
-  const { tmpdir } = await import('node:os');
   const { join, extname } = await import('node:path');
-  if (!existsSync(ex('../backends/rapier/node_modules'))) return; // the optional backend is not installed
-  const out = mkdtempSync(join(tmpdir(), 'kiln-site-'));
-  build(ex('tumble3d.kiln'), out);
-  // A host that knows nothing about Kiln: files by extension, under a sub-path as on a project page.
   const types: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml' };
   const server = createServer((req, res) => {
     const path = decodeURIComponent(new URL(req.url!, 'http://x').pathname).replace(/^\/site\//, '').replace(/\.\./g, '') || 'index.html';
@@ -240,18 +232,80 @@ test('browser: a built folder plays a physics scene and a glTF scene from a plai
   });
   await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok));
   const port = (server.address() as import('node:net').AddressInfo).port;
+  return { url: `http://127.0.0.1:${port}/site/`, close: () => { server.close(); server.closeAllConnections(); } };
+}
+// Run a built scene to tick 90 with nothing pressed (a built folder has no recorded input).
+const PLAY = `(async () => {
+  for (let i = 0; i < 500 && !window.kiln; i++) await new Promise((r) => setTimeout(r, 20));
+  const hash = kiln.runTo(90);
+  return { hash, renderer: (await kiln.shot()).renderer };
+})()`;
+
+test('browser: a built folder plays a physics scene and a glTF scene from a plain static host', { skip }, async () => {
+  const { build } = await import('../src/build.ts');
+  const { run } = await import('../src/run.ts');
+  const { loadBackend } = await import('../src/physics.ts');
+  const { existsSync, mkdtempSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  if (!existsSync(ex('../backends/rapier/node_modules'))) return; // the optional backend is not installed
+  const out = mkdtempSync(join(tmpdir(), 'kiln-site-'));
+  build(ex('tumble3d.kiln'), out);
+  const site = await host(out);
   try {
     await loadBackend('rapier');
     for (const scene of ['tumble3d.kiln', 'gallery3d.kiln']) {
-      const page = await browser.open(`http://127.0.0.1:${port}/site/?paused&offscreen&scene=${scene}`, { width: 960, height: 600 });
-      const got = await page.eval<{ hash: string; renderer: string }>(`(async () => {
-        for (let i = 0; i < 500 && !window.kiln; i++) await new Promise((r) => setTimeout(r, 20));
-        const hash = kiln.runTo(90);
-        return { hash, renderer: (await kiln.shot()).renderer };
-      })()`);
-      // No recorded input in a built folder, so the comparison is with a headless run that presses nothing.
+      const page = await browser.open(`${site.url}?paused&offscreen&scene=${scene}`, { width: 960, height: 600 });
+      const got = await page.eval<{ hash: string; renderer: string }>(PLAY);
       assert.equal(got.hash, run(readFileSync(ex(scene), 'utf8'), { ticks: 90 }).hash, scene);
       assert.deepEqual(page.errors(), [], scene);
     }
-  } finally { server.close(); server.closeAllConnections(); }
+  } finally { site.close(); }
+});
+
+// Rules 2 and 4 of docs/EDITIONS.md together: a game is built with only the parts it uses,
+// and what is left out changes nothing it computes. A part that a scene asks for and the
+// build does not have is reported, not skipped in silence.
+test('browser: Lite games built without the parts they do not use reach the same hash', { skip }, async () => {
+  const { build } = await import('../src/build.ts');
+  const { run } = await import('../src/run.ts');
+  const { copyFileSync, existsSync, mkdtempSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const game = (files: string[]): string => {
+    const dir = mkdtempSync(join(tmpdir(), 'kiln-game-'));
+    for (const f of files) copyFileSync(ex(f), join(dir, f));
+    return dir;
+  };
+  const flat = game(['platformer.kiln', 'arena3d.kiln', 'gem.obj']), flatOut = mkdtempSync(join(tmpdir(), 'kiln-site-'));
+  // Built from a folder whose only scene with `eye` is hidden from the build, so the 3D scene meets a build with no renderer.
+  const two = game(['platformer.kiln']), twoOut = mkdtempSync(join(tmpdir(), 'kiln-site-'));
+  assert.deepEqual(build(join(two, 'platformer.kiln'), twoOut).parts, []);
+  assert.ok(!existsSync(join(twoOut, 'engine/web/gl.js')) && !existsSync(join(twoOut, 'engine/web/gpu.js')) && !existsSync(join(twoOut, 'engine/web/gltf.js')));
+  copyFileSync(ex('arena3d.kiln'), join(twoOut, 'game/arena3d.kiln'));
+  assert.deepEqual(build(join(flat, 'platformer.kiln'), flatOut).parts, ['3d']);
+  assert.ok(!existsSync(join(flatOut, 'engine/web/gltf.js')));
+
+  const bare = await host(twoOut), full = await host(flatOut);
+  try {
+    const open = async (url: string, scene: string) => {
+      const page = await browser.open(`${url}?paused&offscreen&scene=${scene}`, { width: 960, height: 600 });
+      return { page, got: await page.eval<{ hash: string; renderer: string }>(PLAY) };
+    };
+    const want = (scene: string): string => run(readFileSync(ex(scene), 'utf8'), { ticks: 90 }).hash;
+
+    const p2 = await open(bare.url, 'platformer.kiln');
+    assert.deepEqual([p2.got.hash, p2.got.renderer], [want('platformer.kiln'), '2d']);
+    assert.deepEqual(p2.page.errors(), []);
+
+    const p3 = await open(full.url, 'arena3d.kiln');
+    assert.equal(p3.got.hash, want('arena3d.kiln'));
+    assert.notEqual(p3.got.renderer, '2d', 'the 3D scene was not drawn in 3D');
+    assert.deepEqual(p3.page.errors(), []);
+
+    // The state is still right without the renderer; the picture is the 2D view and the page says why.
+    const missing = await open(bare.url, 'arena3d.kiln');
+    assert.deepEqual([missing.got.hash, missing.got.renderer], [want('arena3d.kiln'), '2d']);
+    assert.ok(missing.page.errors().some((e) => e.includes('engine part missing from this build')), `errors: ${missing.page.errors().join(' | ')}`);
+  } finally { bare.close(); full.close(); }
 });

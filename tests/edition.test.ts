@@ -119,3 +119,48 @@ test('edition: the scenes only WebGPU draws are exactly the ones whose drawing i
     assert.equal(/^drawing standard: /m.test(r.text), own.has(name), `${name}:\n${r.text}`);
   }
 });
+
+// Rule 4: a game ships only what it uses. Rule 5: the engine's bytes in a built game stay
+// under a budget. The numbers were set from the first measurement (2026-11-26: 90,703 /
+// 128,480 / 4,537,594) with about 3% of room; raise one only on purpose, in the same
+// change that says what the bytes bought.
+const BUDGET = { lite2d: 94_000, lite3d: 133_000, standard: 4_680_000 };
+
+test('edition: a built game carries only the parts it uses, within the byte budget', async () => {
+  const { build } = await import('../src/build.ts');
+  const { copyFileSync, existsSync } = await import('node:fs');
+  const game = (files: string[], extra: Record<string, string> = {}): string => {
+    const dir = mkdtempSync(join(tmpdir(), 'kiln-game-'));
+    for (const f of files) copyFileSync(root(`examples/${f}`), join(dir, f));
+    for (const [f, text] of Object.entries(extra)) writeFileSync(join(dir, f), text);
+    return dir;
+  };
+  const built = (dir: string, scene: string) => {
+    const out = mkdtempSync(join(tmpdir(), 'kiln-out-'));
+    const b = build(join(dir, scene), out);
+    const sum = b.written.filter((f) => f.startsWith('engine/')).reduce((n, f) => n + readFileSync(join(out, f)).length, 0);
+    assert.equal(b.engineBytes, sum, 'the reported size is the size on disk');
+    return { ...b, web: b.written.filter((f) => f.startsWith('engine/web/')).map((f) => f.slice(11)).sort(), out };
+  };
+
+  const flat = built(game(['maze.kiln', 'platformer.kiln', 'hero.svg']), 'maze.kiln');
+  assert.deepEqual([flat.parts, flat.web], [[], ['player.js']]);
+  assert.ok(flat.engineBytes <= BUDGET.lite2d, `2D Lite engine is ${flat.engineBytes} bytes, budget ${BUDGET.lite2d}`);
+  // The player asks for its parts by the names a static host will have.
+  const player = readFileSync(join(flat.out, 'engine/web/player.js'), 'utf8');
+  assert.deepEqual([...player.matchAll(/import\('(\.[^']+)'\)/g)].map((m) => m[1]).sort(), ['./gl.js', './gltf.js', './gpu.js']);
+
+  const solid = built(game(['arena3d.kiln', 'gem.obj']), 'arena3d.kiln');
+  assert.deepEqual([solid.parts, solid.web], [['3d'], ['gl.js', 'gpu.js', 'mesh.js', 'player.js']]);
+  assert.ok(solid.engineBytes <= BUDGET.lite3d, `3D Lite engine is ${solid.engineBytes} bytes, budget ${BUDGET.lite3d}`);
+
+  // A script can add `eye` while the game runs, so naming it in a script is enough; a model file is enough for the reader.
+  const scripted = built(game(['maze.kiln', 'crate.glb'], { 'cam.ts': `export default (k) => k.system('post', (w) => w.add(0, 'eye', { x: 0, y: 0, z: 0, fov: 55 }));\n` }), 'maze.kiln');
+  assert.deepEqual([scripted.parts, scripted.web], [['3d', 'gltf'], ['gl.js', 'gltf.js', 'gpu.js', 'mesh.js', 'player.js']]);
+  assert.ok(!scripted.written.some((f) => f.startsWith('engine/backends/')));
+
+  if (!existsSync(root('backends/rapier/node_modules'))) return; // the optional backend is not installed
+  const all = built(root('examples'), 'tumble3d.kiln');
+  assert.deepEqual(all.parts, ['3d', 'gltf', 'rapier']);
+  assert.ok(all.engineBytes <= BUDGET.standard, `Standard engine is ${all.engineBytes} bytes, budget ${BUDGET.standard}`);
+});

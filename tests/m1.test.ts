@@ -251,7 +251,7 @@ test('build: a static folder with js modules only, scripts converted, assets cop
   const out = mkdtempSync(join(tmpdir(), 'kiln-build-'));
   const files = build(ex('patrol.kiln'), out).written;
 
-  for (const f of ['index.html', 'config.json', 'engine/web/player.js', 'engine/web/gl.js', 'engine/src/sim.js', 'game/patrol.kiln', 'game/patrol.js', 'game/hero.svg']) {
+  for (const f of ['index.html', 'config.json', 'engine/web/player.js', 'engine/src/sim.js', 'game/patrol.kiln', 'game/patrol.js', 'game/hero.svg']) {
     assert.ok(files.includes(f) && existsSync(join(out, f)), f);
   }
   // Node-only modules are not part of what the browser needs.

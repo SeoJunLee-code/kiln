@@ -52,7 +52,7 @@ if (cmd === 'mcp') {
   try {
     const b = build(rest[0], out);
     if (b.skipped.length) console.log(`W K301 not copied (not a game asset): ${b.skipped.join(' ')}`);
-    console.log(`ok built files=${b.written.length} out=${out}`);
+    console.log(`ok built files=${b.written.length} engine_bytes=${b.engineBytes} parts=${b.parts.join(',') || 'none'} out=${out}`);
   } catch (e) {
     console.log(`E K001 build failed: ${(e as Error).message}`);
     process.exitCode = 2;

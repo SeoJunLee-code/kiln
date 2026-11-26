@@ -41,14 +41,14 @@ does that thing best. The agent-first rows belong to the core and hold in all th
 |---|---|---|
 | `check` names the lowest edition a game needs, and why | **gated** | `tests/edition.test.ts`: the edition of every example is written down; each kind of use is reported with its line; a folder needs the largest edition of its scenes |
 | A feature above a given ceiling (`--edition`) is an error | **gated** | K140 with the line of every use, also for entities spawned from a prefab; at or under the ceiling the output is unchanged |
-| A game ships only the parts it uses | works (physics backend only) | build test covers the backend; the player still loads the WebGPU renderer and glTF reader for a 2D game |
-| Exported size within a byte budget, per edition | none | |
-| A game of a lower edition reaches the same hash under a higher one | none | |
+| A game ships only the parts it uses | **gated** | `tests/edition.test.ts`: a 2D game is built with the player alone, a 3D one adds the two renderers, a model file adds the glTF reader, a physics scene adds the backend. Decided from what the game folder holds; a part a scene asks for and the build lacks is a page error |
+| Exported size within a byte budget, per edition | **gated** | engine bytes of a built game: 2D Lite 94,000, 3D Lite 133,000, Standard with everything 4,680,000 (first measured 90,703 / 128,480 / 4,537,594) |
+| A game of a lower edition reaches the same hash under a higher one | works | browser test: a 2D and a 3D Lite game built without the parts they do not use reach the headless hash (two scenes, 90 ticks, nothing pressed). Not every example, and there is no way yet to run one game under a named edition |
 | Lite features drawn by both renderers | **gated** | the reference images shared by WebGL2 and WebGPU |
 | No allocation per tick in the simulation path | none | not measured; Kiln runs on a garbage-collected language |
 | Parallel simulation reaches the serial hash | none | no parallel code yet |
 | `check` reports the edition per axis (drawing, physics, world, network) | **gated** | one line per axis above Lite; nothing sets world or network yet. The scenes drawn only by WebGPU must be exactly those whose drawing is Standard |
-| Budgets per edition: exported bytes, memory, time to first frame | none | bytes in CI; memory and time on the reference machine only |
+| Budgets per edition: exported bytes, memory, time to first frame | works (bytes only) | bytes are gated in the row above; memory and time to first frame have not been measured |
 | A proof game per edition, built by an agent, at 60 fps on that edition's reference machine | none | |
 | Agent cost per edition: tokens for one spec, failures repaired without a person | none | |
 

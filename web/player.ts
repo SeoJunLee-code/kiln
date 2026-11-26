@@ -1,9 +1,6 @@
 // Browser player. It runs the same simulation modules as the headless CLI and only
 // adds drawing and keyboard input. Floats appear here for drawing, never in the simulation.
-import { makeRenderer3 } from './gl.ts';
-import { loadGltf } from './gltf.ts';
 import type { Model } from './gltf.ts';
-import { makeRendererGpu } from './gpu.ts';
 import type { Box3, Renderer3 } from './mesh.ts';
 import { makeApi } from '../src/api.ts';
 import { evalTick, parseExpects } from '../src/expect.ts';
@@ -27,6 +24,13 @@ const canvas3 = $('view3d') as HTMLCanvasElement;
 // The 3D renderer, asked for on first use so 2D scenes never touch the GPU. WebGPU is
 // preferred and WebGL2 is the fallback; ?renderer=webgl2 or ?renderer=webgpu picks one.
 // Starting WebGPU takes a moment, so the 2D view shows until the renderer is there.
+// The renderers and the glTF reader are parts: fetched when a scene first needs one, and
+// left out of a built game that never does (src/build.ts decides). One that is asked for
+// and is not there is an error a check will see.
+const part = <T>(module: Promise<T>): Promise<T | null> => module.catch((e) => {
+  console.error(`engine part missing from this build: ${(e as Error).message}`);
+  return null;
+});
 let gl3: Renderer3 | null | undefined;
 let rendererAsked = false;
 const wantRenderer = (): void => {
@@ -36,8 +40,10 @@ const wantRenderer = (): void => {
   loading.push((async () => {
     let made: Renderer3 | null = null;
     // ?offscreen: WebGPU frames are made for pictures only and never shown (see look).
-    if (only !== 'webgl2') made = await makeRendererGpu(canvas3, new URLSearchParams(location.search).has('offscreen')).catch(() => null);
-    if (!made && only !== 'webgpu') made = makeRenderer3(canvas3);
+    const gpu = only !== 'webgl2' ? await part(import('./gpu.ts')) : null;
+    if (gpu) made = await gpu.makeRendererGpu(canvas3, new URLSearchParams(location.search).has('offscreen')).catch(() => null);
+    const gl = !made && only !== 'webgpu' ? await part(import('./gl.ts')) : null;
+    if (gl) made = gl.makeRenderer3(canvas3);
     for (const [path, text] of meshText) made?.addMesh(path, text);
     await Promise.all([...models].map(([path, model]) => made?.addModel?.(path, model)));
     gl3 = made;
@@ -62,8 +68,9 @@ const bytesOf = async (url: URL): Promise<Uint8Array> => {
 };
 const loadModel = async (path: string): Promise<void> => {
   try {
-    const at = new URL(path, GAME);
-    const model = await loadGltf(await bytesOf(at), (uri) => bytesOf(new URL(uri, at)));
+    const at = new URL(path, GAME), reader = await part(import('./gltf.ts'));
+    if (!reader) return;
+    const model = await reader.loadGltf(await bytesOf(at), (uri) => bytesOf(new URL(uri, at)));
     for (const w of model.warnings) console.warn(`${path}: ${w}`);
     models.set(path, model);
     await gl3?.addModel?.(path, model);

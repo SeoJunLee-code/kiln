@@ -39,7 +39,7 @@ Inside the engine a game is measured on four axes, and its edition is the highes
 
 `check` reports each axis and the lines that set it ("physics: standard — `physics=rapier`, level2.kiln line 1"). The axes are why the three names are presets and not walls: a game that is Lite in drawing and Standard in physics ships the Lite renderer and the physics backend, nothing else.
 
-**Built (2026-11-26):** `check` does this for one scene or a folder, and `--edition` is the ceiling (error K140). A component names its axis and edition where it is defined (`defineComponent` in `src/world.ts`); features of a value or of a combination are listed in `src/edition.ts`. What sets an axis today: `physics=rapier`, `rigid`, `impulse`, `force` (physics); a glTF mesh, `quat`, and `rot` in a scene drawn in 3D (drawing, because the WebGL2 renderer does not turn boxes). Nothing sets the world or network axis yet. `build` does not use the axes yet.
+**Built (2026-11-26):** `check` does this for one scene or a folder, and `--edition` is the ceiling (error K140). A component names its axis and edition where it is defined (`defineComponent` in `src/world.ts`); features of a value or of a combination are listed in `src/edition.ts`. What sets an axis today: `physics=rapier`, `rigid`, `impulse`, `force` (physics); a glTF mesh, `quat`, and `rot` in a scene drawn in 3D (drawing, because the WebGL2 renderer does not turn boxes). Nothing sets the world or network axis yet. `build` ships parts by what the game folder holds (the renderers if anything has `eye`, the glTF reader if there is a model file, a backend if a scene names it), and the engine bytes of a built game are held to a budget in `tests/edition.test.ts`.
 
 What is the same in all three: the scene text, the simulation rules, determinism, `check`, `solve`, `look`, `guide`, MCP, and the rule that a feature counts only when a check guards it. **An edition never changes how much the agent can do, only how much the game can show and simulate.**
 
@@ -89,7 +89,15 @@ Measured on the working tree of 2026-11-26:
 | `web/` (player, both renderers, glTF reader) | 75 KB of source |
 | Rapier deterministic build, the file a game ships | 4,372 KB |
 
-So today the choice of edition is, in bytes, the choice of whether Rapier is present: it is twenty times the rest. `build` already leaves it out of games that do not use it. The player still loads the WebGPU renderer and the glTF reader for a 2D game (about 40 KB of source); rule 4 would remove that.
+So today the choice of edition is, in bytes, the choice of whether Rapier is present: it is twenty times the rest. `build` leaves it out of games that do not use it, and since 2026-11-26 also the renderers and the glTF reader.
+
+Engine bytes in a built game, as shipped (types stripped, not minified, not compressed):
+
+| Game | Engine bytes | Budget |
+|---|---|---|
+| 2D, Lite | 90,703 | 94,000 |
+| 3D with boxes and OBJ meshes, Lite (both renderers) | 128,480 | 133,000 |
+| Everything: glTF and Rapier, Standard | 4,537,594 | 4,680,000 |
 
 Existing features by edition:
 
