@@ -75,7 +75,7 @@ test('mcp: initialize, list the single tool, and call it', async () => {
       const m = JSON.parse(buf.slice(0, i));
       replies[m.id] = m;
     }
-    if (Object.keys(replies).length === 5) res();
+    if (Object.keys(replies).length === 6) res();
   }));
   const rpc = (id: number | undefined, method: string, params: unknown = {}) =>
     child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n');
@@ -85,6 +85,7 @@ test('mcp: initialize, list the single tool, and call it', async () => {
   rpc(3, 'tools/call', { name: 'kiln', arguments: { cmd: 'test', file: ex('maze.kiln'), input_file: ex('maze.input'), view: true } });
   rpc(4, 'tools/call', { name: 'kiln', arguments: { cmd: 'check', scene: 'entity a\n  poss 1 1\n' } });
   rpc(5, 'nope');
+  rpc(6, 'tools/call', { name: 'kiln', arguments: { cmd: 'guide', topic: 'physics' } });
   await got;
   child.kill();
 
@@ -95,6 +96,7 @@ test('mcp: initialize, list the single tool, and call it', async () => {
   assert.equal(replies[4].result.isError, true);
   assert.match(replies[4].result.content[0].text, /^E K102 scene:2 unknown component 'poss' \(hint: did you mean 'pos'\?\)/);
   assert.equal(replies[5].error.code, -32601);
+  assert.match(replies[6].result.content[0].text, /^KILN GUIDE: physics[\s\S]*^rigid /m);
 });
 
 test('serve: strips types from engine and game files and refuses paths outside them', { timeout: 20000 }, async () => {
@@ -210,11 +212,32 @@ test('solve: the search limit is reported, not hidden', async () => {
   assert.match(r.text, /^fail gave up after 50 states; best run met \d\/2, still open: /);
 });
 
-test('guide: one call covers every component and command, and stays small', async () => {
+test('guide: the core and its topics cover every component and command, and each stays small', async () => {
   const { registry } = await import('../src/world.ts');
   const { COMMANDS } = await import('../src/commands.ts');
+  const { TOPICS } = await import('../src/guide.ts');
   const g = (await command('guide', {})).text;
-  for (const name of registry.keys()) assert.match(g, new RegExp(`^${name}( |$)`, 'm'), `component ${name}`);
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // A component is either explained in the core, or named there on its topic's line and explained in that topic.
+  for (const [name, def] of registry) {
+    const line = new RegExp(`^${esc(name)}( |$)`, 'm');
+    if (!def.topic) { assert.match(g, line, `component ${name}`); continue; }
+    assert.ok(Object.hasOwn(TOPICS, def.topic), `component ${name} has unknown topic ${def.topic}`);
+    assert.doesNotMatch(g, line, `${name} is explained twice`);
+    assert.match(g, new RegExp(`^${def.topic}: (.* )?${esc(name)} `, 'm'), `core guide names ${name}`);
+    assert.match((await command('guide', { topic: def.topic })).text, line, `guide ${def.topic} explains ${name}`);
+  }
+  for (const topic of Object.keys(TOPICS)) {
+    const t = await command('guide', { topic });
+    assert.equal(t.code, 0);
+    assert.ok(t.text.length < 2500, `guide ${topic} is ${t.text.length} characters`);
+    assert.ok([...registry.values()].some((c) => c.topic === topic), `topic ${topic} has no component`);
+  }
+  const bad = await command('guide', { topic: 'nope' });
+  assert.equal(bad.code, 2);
+  assert.match(bad.text, /^E K003 unknown guide topic 'nope' \(hint: valid: physics view\)/);
+  // Room for the next few core components: adding one must not be what breaks this test.
+  assert.ok(g.length < 5600, `core guide is ${g.length} characters`);
   for (const c of COMMANDS.filter((x) => x !== 'guide')) assert.match(g, new RegExp(`^${c} `, 'm'), `command ${c}`);
   // The scene shown in the guide has to be real.
   const sample = 'prefab hero\n  box 0.8 0.8\nprefab coin\n  box 0.5 0.5\n' + g.slice(g.indexOf('entity map'), g.indexOf('A spawned prefab'));

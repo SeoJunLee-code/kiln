@@ -9,7 +9,8 @@ const HELP = `kiln <command> [scene] [options]
   solve SCENE            search for an input script that meets the scene's reach/gone/event expects
                          (--step N ticks per key choice, --max-states N, --out FILE saves the input)
   schema [SCENE]         print the component reference (with SCENE: including its scripts)
-  guide                  print the whole manual, sized for an agent to read in one call
+  guide [TOPIC]          print the manual, sized for an agent to read in one call;
+                         with TOPIC: a part only some games need (the guide lists them)
   mcp                    serve these commands as one MCP tool over stdio
   play SCENE             open the scene in a browser (--port N, default 5207; --input FILE replays it)
   look SCENE             draw the scene in a headless browser and save a picture of the game view
@@ -91,6 +92,7 @@ if (cmd === 'mcp') {
     else if (k === '--view' || k === '--top' || k === '--observe' || k === '--events') a[k.slice(2) as 'view' | 'top' | 'observe' | 'events'] = true;
     else { console.log(`E K002 unknown option '${k}'`); process.exit(2); }
   }
+  if (cmd === 'guide') { a.topic = a.file; a.file = undefined; }
   const r = await command(cmd, a);
   process.stdout.write(r.text);
   process.exitCode = r.code;

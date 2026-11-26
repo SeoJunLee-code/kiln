@@ -288,6 +288,7 @@ export function serialize(w: World, expects: RawExpect[] = [], uses: string[] = 
 }
 
 /** Compact component reference meant to be pasted into an agent's context. */
-export function schemaText(): string {
-  return [...registry.values()].map((c) => `${sig(c)}  -- ${c.doc}`).join('\n') + '\n';
+/** Every component; or, given a topic, only its components ('' = the ones without a topic). */
+export function schemaText(topic?: string): string {
+  return [...registry.values()].filter((c) => topic === undefined || (c.topic ?? '') === topic).map((c) => `${sig(c)}  -- ${c.doc}`).join('\n') + '\n';
 }

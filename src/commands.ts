@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { fmtWarn, lint } from './lint.ts';
 import { loadGltf } from '../web/gltf.ts';
 import { parseExpects } from './expect.ts';
-import { guideText } from './guide.ts';
+import { TOPICS, guideText, topicText } from './guide.ts';
 import { loadMods } from './load.ts';
 import { loadBackend, physicsOf } from './physics.ts';
 import { observe, run, view } from './run.ts';
@@ -30,6 +30,8 @@ export interface CmdArgs {
   stepTicks?: number;
   /** solve: give up after this many distinct states (default 200000) */
   maxStates?: number;
+  /** guide: print this part of the manual instead of the core */
+  topic?: string;
 }
 
 /** Run one engine command. Shared by the CLI and the MCP server. Exit code: 0 ok, 1 expectation failed, 2 error. */
@@ -37,7 +39,11 @@ export async function command(cmd: string, a: CmdArgs): Promise<{ text: string; 
   const out: string[] = [];
   const done = (code: number) => ({ text: out.join('\n') + '\n', code });
   if (!COMMANDS.includes(cmd)) return out.push(`E K003 unknown command '${cmd}' (hint: valid: ${COMMANDS.join(' ')})`), done(2);
-  if (cmd === 'guide') return { text: guideText(), code: 0 };
+  if (cmd === 'guide') {
+    if (a.topic === undefined) return { text: guideText(), code: 0 };
+    if (!Object.hasOwn(TOPICS, a.topic)) return out.push(`E K003 unknown guide topic '${a.topic}' (hint: valid: ${Object.keys(TOPICS).join(' ')})`), done(2);
+    return { text: topicText(a.topic), code: 0 };
+  }
   if (cmd === 'schema' && !a.file && a.scene === undefined) return { text: schemaText(), code: 0 };
 
   // `test DIR`: every scene in the folder, each with the input file of the same name if there is one.

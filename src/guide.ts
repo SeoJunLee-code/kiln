@@ -1,7 +1,51 @@
 import { schemaText } from './scene.ts';
+import { registry } from './world.ts';
 
 /**
- * The whole manual, sized to be read by an agent in one call. The component list is
+ * Parts of the manual that only some games need. The core guide names each topic and its
+ * components in one line; `guide TOPIC` prints the rest. A component joins a topic through
+ * the last argument of defineComponent.
+ */
+export const TOPICS: Record<string, { about: string; text: string }> = {
+  physics: {
+    about: 'rigid bodies that fall, tumble and collide',
+    text: `Put physics=rapier on the world line. An entity with rigid + pos + box is a dynamic body.
+solid entities and solid tiles are fixed colliders. Movers (pos+vel+box, such as the ctrl
+character) stop at a body, shove it by their weight, and can stand and ride on it.
+A body does not move a mover: a rolling ball stops against the character.
+The engine owns pos, vel and quat of a rigid: a script that writes them is overwritten on
+the next tick. To move a body, add impulse or force: w.add(id, 'impulse', { x, y, z }).
+Both act through the centre of mass (no turning force). 3D only.
+Saving a running physics scene as text and loading it does not continue exactly; run it
+from the start with the same input instead.`,
+  },
+  view: {
+    about: 'how the scene is drawn: turning, cameras, labels',
+    text: `None of these change collision, triggers or solve: they see the unturned box.
+2D shows rot about z only. 3D needs an entity with eye. Check the picture with look.`,
+  },
+};
+
+/** One part of the manual. Its component list is generated from the registry. */
+export function topicText(topic: string): string {
+  const t = TOPICS[topic];
+  return `KILN GUIDE: ${topic}  (${t.about})
+${t.text}
+
+COMPONENTS
+${schemaText(topic)}`;
+}
+
+/** The lines of the core guide that say what else there is to read. */
+function topicIndex(): string {
+  return Object.entries(TOPICS).map(([name, t]) => {
+    const comps = [...registry.values()].filter((c) => c.topic === name).map((c) => c.name).join(' ');
+    return `${name}: ${comps}  -- ${t.about}`;
+  }).join('\n');
+}
+
+/**
+ * The core manual, sized to be read by an agent in one call. The component list is
  * generated from the registry, so it cannot drift from the code. A test keeps it short.
  */
 export function guideText(): string {
@@ -19,7 +63,10 @@ expect ...                               a check (see EXPECT)
 Units: 1 = one cell. y grows DOWN (above the floor = smaller y). z is depth, 3D only.
 
 COMPONENTS
-${schemaText().trimEnd()}
+${schemaText('').trimEnd()}
+
+MORE COMPONENTS  read \`guide TOPIC\` (MCP: cmd=guide topic=TOPIC) before using one
+${topicIndex()}
 
 TILES  rows follow the tiles line, indented 4 spaces, one character per cell, '.' = empty
 entity map

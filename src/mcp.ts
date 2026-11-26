@@ -6,7 +6,7 @@ import { COMMANDS, command } from './commands.ts';
 const TOOL = {
   name: 'kiln',
   description:
-    'Kiln game engine. Call cmd=guide first: it returns the whole manual. cmd: check (validate a scene), run (simulate headless, returns state hash), ' +
+    'Kiln game engine. Call cmd=guide first: it returns the manual. cmd: check (validate a scene), run (simulate headless, returns state hash), ' +
     'test (run and evaluate the scene\'s expect lines), solve (search for an input script that meets the expects), ' +
     'schema (component reference), guide (manual), look (draw the scene in a headless browser and return the picture; ticks = tick to stop at). ' +
     'Output is compact text; errors are lines starting with "E CODE file:line".',
@@ -18,6 +18,7 @@ const TOOL = {
       scene: { type: 'string', description: 'scene text, instead of file' },
       input: { type: 'string', description: 'input script text: "TICK ACTION down|up" lines' },
       input_file: { type: 'string' },
+      topic: { type: 'string', description: 'guide: a part of the manual the guide lists (physics, view)' },
       ticks: { type: 'integer', minimum: 0 },
       step: { type: 'integer', minimum: 1, description: 'solve: ticks per key choice (default 5)' },
       view: { type: 'boolean', description: 'append ASCII picture of the final state' },
@@ -64,6 +65,7 @@ async function handle(msg: Msg): Promise<unknown> {
         input: a.input as string | undefined,
         inputFile: a.input_file as string | undefined,
         ticks: a.ticks as number | undefined,
+        topic: a.topic as string | undefined,
         stepTicks: a.step as number | undefined,
         view: !!a.view, top: !!a.top, observe: !!a.observe, events: !!a.events,
       });
