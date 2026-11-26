@@ -190,7 +190,17 @@ export function step(w: World, script?: InputScript): void {
     }
     // Swept test per axis: a solid anywhere along the path stops the mover, however fast it is.
     const size = [b.w as number, b.h as number, b.d as number];
-    let grounded = 0;
+    const body = w.get(id, 'body');
+    // Standing on something that moves: go along with it sideways. (Vertically the platform
+    // itself does the work: it is solid, so it lifts or drops whatever rests on it.)
+    if (body?.ride) {
+      const pid = w.ids.get(body.ride as string), pv = pid === undefined ? undefined : w.get(pid, 'vel');
+      if (pv) {
+        d[0] += tickShare(pv.x as number, k, w.hz);
+        d[2] += tickShare(pv.z as number, k, w.hz);
+      }
+    }
+    let grounded = 0, ride = -1;
     for (let a = 0; a < 3; a++) {
       if (d[a] === 0) continue;
       const from = cur[a], free = (from + d[a]) | 0;
@@ -213,13 +223,19 @@ export function step(w: World, script?: InputScript): void {
       }
       if (to !== free) {
         v[P[a]] = 0;
-        if (a === 1 && d[a] > 0) grounded = 1;
+        if (a === 1 && d[a] > 0) {
+          grounded = 1;
+          // What it landed on: the entity whose top it now rests on (lowest id if several).
+          for (const r of hits) if (r[6] >= 0 && r[1] - size[1] === to && (ride < 0 || r[6] < ride)) ride = r[6];
+        }
       }
       cur[a] = to;
     }
     for (let a = 0; a < 3; a++) p[P[a]] = cur[a];
-    const body = w.get(id, 'body');
-    if (body) body.grounded = grounded;
+    if (body) {
+      body.grounded = grounded;
+      body.ride = ride >= 0 ? w.names[ride]! : '';
+    }
   }
 
   w.tick++;

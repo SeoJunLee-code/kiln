@@ -327,3 +327,15 @@ test('build: files that are not game assets are left out and reported', async ()
   assert.ok(existsSync(join(out, 'game/level.kiln')));
   for (const f of b.skipped) assert.ok(!existsSync(join(out, 'game', f)), f);
 });
+
+test('lift example: the gap is too wide to jump, so solve rides the lift across', { timeout: 90000 }, async () => {
+  const solved = await command('solve', { file: ex('lift.kiln') });
+  assert.equal(solved.code, 0, solved.text);
+  const input = solved.text.trim().split('\n').slice(0, -1).join('\n') + '\n';
+  const replay = await command('test', { file: ex('lift.kiln'), input });
+  assert.equal(replay.code, 0, replay.text);
+  // Without the lift there is no way over.
+  const { readFileSync: read } = await import('node:fs');
+  const noLift = read(ex('lift.kiln'), 'utf8').replace(/entity lift[\s\S]*?(?=\nentity )/, '');
+  assert.equal((await command('solve', { scene: noLift, file: ex('lift.kiln') })).code, 1);
+});

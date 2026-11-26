@@ -114,6 +114,7 @@ test('platformer: gravity grounds the body and up jumps only when grounded', () 
   const landed = run(scene, { ticks: 120 }).world;
   assert.equal(fmtFx(landed.get(0, 'pos')!.y as number), '4');
   assert.equal(landed.get(0, 'body')!.grounded, 1);
+  assert.equal(landed.get(0, 'body')!.ride, 'floor');
 
   const jumped = run(scene, { ticks: 130, input: '120 up down\n121 up up\n' }).world;
   assert.ok((jumped.get(0, 'pos')!.y as number) < fx(3.5), 'left the floor');
@@ -330,4 +331,22 @@ test('push: results are the same run to run', () => {
   const a = run(sokoban, { input }), b = run(sokoban, { input });
   assert.equal(a.hash, b.hash);
   assert.ok(a.ok, a.expects.map((e) => `${e.text} ${e.ok} ${e.note}`).join('; '));
+});
+
+test('ride: a body standing on a moving solid goes with it, and stays put when it steps off', () => {
+  const scene = 'world gravity=0,30\n' +
+    'entity rider\n  pos 2.5 3\n  box 1 1\n  vel\n  body\n' +
+    'entity lift\n  pos 2 4\n  box 2 0.5\n  solid\n  vel\n  pace x 2 8 3\n' +
+    'entity ground\n  pos -5 8\n  box 30 1\n  solid\n';
+  const at = (ticks: number) => {
+    const w = run(scene, { ticks }).world;
+    return [fmtFx(w.get(0, 'pos')!.x as number), fmtFx(w.get(1, 'pos')!.x as number), w.get(0, 'body')!.ride];
+  };
+  // The first tick is spent landing; from then on the rider keeps its place on the lift.
+  const [rx, lx, on] = at(100);
+  assert.equal(on, 'lift');
+  assert.ok(Math.abs(Number(rx) - Number(lx) - 0.5) < 0.1, `rider ${rx} lift ${lx}`);
+  const turned = at(260);
+  assert.equal(turned[2], 'lift');
+  assert.ok(Math.abs(Number(turned[0]) - Number(turned[1]) - 0.5) < 0.1, `after the turn: rider ${turned[0]} lift ${turned[1]}`);
 });

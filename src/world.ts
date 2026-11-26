@@ -20,7 +20,8 @@ defineComponent('vel', 'velocity in units/second', [f('x', 'fx', 0), f('y', 'fx'
 defineComponent('box', 'axis-aligned size on x, y and (3D) z; needed for collision and triggers', [f('w', 'fx'), f('h', 'fx'), f('d', 'fx', 65536)]);
 defineComponent('solid', 'blocks entities that have pos+vel+box');
 defineComponent('push', 'on a solid: movers shove it instead of stopping, as far as it is free to go (one crate at a time; not along y when the world has gravity on y)');
-defineComponent('body', 'receives world gravity; grounded is engine-written state', [f('grounded', 'int', 0)]);
+defineComponent('body', 'receives world gravity, and is carried by a moving solid it stands on. grounded and ride (what it stands on) are engine-written state',
+  [f('grounded', 'int', 0), f('ride', 'str', '')]);
 defineComponent('ctrl', 'input-driven. jump=0: 4-way (left/right/up/down). jump>0: platformer, up jumps when grounded. plane=xz (3D): up/down walk along z and `a` jumps',
   [f('speed', 'fx'), f('jump', 'fx', 0), f('plane', 'str', 'xy')]);
 defineComponent('pace', 'walks back and forth along axis (x, y or z) between min and max at speed; needs vel',
