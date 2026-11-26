@@ -37,7 +37,7 @@ defineComponent('rot', 'turned angle degrees about axis (x, y, z) through the bo
   [f('angle', 'fx', 0), f('spin', 'fx', 0), f('axis', 'str', 'z')]);
 defineComponent('quat', '3D orientation as a unit quaternion, instead of rot. sx sy sz: degrees/second about world axes',
   [f('x', 'fx', 0), f('y', 'fx', 0), f('z', 'fx', 0), f('w', 'fx', 65536), f('sx', 'fx', 0), f('sy', 'fx', 0), f('sz', 'fx', 0)]);
-defineComponent('rigid', 'rigid body (needs world physics=rapier): falls, tumbles, collides; movers push it. shape: box or ball',
+defineComponent('rigid', 'rigid body (needs world physics=rapier): falls, tumbles; blocks movers, who shove it. shape: box or ball',
   [f('shape', 'str', 'box'), f('density', 'fx', 65536), f('bounce', 'fx', 0), f('friction', 'fx', 32768)]);
 defineComponent('eye', 'draws the scene in 3D: a camera at this entity plus the offset, looking at it; ignored headless',
   [f('x', 'fx'), f('y', 'fx'), f('z', 'fx'), f('fov', 'int', 55)]);

@@ -23,7 +23,7 @@ before(async () => { if (!skip) await loadBackend('rapier'); });
 
 const at = (w: World, name: string, comp: string, field: string): number => (w.get(w.ids.get(name)!, comp)![field] as number) / ONE;
 // Hash of the scene in the determinism test after 300 ticks. CI compares it on three OSes.
-const PINNED = '9ef98050';
+const PINNED = 'b390abd2';
 const FLOOR = 'entity floor\n  pos -10 0 -10\n  box 20 1 20\n  solid\n';
 const codes = (fn: () => unknown): string[] => {
   try { fn(); } catch (e) { if (e instanceof KilnFail) return e.diags.map((d) => d.code); throw e; }
@@ -88,10 +88,10 @@ test('physics: the same scene gives the same state, pinned so that every OS must
   freeLink(second.world);
 });
 
-test('physics: movers push bodies, solid tiles hold them, and a despawned body leaves', { skip }, () => {
+test('physics: a solid mover pushes bodies, solid tiles hold them, and a despawned body leaves', { skip }, () => {
   const scene = 'world gravity=0,30 physics=rapier\n' +
     'entity map\n  pos -2 0 -2\n  tiles plane=xz\n    ##########\n    ##########\n    ##########\n    ##########\n' +
-    'entity mover\n  pos 0 -1 0\n  box 1 1 1\n  vel 2 0 0\n' +
+    'entity mover\n  pos 0 -1 0\n  box 1 1 1\n  vel 2 0 0\n  solid\n' +
     'entity crate\n  pos 2 -1 0\n  box 1 1 1\n  rigid\n' +
     'entity far\n  pos 0 -1 1.5\n  box 0.5 1 0.5\n  rigid\n' +
     'entity gate\n  pos 5 -1 -1\n  box 0.2 1 3\n  trigger crate through despawn-other\n';
@@ -106,6 +106,99 @@ test('physics: movers push bodies, solid tiles hold them, and a despawned body l
   assert.deepEqual(w.events.map((e) => e.name), ['through']);
   assert.ok(Math.abs(at(w, 'far', 'pos', 'y') - -1) < 0.05);
   freeLink(w);
+});
+
+// A walker on a floor with a wall at x=8: `walker` is 0.8 wide and walks right at 4 units/s while `right` is held.
+const WALK = `world gravity=0,30 physics=rapier\n${FLOOR}` +
+  'entity wall\n  pos 8 -3 -2\n  box 1 3 4\n  solid\n' +
+  'entity walker\n  pos 0 -1 0\n  box 0.8 1 0.8\n  vel\n  body\n  ctrl 4 9 xz\n';
+const HOLD_RIGHT = new Map([[0, [['right', true]] as [string, boolean][]]]);
+/** Run a scene for `ticks` with `right` held, and return the smallest gap seen between the walker's right side and a body's left. */
+function walk(scene: string, ticks: number, body: string): { w: World; gap: number } {
+  const w = parseScene(scene).world;
+  let gap = Infinity;
+  for (let t = 0; t < ticks; t++) {
+    step(w, HOLD_RIGHT);
+    gap = Math.min(gap, at(w, body, 'pos', 'x') - (at(w, 'walker', 'pos', 'x') + 0.8));
+  }
+  return { w, gap };
+}
+
+test('physics: a body blocks the character, who pushes a light one along and cannot move a heavy one', { skip }, () => {
+  const light = walk(`${WALK}entity crate\n  pos 2 -1 0\n  box 1 1 1\n  rigid\n`, 90, 'crate');
+  // A second and a half at 4 units/s: the crate has gone ahead of the walker, never overlapped, never outrun by much.
+  assert.ok(at(light.w, 'crate', 'pos', 'x') > 5, `light crate x=${at(light.w, 'crate', 'pos', 'x')}`);
+  assert.ok(light.gap > 0 && light.gap < 0.02, `smallest gap ${light.gap}`);
+  assert.ok(at(light.w, 'crate', 'vel', 'x') <= 4.01, `crate speed ${at(light.w, 'crate', 'vel', 'x')}`);
+  // 400 times the walker's mass, and friction holds it: the walker stops against it.
+  const heavy = walk(`${WALK}entity crate\n  pos 2 -1 0\n  box 1 1 1\n  rigid density=256\n`, 90, 'crate');
+  assert.ok(Math.abs(at(heavy.w, 'crate', 'pos', 'x') - 2) < 0.05, `heavy crate x=${at(heavy.w, 'crate', 'pos', 'x')}`);
+  assert.ok(heavy.gap > 0, `smallest gap ${heavy.gap}`);
+  assert.ok(at(heavy.w, 'walker', 'pos', 'x') < 1.25, `walker x=${at(heavy.w, 'walker', 'pos', 'x')}`);
+  for (const r of [light, heavy]) freeLink(r.w);
+});
+
+test('physics: a body pushed against a wall stays out of the wall and out of the character', { skip }, () => {
+  // The walker keeps walking for three seconds after the body has reached the wall at x=8.
+  for (const [body, size, extra] of [['crate', 1, ''], ['ball', 0.8, ' ball bounce=0.3']] as [string, number, string][]) {
+    const { w, gap } = walk(`${WALK}entity ${body}\n  pos 5 ${-size} 0\n  box ${size} ${size} ${size}\n  rigid${extra}\n`, 300, body);
+    assert.ok(gap > 0, `${body}: the walker was ${-gap} inside it`);
+    assert.ok(Math.abs(at(w, body, 'pos', 'x') + size - 8) < 0.01, `${body}: its far side is at x=${at(w, body, 'pos', 'x') + size}, the wall starts at 8`);
+    assert.ok(Math.abs(at(w, body, 'pos', 'y') - -size) < 0.01, `${body}: squeezed off the floor to y=${at(w, body, 'pos', 'y')}`);
+    assert.ok(Math.abs(at(w, 'walker', 'pos', 'x') + 0.8 + size - 8) < 0.03, `${body}: the walker stopped at x=${at(w, 'walker', 'pos', 'x')}`);
+    freeLink(w);
+  }
+});
+
+test('physics: the character lands on a body, stands on it, rides it and can jump from it', { skip }, () => {
+  const scene = `world gravity=0,30 physics=rapier\n${FLOOR}` +
+    'entity crate\n  pos 0 -1 0\n  box 2 1 2\n  rigid\n' +
+    'entity walker\n  pos 0.5 -4 0.5\n  box 0.8 1 0.8\n  vel\n  body\n  ctrl 4 9 xz\n';
+  const w = run(scene, { ticks: 60 }).world;
+  const body = w.get(w.ids.get('walker')!, 'body')!;
+  // Feet on the crate's top (y=-1), less the hair's breadth a mover keeps from a body.
+  assert.ok(Math.abs(at(w, 'walker', 'pos', 'y') + 1 - -1) < 0.02, `walker feet at y=${at(w, 'walker', 'pos', 'y') + 1}`);
+  assert.deepEqual([body.grounded, body.ride], [1, 'crate']);
+  assert.ok(Math.abs(at(w, 'crate', 'pos', 'y') - -1) < 0.01, 'the crate was pressed into the floor');
+  const jump = new Map([[60, [['a', true]] as [string, boolean][]]]);
+  for (let t = 60; t < 70; t++) step(w, jump);
+  assert.ok(at(w, 'walker', 'pos', 'y') + 1 < -1.8, `ten ticks into a jump the feet are at y=${at(w, 'walker', 'pos', 'y') + 1}`);
+  freeLink(w);
+});
+
+test('physics: a body blocks from the first tick, and a fast one does not pass through a thin wall', { skip }, () => {
+  // The backend's own scene queries see a body only after its first step; the walker must not use that tick to get in.
+  const near = parseScene(`${WALK}entity crate\n  pos 0.81 -1 0\n  box 1 1 1\n  rigid density=256\n`).world;
+  step(near, HOLD_RIGHT);
+  assert.ok(at(near, 'walker', 'pos', 'x') + 0.8 <= 0.81, `after one tick the walker's side is at ${at(near, 'walker', 'pos', 'x') + 0.8}`);
+  // 4 units per tick at a wall 0.2 thick: without a look ahead, one tick ends short of it and the next past it.
+  const fast = run(`world gravity=0,30 physics=rapier\n${FLOOR}entity thin\n  pos 4.2 -3 -2\n  box 0.2 3 4\n  solid\n` +
+    'entity shot\n  pos 0 -1 0\n  box 0.4 0.4 0.4\n  vel 240 0 0\n  rigid ball\n', { ticks: 60 }).world;
+  assert.ok(at(fast, 'shot', 'pos', 'x') < 4.2, `the shot is at x=${at(fast, 'shot', 'pos', 'x')}, past the wall at 4.2`);
+  for (const x of [near, fast]) freeLink(x);
+});
+
+test('physics: a pushed crate (fixed-point) is stopped by a body too', { skip }, () => {
+  const scene = `${WALK}entity crate\n  pos 2 -1 0\n  box 1 1 1\n  solid\n  push\nentity anvil\n  pos 4 -1 0\n  box 1 1 1\n  rigid density=256\n`;
+  const { w } = walk(scene, 120, 'crate');
+  // Walker, crate, anvil: the crate was shoved a unit and stopped at the anvil, which did not give way.
+  assert.ok(Math.abs(at(w, 'anvil', 'pos', 'x') - 4) < 0.05, `anvil x=${at(w, 'anvil', 'pos', 'x')}`);
+  const side = at(w, 'crate', 'pos', 'x') + 1;
+  assert.ok(side > 3.9 && side <= at(w, 'anvil', 'pos', 'x'), `the crate's far side is at x=${side}`);
+  freeLink(w);
+});
+
+test('physics: a saved state continues exactly while the character is pushing', { skip }, () => {
+  const scene = `${WALK}entity crate\n  pos 1 -1 0\n  box 1 1 1\n  rigid\nentity ball\n  pos 3 -0.8 0.2\n  box 0.8 0.8 0.8\n  rigid ball bounce=0.4\n`;
+  const w = parseScene(scene).world;
+  for (let t = 0; t < 30; t++) step(w, HOLD_RIGHT);
+  const copy = cloneWorld(w), saved = saveLink(w);
+  for (let t = 30; t < 200; t++) step(w, HOLD_RIGHT);
+  restoreLink(copy, saved);
+  for (let t = 30; t < 200; t++) step(copy, HOLD_RIGHT);
+  assert.equal(hash(copy), hash(w));
+  assert.ok(at(w, 'crate', 'pos', 'x') > 3, 'nothing was pushed');
+  for (const x of [w, copy]) freeLink(x);
 });
 
 test('physics: a saved state continues exactly as the run it was taken from', { skip }, () => {

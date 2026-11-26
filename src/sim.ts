@@ -1,5 +1,5 @@
 import { ONE, fdiv, isqrt, sinCos24, tickShare, wrapDeg } from './fx.ts';
-import { physicsHash, physicsStep } from './physics.ts';
+import { physicsHash, physicsStep, physicsSweep, physicsSync } from './physics.ts';
 import { KilnFail, serialize, suggest } from './scene.ts';
 import type { Diag } from './scene.ts';
 import type { Comp, World } from './world.ts';
@@ -144,6 +144,10 @@ function shove(w: World, crate: Block, a: number, want: number, index: SolidInde
   for (const r of blockers(w, crate[6], index, maps, lo, hi)) {
     to = want > 0 ? Math.min(to, r[a] - crate[a + 3]) : Math.max(to, r[a] + r[a + 3]);
   }
+  if (w.physics && to !== from) {
+    const hit = physicsSweep(w, [crate[0], crate[1], crate[2]], [crate[3], crate[4], crate[5]], a, to - from, want);
+    if (hit) to = from + hit.go;
+  }
   // The same array sits in the index, so later queries this tick see the crate where it now is.
   crate[a] = to;
   w.get(crate[6], 'pos')![P[a]] = to;
@@ -212,6 +216,7 @@ export function step(w: World, script?: InputScript): void {
 
   const index = buildIndex(w, w.query('solid', 'pos', 'box'));
   const maps = w.query('tiles', 'pos');
+  if (w.physics) physicsSync(w);
   for (const id of w.query('pos', 'vel')) {
     // A rigid body is moved by the physics backend, below.
     if (w.physics && w.has(id, 'rigid')) continue;
@@ -237,6 +242,7 @@ export function step(w: World, script?: InputScript): void {
     let grounded = 0, ride = -1;
     for (let a = 0; a < 3; a++) {
       if (d[a] === 0) continue;
+      let under = -1;
       const from = cur[a], free = (from + d[a]) | 0;
       let to = free;
       const lo = [...cur], hi = [cur[0] + size[0], cur[1] + size[1], cur[2] + size[2]];
@@ -255,12 +261,19 @@ export function step(w: World, script?: InputScript): void {
         if (d[a] > 0 ? to > contact : to < contact) to = contact + shove(w, near, a, to - contact, index, maps);
         for (const r of crates) if (r !== near) stop(r);
       }
+      // Rigid bodies stand in the way too. They are turned boxes and balls that only the
+      // backend knows exactly, so it is asked how far this box can go before touching one.
+      if (w.physics && to !== from) {
+        const hit = physicsSweep(w, cur, size, a, to - from, d[a]);
+        if (hit) { to = from + hit.go; under = hit.id; }
+      }
       if (to !== free) {
         v[P[a]] = 0;
         if (a === 1 && d[a] > 0) {
           grounded = 1;
           // What it landed on: the entity whose top it now rests on (lowest id if several).
           for (const r of hits) if (r[6] >= 0 && r[1] - size[1] === to && (ride < 0 || r[6] < ride)) ride = r[6];
+          if (under >= 0 && (ride < 0 || under < ride)) ride = under;
         }
       }
       cur[a] = to;

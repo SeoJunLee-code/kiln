@@ -208,7 +208,7 @@ entity map
 
 A sprite can also name a glTF model (`mesh=crate.glb`, or a `.gltf` with its `.bin` and images beside it). WebGPU draws it with its metallic-roughness materials and textures ([examples/gallery3d.kiln](examples/gallery3d.kiln)); `check` reports anything in the file that would not be drawn. `rot 25 axis=y` turns an entity about one axis and `quat` holds a full orientation; both are simulation state, in fixed-point, and both can spin ([examples/orrery3d.kiln](examples/orrery3d.kiln)).
 
-Rigid bodies come from a physics backend. `world ... physics=rapier` turns it on and `rigid` marks a body; the character pushes bodies, and `solve` finds the push that wins ([examples/tumble3d.kiln](examples/tumble3d.kiln)):
+Rigid bodies come from a physics backend. `world ... physics=rapier` turns it on and `rigid` marks a body; bodies stop the character, who shoves them along and can stand on them, and `solve` finds the push that wins ([examples/tumble3d.kiln](examples/tumble3d.kiln)):
 
 ```
 world hz=60 gravity=0,30 physics=rapier
@@ -262,7 +262,7 @@ same scene, same settings, same machine; average FPS, 1% low and GPU frame time.
 
 Next:
 
-1. Finish what just landed: glTF files from other tools, animation and skins, environment lighting; rigid bodies that block the character, more shapes, joints.
+1. Finish what just landed: glTF files from other tools, animation and skins, environment lighting; forces from scripts, more shapes, joints.
 2. Sprite animation, per-tile art, audio, UI.
 3. Connect a real agent over MCP and build a complete small game with it; measure the tokens.
 4. Export targets and networking built on the deterministic core (rollback, replays).

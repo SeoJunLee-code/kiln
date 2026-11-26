@@ -1,6 +1,6 @@
 # Rigid bodies, simulated by a physics backend (world physics=rapier). A stack of
 # crates and a ball stand on the floor; walk into the ball to roll it onto the plate.
-# Movers push rigid bodies; rigid bodies do not block movers.
+# A rigid body stops the character, who shoves it along; a heavy or wedged one stays put.
 world hz=60 gravity=0,30 physics=rapier
 
 entity pusher

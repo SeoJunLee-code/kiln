@@ -17,30 +17,59 @@ function fnv(bytes: Uint8Array): number {
   return h >>> 0;
 }
 
-/** `handles` maps the caller's keys to Rapier's body handles, in the order bodies were added. */
-function wrap(world: any, handles: Map<number, number>): BackendWorld {
+const UNTURNED = { x: 0, y: 0, z: 0, w: 1 }, STILL = { x: 0, y: 0, z: 0 };
+
+/**
+ * `handles` maps the caller's keys to Rapier's body handles, in the order bodies were added.
+ * `fresh` holds the dynamic bodies added since the last step: Rapier's scene queries only
+ * see a body once a step has run, so a cast asks those few one by one.
+ */
+function wrap(world: any, handles: Map<number, number>, fresh: Set<number>): BackendWorld {
   const body = (key: number): any => world.getRigidBody(handles.get(key)!);
+  const keys = new Map<number, number>();
+  for (const [key, handle] of handles) keys.set(handle, key);
   return {
     addBody(key: number, b: BodyDesc): void {
       const desc = (b.kind === 'dynamic' ? R.RigidBodyDesc.dynamic() : b.kind === 'kinematic' ? R.RigidBodyDesc.kinematicPositionBased() : R.RigidBodyDesc.fixed())
         .setTranslation(b.at[0], b.at[1], b.at[2])
         .setRotation({ x: b.rot[0], y: b.rot[1], z: b.rot[2], w: b.rot[3] });
-      if (b.kind === 'dynamic') desc.setLinvel(b.vel[0], b.vel[1], b.vel[2]).setAngvel({ x: b.spin[0], y: b.spin[1], z: b.spin[2] });
+      if (b.kind === 'dynamic') desc.setSoftCcdPrediction(1).setLinvel(b.vel[0], b.vel[1], b.vel[2]).setAngvel({ x: b.spin[0], y: b.spin[1], z: b.spin[2] });
       const made = world.createRigidBody(desc);
       const shape = b.shape === 'ball' ? R.ColliderDesc.ball(b.half[0]) : R.ColliderDesc.cuboid(b.half[0], b.half[1], b.half[2]);
       // The bouncier of two touching things decides: `bounce=0.8` then means what it says on any floor.
       world.createCollider(shape.setDensity(b.density).setRestitution(b.bounce).setRestitutionCombineRule(R.CoefficientCombineRule.Max).setFriction(b.friction), made);
       handles.set(key, made.handle);
+      keys.set(made.handle, key);
+      if (b.kind === 'dynamic') fresh.add(key);
     },
     removeBody(key: number): void {
       const b = body(key);
       if (b) world.removeRigidBody(b);
+      keys.delete(handles.get(key)!);
       handles.delete(key);
+      fresh.delete(key);
     },
+    cast(half: number[], at: number[], dir: number[], max: number): { dist: number; key: number } | null {
+      const shape = new R.Cuboid(half[0], half[1], half[2]);
+      const from = { x: at[0], y: at[1], z: at[2] }, along = { x: dir[0], y: dir[1], z: dir[2] };
+      // Not stopping at a penetration: a box that overlaps a body may still move out of it.
+      const hit = world.castShape(from, UNTURNED, along, shape, 0, max, false, R.QueryFilterFlags.ONLY_DYNAMIC);
+      let found = hit ? { dist: hit.time_of_impact as number, key: keys.get(hit.collider.parent().handle)! } : null;
+      for (const key of fresh) {
+        const b = body(key);
+        const h = b.collider(0).castShape(STILL, shape, from, UNTURNED, along, 0, max, false);
+        if (h && (!found || h.time_of_impact < found.dist)) found = { dist: h.time_of_impact, key };
+      }
+      return found;
+    },
+    push(key: number, impulse: number[]): void {
+      body(key).applyImpulse({ x: impulse[0], y: impulse[1], z: impulse[2] }, true);
+    },
+    mass(key: number): number { return body(key).mass(); },
     moveKinematic(key: number, at: number[]): void {
       body(key).setNextKinematicTranslation({ x: at[0], y: at[1], z: at[2] });
     },
-    step(): void { world.step(); },
+    step(): void { world.step(); fresh.clear(); },
     read(key: number, out: Float64Array): void {
       const b = body(key), p = b.translation(), r = b.rotation(), v = b.linvel(), w = b.angvel();
       out[0] = p.x; out[1] = p.y; out[2] = p.z;
@@ -61,7 +90,7 @@ function wrap(world: any, handles: Map<number, number>): BackendWorld {
     },
     save(): { bytes: number; state: unknown } {
       const snapshot: Uint8Array = world.takeSnapshot();
-      return { bytes: snapshot.length, state: { snapshot, handles: new Map(handles) } };
+      return { bytes: snapshot.length, state: { snapshot, handles: new Map(handles), fresh: new Set(fresh) } };
     },
     free(): void { world.free(); },
   };
@@ -72,11 +101,11 @@ const backend: Backend = {
   create(gravity: number[], dt: number): BackendWorld {
     const world = new R.World({ x: gravity[0], y: gravity[1], z: gravity[2] });
     world.timestep = dt;
-    return wrap(world, new Map());
+    return wrap(world, new Map(), new Set());
   },
   restore(state: unknown): BackendWorld {
-    const { snapshot, handles } = state as { snapshot: Uint8Array; handles: Map<number, number> };
-    return wrap(R.World.restoreSnapshot(snapshot), new Map(handles));
+    const { snapshot, handles, fresh } = state as { snapshot: Uint8Array; handles: Map<number, number>; fresh: Set<number> };
+    return wrap(R.World.restoreSnapshot(snapshot), new Map(handles), new Set(fresh));
   },
 };
 export default backend;

@@ -31,6 +31,15 @@ export interface BackendWorld {
   removeBody(key: number): void;
   /** Where a kinematic body's centre should be after the next step. */
   moveKinematic(key: number, at: number[]): void;
+  /**
+   * How far an unturned box (half sizes, centre `at`) can go along the unit vector `dir`, up
+   * to `max`, before it touches a dynamic body, and which body; null when nothing is in the way.
+   * A box that already overlaps a body is stopped only if it is moving further in.
+   */
+  cast(half: number[], at: number[], dir: number[], max: number): { dist: number; key: number } | null;
+  /** Change a dynamic body's motion by an impulse through its centre of mass. */
+  push(key: number, impulse: number[]): void;
+  mass(key: number): number;
   step(): void;
   /** Centre (3), orientation (4), velocity (3), spin (3) of a body, written into `out`. */
   read(key: number, out: Float64Array): void;
@@ -99,15 +108,18 @@ function describe(w: World, id: number, kind: BodyDesc['kind']): BodyDesc {
 /** Which kind of body an entity is, if any. */
 function kindOf(w: World, id: number): BodyDesc['kind'] | null {
   if (w.has(id, 'rigid')) return 'dynamic';
-  // Whatever the fixed-point core moves pushes bodies out of its way; walls just stand.
+  // Whatever the fixed-point core moves is a body the backend cannot move; walls just stand.
   if (w.has(id, 'vel') || w.has(id, 'push')) return 'kinematic';
   return w.has(id, 'solid') ? 'fixed' : null;
 }
 
 const out = new Float64Array(13);
 
-/** One tick of rigid-body physics: called by `step` after the fixed-point movers have moved. */
-export function physicsStep(w: World): void {
+/**
+ * Bring the backend's bodies in line with the scene's entities: called by `step` before the
+ * fixed-point movers move, so that they can ask where the rigid bodies are.
+ */
+export function physicsSync(w: World): void {
   let link = w.link as Link | undefined;
   if (!link) {
     const backend = loaded.get(w.physics);
@@ -147,7 +159,40 @@ export function physicsStep(w: World): void {
       }
     });
   }
+}
 
+const AXES = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+/** The gap a mover keeps to a rigid body, in fixed-point: 1/128 of a unit. */
+const SKIN = ONE >> 7;
+
+/**
+ * A mover's box (corner `cur`, `size`) wants to go `want` along axis `a`, all in fixed-point;
+ * `pace` is what it would cover this tick with nothing in its way. If a rigid body is in the
+ * way, returns how far it can go instead and which entity stopped it, and gives that body a
+ * shove: the two meet like lumps of clay (the body ends up no faster than the mover),
+ * weighted by their masses, the mover's being its box volume.
+ */
+export function physicsSweep(w: World, cur: number[], size: number[], a: number, want: number, pace: number): { go: number; id: number } | null {
+  const { world } = w.link as Link;
+  const sign = want > 0 ? 1 : -1, half = [size[0] / ONE / 2, size[1] / ONE / 2, size[2] / ONE / 2];
+  const hit = world.cast(half, [cur[0] / ONE + half[0], cur[1] / ONE + half[1], cur[2] / ONE + half[2]], AXES[a].map((x) => x * sign), (want * sign) / ONE);
+  if (!hit) return null;
+  // The mover stops a hair short of the body. A solver lets a pressed body give a little
+  // (into a wall, say) and spring back; a mover that followed it all the way would end up inside it.
+  const go = Math.max(0, Math.floor(hit.dist * ONE) - SKIN);
+  if (go >= want * sign) return null;
+  world.read(hit.key, out);
+  const closing = ((pace * w.hz) / ONE - out[7 + a]) * sign;
+  if (closing > 0) {
+    const mine = half[0] * half[1] * half[2] * 8, its = world.mass(hit.key);
+    world.push(hit.key, AXES[a].map((x) => (x * sign * closing * mine * its) / (mine + its)));
+  }
+  return { go: go * sign, id: hit.key };
+}
+
+/** One tick of rigid-body physics: called by `step` after the fixed-point movers have moved. */
+export function physicsStep(w: World): void {
+  const { world, kinds } = w.link as Link;
   for (const [id, kind] of kinds) {
     if (kind !== 'kinematic') continue;
     const p = w.get(id, 'pos')!, b = w.get(id, 'box')!;
