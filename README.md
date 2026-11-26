@@ -14,7 +14,7 @@ Game engines assume a human looking at an editor window. An agent using them pay
 - **Deterministic core.** Fixed tick, fixed-point math, fixed system order. The same scene and input give the same state hash; CI checks this on Linux, macOS and Windows.
 - **Headless verification.** `kiln test` runs a scene without a window and checks `expect` lines written in the scene itself.
 - **Cheap observation.** An ASCII view and one line per entity instead of screenshots.
-- **Machine-readable errors.** Every error has a code, a `file:line` and a hint, and all errors are reported in one pass.
+- **Machine-readable errors.** Every error has a code, a `file:line` and a hint, and all errors are reported in one pass. `check` also warns about parts of a scene that load but silently do nothing, such as a controller without a velocity or a trigger that points at a name nobody has.
 - **The engine can play its own levels.** `kiln solve` searches for an input that meets a scene's goals, so a level is shown to be finishable without anyone playing it.
 - **One MCP tool.** An agent connects over MCP and gets the whole engine as a single tool.
 

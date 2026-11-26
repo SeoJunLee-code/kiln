@@ -403,3 +403,38 @@ test('levels: load:FILE is an event headless, and both levels are solvable', { t
   assert.match(r.text, /^event \d+ load level2\.kiln hero$/m);
   assert.match((await command('check', { scene: 'entity a\n  pos 0 0\n  box 1 1\n  trigger a x load:../secret.txt\n' })).text, /^E K104 .*unknown trigger action/);
 });
+
+test('check: warns about parts of a scene that load but silently do nothing', async () => {
+  const scene = 'entity hero\n  pos 0 0\n  ctrl 4 0 xz\n' +
+    'entity coin\n  pos 2 0\n  trigger hro coin despawn:#dor\n' +
+    'entity ghost\n  vel 1 0\n  sprite @\n' +
+    'expect reach hero coin by 60\n';
+  const r = await command('check', { scene });
+  assert.equal(r.code, 0, 'warnings do not fail the check');
+  const lines = r.text.trim().split('\n');
+  const has = (re: RegExp) => assert.ok(lines.some((l) => re.test(l)), `${re} not in:\n${r.text}`);
+  has(/^W K310 scene 'hero' has 'ctrl' but no 'vel', so it does nothing \(hint: add vel to 'hero'\)$/);
+  has(/^W K310 scene 'coin' has 'trigger' but no 'box'/);
+  has(/^W K310 scene 'ghost' has 'vel' but no 'pos'/);
+  has(/^W K311 scene trigger on 'coin' refers to 'hro', which matches no entity \(hint: did you mean 'hero'\?\)$/);
+  has(/^W K311 scene trigger on 'coin' refers to '#dor'/);
+  has(/^W K313 scene 'hero' walks on the x\/z plane but nothing has 'eye'/);
+  assert.match(lines.at(-1)!, /^ok entities=3 expects=1 scripts=0 warnings=\d+$/);
+
+  const none = await command('check', { scene: 'entity a\n  pos 0 0\n' });
+  assert.match(none.text, /^W K300 .*no expect lines/m);
+  assert.match(none.text, /warnings=1$/m);
+});
+
+test('check: every example is free of warnings, and a missing asset is noticed', async () => {
+  const { readdirSync } = await import('node:fs');
+  for (const f of readdirSync(ex('')).filter((x) => x.endsWith('.kiln'))) {
+    const r = await command('check', { file: ex(f) });
+    assert.match(r.text, /warnings=0$/m, `${f}:\n${r.text}`);
+  }
+  const dir = mkdtempSync(join(tmpdir(), 'kiln-lint-'));
+  writeFileSync(join(dir, 's.kiln'), 'entity a\n  pos 0 0\n  box 1 1\n  vel\n  ctrl 3\n  sprite @ white hero.png\n  trigger a go load:next.kiln\nexpect event go by 9\n');
+  const r = await command('check', { file: join(dir, 's.kiln') });
+  assert.match(r.text, /^W K312 .*uses image 'hero\.png', which is not next to the scene$/m);
+  assert.match(r.text, /^W K312 .*loads 'next\.kiln', which is not next to the scene$/m);
+});

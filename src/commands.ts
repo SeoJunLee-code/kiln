@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fmtWarn, lint } from './lint.ts';
 import { parseExpects } from './expect.ts';
 import { guideText } from './guide.ts';
 import { loadMods } from './load.ts';
@@ -71,7 +72,10 @@ export async function command(cmd: string, a: CmdArgs): Promise<{ text: string; 
     if (cmd === 'check') {
       const s = parseScene(text, file);
       parseExpects(s.expects, s.world, file);
-      out.push(`ok entities=${s.world.ids.size} expects=${s.expects.length} scripts=${s.uses.length}`);
+      // Files can only be checked when the scene came from disk.
+      const warnings = lint(s, file, a.scene === undefined ? (name) => existsSync(join(dirname(file), name)) : undefined);
+      for (const d of warnings) out.push(fmtWarn(d));
+      out.push(`ok entities=${s.world.ids.size} expects=${s.expects.length} scripts=${s.uses.length} warnings=${warnings.length}`);
       return done(0);
     }
     if (cmd === 'solve') {

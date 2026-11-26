@@ -56,6 +56,7 @@ OUTPUT
 ok ... / fail ...                        last line of every command
 pass|FAIL file:line EXPECT -- what happened
 E CODE file:line message (hint: ...)     all errors at once; fix them all, then rerun
+W CODE file message (hint: ...)          check only: it runs, but part of it does nothing
 
 WORKFLOW
 1. Write the scene with expects that say what "working" means.
