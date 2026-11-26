@@ -97,6 +97,7 @@ B의 (c)다. 설정 네 가지와 판정 방식은 **내가 정했다**(사용�
 - **알게 된 것: 이 PC에는 NVIDIA RTX 3050 Ti Laptop GPU도 있다**(화면은 Iris Xe가 구동, Chrome도 Iris Xe를 쓴다). "외장 GPU가 있는 기계가 없다"는 아래 기록과 다르다. Ultra 기준 기계 후보가 될 수 있으니 사용자에게 확인할 것(이 PC가 HANDOFF가 말하는 "기준 PC"와 같은 기계인지도).
 - (d) 준비: Godot 4.7.2 공식 체크섬을 받아 두었다. `Godot_v4.7.2-stable_win64.exe.zip`의 SHA-512는 `83decd58fdf67b9d657958a1ae6bf1929c20785315a81effe245874cdc57acb709bf868e00778a96984338c1b29dafdb453c6847747694621c6ecf5da2259993`이어야 한다(출처: godotengine/godot-builds 릴리스 4.7.2-stable의 SHA512-SUMS.txt). **로컬 zip의 해시는 아직 대조하지 않았다.** 헤드리스 Claude Code는 여전히 `%APPDATA%/Claude/claude-code/2.1.330/` 아래에 있다.
 - `npm test` → 151개 통과(이 PC, 건너뜀 0). `node scripts/hashes.ts --check` → 일치. `node scripts/images.ts` → 0 failed(이 PC는 참고 출력).
+- CI: 커밋 `6603005`에서 `ci`(3 OS)와 `images`는 초록. `demo`는 Pages 배포 단계가 "Deployment failed, try again later"로 실패했고(빌드는 통과), 실패한 작업만 다시 돌리면 `github-pages` 아티팩트가 둘이 되어 또 실패한다. 다시 돌릴 때는 새 실행으로 한다(바로 다음 커밋의 결과는 그 커밋 메시지 아래 CI 줄을 본다). `spikes` 워크플로(필수 아님)는 `src/chrome.ts`가 바뀌면 돌고, Windows 소프트웨어 WebGPU 어댑터가 없어 이전 커밋들부터 계속 빨갛다.
 
 ## 검증 (2026-11-26 12차, 이전 기록: 장면은 load에서 끝난다, `--follow`, 케이스 입력)
 
