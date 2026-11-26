@@ -266,12 +266,13 @@ The plan is three editions over one shared core, so a small game does not carry
 what a large one needs: **Lite** (runs without WebGPU, no dependencies),
 **Standard** (an integrated GPU with WebGPU) and **Ultra** (a discrete GPU). One
 scene format and the same agent tools in all three. Each edition is done when an
-agent has built its proof game and the cost of doing so is on record; none of
-this is built yet. See [docs/EDITIONS.md](docs/EDITIONS.md).
+agent has built its proof game and the cost of doing so is on record. So far
+`check` says which edition a game needs and why (`--edition lite` makes more an
+error); the budgets and proof games are not built. See [docs/EDITIONS.md](docs/EDITIONS.md).
 
 Next:
 
-0. Draw the edition line in code: `check` reports the lowest edition a game needs, and each edition gets a size budget in CI.
+0. Finish the edition line in code: a game ships only the parts its axes need, and each edition gets a size budget in CI.
 1. Finish what just landed: glTF files from other tools, animation and skins, environment lighting; bodies that move the character, more shapes, joints.
 2. Sprite animation, per-tile art, audio, UI.
 3. Connect a real agent over MCP and build a complete small game with it; measure the tokens.

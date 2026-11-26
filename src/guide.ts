@@ -91,7 +91,8 @@ expect at N A.comp.field OP VALUE     OP: < <= > >= == !=
 INPUT  one per line: TICK ACTION down|up     actions: left right up down a b
 
 COMMANDS  (CLI: node src/cli.ts CMD SCENE [options]; MCP: tool kiln, argument cmd)
-check    parse and validate
+check    parse and validate (a folder: every scene). Says the edition the game needs: lite runs
+         anywhere; [standard] parts need WebGPU (drawing) or megabytes more (physics). --edition lite: more is an error
 test     run, evaluate expects; --input FILE; exit 1 if any fails. Given a folder,
          tests every scene in it with the NAME.input next to it
 run      run without judging; --ticks N

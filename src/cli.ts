@@ -2,7 +2,8 @@ import { COMMANDS, command } from './commands.ts';
 import type { CmdArgs } from './commands.ts';
 
 const HELP = `kiln <command> [scene] [options]
-  check SCENE            parse and validate only
+  check SCENE|DIR        parse and validate only; says the edition (lite, standard, ultra) the game needs,
+                         by axis, and why. --edition lite|standard|ultra: needing more is an error
   run SCENE              run headless, print state hash
   test SCENE|DIR         run and evaluate the scene's expect lines (exit 1 on failure);
                          with a folder: every scene in it, each with its NAME.input if present
@@ -83,6 +84,7 @@ if (cmd === 'mcp') {
     if (!k.startsWith('--')) a.file ??= k;
     else if (k === '--input') a.inputFile = rest[++i];
     else if (k === '--out') a.out = rest[++i];
+    else if (k === '--edition') a.edition = rest[++i] ?? '';
     else if (k === '--ticks') a.ticks = /^\d+$/.test(rest[++i] ?? '') ? +rest[i] : -1;
     else if (k === '--step' || k === '--max-states') {
       const n = /^[1-9]\d*$/.test(rest[++i] ?? '') ? +rest[i] : NaN;

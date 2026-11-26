@@ -19,6 +19,7 @@ const TOOL = {
       input: { type: 'string', description: 'input script text: "TICK ACTION down|up" lines' },
       input_file: { type: 'string' },
       topic: { type: 'string', description: 'guide: a part of the manual the guide lists (physics, view)' },
+      edition: { type: 'string', description: 'check: lite, standard or ultra; needing more is an error' },
       ticks: { type: 'integer', minimum: 0 },
       step: { type: 'integer', minimum: 1, description: 'solve: ticks per key choice (default 5)' },
       view: { type: 'boolean', description: 'append ASCII picture of the final state' },
@@ -66,6 +67,7 @@ async function handle(msg: Msg): Promise<unknown> {
         inputFile: a.input_file as string | undefined,
         ticks: a.ticks as number | undefined,
         topic: a.topic as string | undefined,
+        edition: a.edition as string | undefined,
         stepTicks: a.step as number | undefined,
         view: !!a.view, top: !!a.top, observe: !!a.observe, events: !!a.events,
       });

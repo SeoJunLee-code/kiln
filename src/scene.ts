@@ -15,7 +15,8 @@ export class KilnFail extends Error {
 }
 
 export interface RawExpect { line: number; text: string }
-export interface Scene { world: World; expects: RawExpect[]; uses: string[] }
+/** `at`: the line each thing was written on, keyed 'ID COMPONENT' or 'physics'. A spawned entity points at its prefab. */
+export interface Scene { world: World; expects: RawExpect[]; uses: string[]; at: Map<string, number> }
 
 function lev(a: string, b: string): number {
   const d = Array.from({ length: b.length + 1 }, (_, i) => i);
@@ -51,6 +52,7 @@ export function parseScene(text: string, file = 'scene'): Scene {
   const uses: string[] = [];
   const diags: Diag[] = [];
   const told = new Set<string>();
+  const at = new Map<string, number>();
   const err = (code: string, line: number, msg: string, hint?: string): void => {
     const k = `${code}:${line}:${msg}`;
     if (!told.has(k)) { told.add(k); diags.push({ code, file, line, msg, hint }); }
@@ -107,7 +109,7 @@ export function parseScene(text: string, file = 'scene'): Scene {
             else { world.gx = p[0]!; world.gy = p[1]!; world.gz = p[2] ?? 0; }
           } else if (k === 'physics') {
             if (v !== 'rapier') err('K104', line, `unknown physics backend '${v ?? ''}'`, 'valid: physics=rapier');
-            else world.physics = v;
+            else { world.physics = v; at.set('physics', line); }
           } else err('K103', line, `unknown world setting '${k}'`, 'valid: hz, gravity, seed, tick, physics');
         }
       } else if (tok[0] === 'state') {
@@ -199,6 +201,7 @@ export function parseScene(text: string, file = 'scene'): Scene {
     }
     if (bad) return;
     world.add(id, def.name, data);
+    at.set(`${id} ${def.name}`, line);
     if (def.name === 'tiles') {
       data.rows = '';
       rowsOf = data;
@@ -254,7 +257,7 @@ export function parseScene(text: string, file = 'scene'): Scene {
     t.spawn = '';
   }
   if (diags.length) throw new KilnFail(diags);
-  return { world, expects, uses };
+  return { world, expects, uses, at };
 }
 
 /** Canonical scene text for the current state. Parsing it back gives the same world. */
@@ -290,5 +293,5 @@ export function serialize(w: World, expects: RawExpect[] = [], uses: string[] = 
 /** Compact component reference meant to be pasted into an agent's context. */
 /** Every component; or, given a topic, only its components ('' = the ones without a topic). */
 export function schemaText(topic?: string): string {
-  return [...registry.values()].filter((c) => topic === undefined || (c.topic ?? '') === topic).map((c) => `${sig(c)}  -- ${c.doc}`).join('\n') + '\n';
+  return [...registry.values()].filter((c) => topic === undefined || (c.topic ?? '') === topic).map((c) => `${sig(c)}  -- ${c.needs ? `[${c.needs[1]}] ` : ''}${c.doc}`).join('\n') + '\n';
 }

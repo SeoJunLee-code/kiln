@@ -1,13 +1,15 @@
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { EDITIONS, isEdition, lowest, needs, over, why } from './edition.ts';
 import { fmtWarn, lint } from './lint.ts';
 import { loadGltf } from '../web/gltf.ts';
 import { parseExpects } from './expect.ts';
 import { TOPICS, guideText, topicText } from './guide.ts';
 import { loadMods } from './load.ts';
+import type { Edition } from './world.ts';
 import { loadBackend, physicsOf } from './physics.ts';
 import { observe, run, view } from './run.ts';
-import { KilnFail, parseScene, schemaText, serialize } from './scene.ts';
+import { KilnFail, fmtDiag, parseScene, schemaText, serialize } from './scene.ts';
 import { solve } from './solve.ts';
 
 export const COMMANDS = ['check', 'run', 'test', 'solve', 'schema', 'guide'];
@@ -32,6 +34,8 @@ export interface CmdArgs {
   maxStates?: number;
   /** guide: print this part of the manual instead of the core */
   topic?: string;
+  /** check: the largest edition the game may need (lite, standard, ultra); more is an error */
+  edition?: string;
 }
 
 /** Run one engine command. Shared by the CLI and the MCP server. Exit code: 0 ok, 1 expectation failed, 2 error. */
@@ -45,22 +49,26 @@ export async function command(cmd: string, a: CmdArgs): Promise<{ text: string; 
     return { text: topicText(a.topic), code: 0 };
   }
   if (cmd === 'schema' && !a.file && a.scene === undefined) return { text: schemaText(), code: 0 };
+  if (a.edition !== undefined && !isEdition(a.edition)) return out.push(`E K002 edition must be one of: ${EDITIONS.join(' ')}`), done(2);
 
-  // `test DIR`: every scene in the folder, each with the input file of the same name if there is one.
-  if (cmd === 'test' && a.file && a.scene === undefined && existsSync(a.file) && statSync(a.file).isDirectory()) {
+  // `test DIR`, `check DIR`: every scene in the folder; `test` gives each the input file of the same name if there is one.
+  if ((cmd === 'test' || cmd === 'check') && a.file && a.scene === undefined && existsSync(a.file) && statSync(a.file).isDirectory()) {
     const scenes = readdirSync(a.file).filter((f) => f.endsWith('.kiln')).sort();
     if (!scenes.length) return out.push(`E K001 no .kiln files in ${a.file}`), done(2);
-    let worst = 0, passed = 0;
+    let worst = 0, passed = 0, edition = 0;
     for (const f of scenes) {
       const input = join(a.file, f.replace(/\.kiln$/, '.input'));
-      const r = await command('test', { file: join(a.file, f), inputFile: existsSync(input) ? input : undefined });
+      const r = await command(cmd, cmd === 'test' ? { file: join(a.file, f), inputFile: existsSync(input) ? input : undefined } : { file: join(a.file, f), edition: a.edition });
       const lines = r.text.trimEnd().split('\n');
-      // One line per scene when it passes; everything it said when it does not.
-      if (r.code === 0) { passed++; out.push(`${f} ${lines.at(-1)}`); }
+      if (r.code === 0) passed++;
+      // `test`: one line per scene when it passes; everything it said when it does not. `check` is short already.
+      if (r.code === 0 && cmd === 'test') out.push(`${f} ${lines.at(-1)}`);
       else out.push(...lines.map((l) => `${f} ${l}`));
+      edition = Math.max(edition, EDITIONS.indexOf((/ edition=(\w+)/.exec(lines.at(-1)!)?.[1] ?? 'lite') as never));
       worst = Math.max(worst, r.code);
     }
-    out.push(`${worst ? 'fail' : 'ok'} scenes=${scenes.length} passed=${passed} failed=${scenes.length - passed}`);
+    // A game is its folder, so its edition is the largest any of its scenes needs.
+    out.push(`${worst ? 'fail' : 'ok'} scenes=${scenes.length} passed=${passed} failed=${scenes.length - passed}${cmd === 'check' && !worst ? ` edition=${EDITIONS[edition]}` : ''}`);
     return done(worst);
   }
 
@@ -96,7 +104,11 @@ export async function command(cmd: string, a: CmdArgs): Promise<{ text: string; 
         } catch (e) { said(`mesh '${mesh}' cannot be read: ${(e as Error).message}`); }
       }
       for (const d of warnings) out.push(fmtWarn(d));
-      out.push(`ok entities=${s.world.ids.size} expects=${s.expects.length} scripts=${s.uses.length} warnings=${warnings.length}`);
+      // The edition is worked out from what the scene uses. Over the ceiling, each use is an error.
+      const need = needs(s), above = a.edition ? over(need, a.edition as Edition, file) : [];
+      if (above.length) return out.push(...above.map(fmtDiag), `fail errors=${above.length}`), done(2);
+      out.push(...why(need));
+      out.push(`ok entities=${s.world.ids.size} expects=${s.expects.length} scripts=${s.uses.length} edition=${lowest(need)} warnings=${warnings.length}`);
       return done(0);
     }
     if (cmd === 'solve') {

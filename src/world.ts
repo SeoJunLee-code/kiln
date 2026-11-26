@@ -2,15 +2,23 @@ export type FieldType = 'fx' | 'int' | 'str';
 /** `def` undefined means the field is required. */
 export interface Field { name: string; type: FieldType; def?: number | string }
 /** `topic`: documented in `guide TOPIC`; the core guide only names it. */
-export interface CompDef { name: string; doc: string; fields: Field[]; topic?: string }
+/** The smallest edition that has a feature (docs/EDITIONS.md). Each contains the ones before it. */
+export type Edition = 'lite' | 'standard' | 'ultra';
+/** What an edition is measured on; a game's edition is the highest of its axes. */
+export type Axis = 'drawing' | 'physics' | 'world' | 'network';
+/** `needs`: set when the component is not in Lite: the axis it counts on and the edition that has it. */
+export interface CompDef { name: string; doc: string; fields: Field[]; topic?: string; needs?: [Axis, Edition] }
 export type Comp = Record<string, number | string>;
 export interface GameEvent { tick: number; name: string; a: string; b: string }
 export type System = (w: World) => void;
 
 export const registry = new Map<string, CompDef>();
 
-export function defineComponent(name: string, doc: string, fields: Field[] = [], topic?: string): void {
-  registry.set(name, topic ? { name, doc, fields, topic } : { name, doc, fields });
+export function defineComponent(name: string, doc: string, fields: Field[] = [], topic?: string, needs?: [Axis, Edition]): void {
+  const def: CompDef = { name, doc, fields };
+  if (topic) def.topic = topic;
+  if (needs && needs[1] !== 'lite') def.needs = needs;
+  registry.set(name, def);
 }
 
 const f = (name: string, type: FieldType, def?: number | string): Field => ({ name, type, def });
@@ -37,11 +45,11 @@ defineComponent('sprite', 'glyph: character for the ASCII view. color: CSS color
 defineComponent('rot', 'turned angle degrees about axis (x, y, z) through the box centre, clockwise in 2D. spin: degrees/second. Collision ignores it',
   [f('angle', 'fx', 0), f('spin', 'fx', 0), f('axis', 'str', 'z')], 'view');
 defineComponent('quat', '3D turn as a unit quaternion, instead of rot. sx sy sz: degrees/second about world axes',
-  [f('x', 'fx', 0), f('y', 'fx', 0), f('z', 'fx', 0), f('w', 'fx', 65536), f('sx', 'fx', 0), f('sy', 'fx', 0), f('sz', 'fx', 0)], 'view');
+  [f('x', 'fx', 0), f('y', 'fx', 0), f('z', 'fx', 0), f('w', 'fx', 65536), f('sx', 'fx', 0), f('sy', 'fx', 0), f('sz', 'fx', 0)], 'view', ['drawing', 'standard']);
 defineComponent('rigid', 'needs world physics=rapier: falls, tumbles; blocks movers, who shove it. shape: box or ball',
-  [f('shape', 'str', 'box'), f('density', 'fx', 65536), f('bounce', 'fx', 0), f('friction', 'fx', 32768)], 'physics');
-defineComponent('impulse', 'on a rigid: one shove (mass x speed), then removed', [f('x', 'fx', 0), f('y', 'fx', 0), f('z', 'fx', 0)], 'physics');
-defineComponent('force', 'on a rigid: a push every tick', [f('x', 'fx', 0), f('y', 'fx', 0), f('z', 'fx', 0)], 'physics');
+  [f('shape', 'str', 'box'), f('density', 'fx', 65536), f('bounce', 'fx', 0), f('friction', 'fx', 32768)], 'physics', ['physics', 'standard']);
+defineComponent('impulse', 'on a rigid: one shove (mass x speed), then removed', [f('x', 'fx', 0), f('y', 'fx', 0), f('z', 'fx', 0)], 'physics', ['physics', 'standard']);
+defineComponent('force', 'on a rigid: a push every tick', [f('x', 'fx', 0), f('y', 'fx', 0), f('z', 'fx', 0)], 'physics', ['physics', 'standard']);
 defineComponent('eye', '3D view: a camera at this entity plus the offset, looking at it; ignored headless',
   [f('x', 'fx'), f('y', 'fx'), f('z', 'fx'), f('fov', 'int', 55)], 'view');
 defineComponent('label', 'text drawn above the entity in 2D; _ is a space', [f('text', 'str'), f('color', 'str', 'white')], 'view');
