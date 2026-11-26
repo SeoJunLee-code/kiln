@@ -3,8 +3,9 @@ import { parseExpects } from './expect.ts';
 import { loadMods } from './load.ts';
 import { observe, run, view } from './run.ts';
 import { KilnFail, parseScene, schemaText, serialize } from './scene.ts';
+import { solve } from './solve.ts';
 
-export const COMMANDS = ['check', 'run', 'test', 'schema'];
+export const COMMANDS = ['check', 'run', 'test', 'solve', 'schema'];
 
 export interface CmdArgs {
   /** scene path; `use` paths resolve relative to it */
@@ -18,6 +19,10 @@ export interface CmdArgs {
   observe?: boolean;
   events?: boolean;
   out?: string;
+  /** solve: ticks each key choice is held (default 5) */
+  stepTicks?: number;
+  /** solve: give up after this many distinct states (default 200000) */
+  maxStates?: number;
 }
 
 /** Run one engine command. Shared by the CLI and the MCP server. Exit code: 0 ok, 1 expectation failed, 2 error. */
@@ -44,6 +49,17 @@ export async function command(cmd: string, a: CmdArgs): Promise<{ text: string; 
       const s = parseScene(text, file);
       parseExpects(s.expects, s.world, file);
       out.push(`ok entities=${s.world.ids.size} expects=${s.expects.length} scripts=${s.uses.length}`);
+      return done(0);
+    }
+    if (cmd === 'solve') {
+      const s = solve(text, { file, mods, stepTicks: a.stepTicks, maxStates: a.maxStates });
+      if (!s.ok) return out.push(`fail ${s.note}`, `fail tick=${s.tick} states=${s.states}`), done(1);
+      // Replay the answer through the normal path, so a solution is never reported without being checked.
+      const check = run(text, { input: s.input, file, mods, ticks: s.tick - parseScene(text, file).world.tick });
+      const broken = check.expects.filter((e) => e.kind !== 'at' && e.ok === false);
+      if (broken.length) return out.push(`E K131 solver answer failed replay: ${broken[0].text}`), done(2);
+      if (a.out) writeFileSync(a.out, s.input);
+      out.push(s.input.trimEnd(), `ok solved tick=${s.tick} states=${s.states}${a.out ? ` wrote=${a.out}` : ''}`);
       return done(0);
     }
     const r = run(text, { input, file, inputFile: a.inputFile, ticks: a.ticks, mods });

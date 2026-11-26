@@ -7,7 +7,8 @@ const TOOL = {
   name: 'kiln',
   description:
     'Kiln game engine. cmd: check (validate a scene), run (simulate headless, returns state hash), ' +
-    'test (run and evaluate the scene\'s expect lines), schema (component reference). ' +
+    'test (run and evaluate the scene\'s expect lines), solve (search for an input script that meets the expects), ' +
+    'schema (component reference). ' +
     'Output is compact text; errors are lines starting with "E CODE file:line".',
   inputSchema: {
     type: 'object',
@@ -18,6 +19,7 @@ const TOOL = {
       input: { type: 'string', description: 'input script text: "TICK ACTION down|up" lines' },
       input_file: { type: 'string' },
       ticks: { type: 'integer', minimum: 0 },
+      step: { type: 'integer', minimum: 1, description: 'solve: ticks per key choice (default 5)' },
       view: { type: 'boolean', description: 'append ASCII picture of the final state' },
       observe: { type: 'boolean', description: 'append one line per entity' },
       events: { type: 'boolean', description: 'append emitted events' },
@@ -50,6 +52,7 @@ async function handle(msg: Msg): Promise<unknown> {
         input: a.input as string | undefined,
         inputFile: a.input_file as string | undefined,
         ticks: a.ticks as number | undefined,
+        stepTicks: a.step as number | undefined,
         view: !!a.view, observe: !!a.observe, events: !!a.events,
       });
       return { content: [{ type: 'text', text: r.text }], isError: r.code === 2 };

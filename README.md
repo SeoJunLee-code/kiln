@@ -11,6 +11,7 @@ Game engines assume a human looking at an editor window. An agent using them pay
 - **Headless verification.** `kiln test` runs a scene without a window and checks `expect` lines written in the scene itself.
 - **Cheap observation.** An ASCII view and one line per entity instead of screenshots.
 - **Machine-readable errors.** Every error has a code, a `file:line` and a hint, and all errors are reported in one pass.
+- **The engine can play its own levels.** `kiln solve` searches for an input that meets a scene's goals, so a level is shown to be finishable without anyone playing it.
 - **One MCP tool.** An agent connects over MCP and gets the whole engine as a single tool.
 
 ## Where it stands
@@ -24,6 +25,7 @@ Kiln is a few days old. The long-term aim is an engine that agents can take from
 | `expect` checks with explanations on failure | Audio, animation, UI |
 | TypeScript scripts with a determinism check | Asset pipeline beyond single images |
 | Browser player with input recording, image sprites, camera | WebGPU renderer (Canvas 2D for now) |
+| `solve`: automatic search for a winning input |  |
 | MCP server, CLI | Networking, export to desktop or mobile |
 
 No human has play-tested it yet, and the MCP server has only been exercised by its own tests. See [HANDOFF.md](HANDOFF.md) (Korean) for the detailed status and known limits.
@@ -100,6 +102,23 @@ FAIL examples/maze.kiln:45 reach player exit by 240 -- closest gap 5.2 at tick 0
 
 Input scripts are one `TICK ACTION down|up` per line. Actions: `left right up down a b`.
 
+## Let the engine prove a level can be finished
+
+```
+$ node src/cli.ts solve examples/cave.kiln --out cave.input
+0 right down
+...
+ok solved tick=250 states=2507 wrote=cave.input
+```
+
+Because a run is fully determined by scene and input, the engine can search the input space: breadth-first over which keys are held for the next few ticks, merging states that are the same. An answer is replayed through the normal path before it is reported. If nothing works it says how far it got:
+
+```
+fail no input reaches the goals by tick 120; best run met 0/1, still open: gone gem by 120
+```
+
+The four examples solve in 0.4 to 7 seconds on one laptop. This is a plain breadth-first search: it handles one controllable character in a small level, and will run out of states on large levels or many moving things. `at` expectations are not searched for.
+
 ## Scripts
 
 A scene line `use ./game.ts` loads a script that adds components and systems. See [examples/patrol.ts](examples/patrol.ts).
@@ -122,7 +141,7 @@ Scripts must stay deterministic. `Math.random`, `Date`, timers and similar are r
 { "mcpServers": { "kiln": { "command": "node", "args": ["/path/to/kiln/src/cli.ts", "mcp"] } } }
 ```
 
-The server exposes one tool, `kiln`, with a `cmd` argument (`check`, `run`, `test`, `schema`). One tool instead of many keeps the definition an agent carries in context small.
+The server exposes one tool, `kiln`, with a `cmd` argument (`check`, `run`, `test`, `solve`, `schema`). One tool instead of many keeps the definition an agent carries in context small.
 
 ## Is it actually smaller?
 

@@ -142,3 +142,40 @@ test('serve: image assets keep their type', { timeout: 20000 }, async () => {
     close();
   }
 });
+
+test('solve: finds an input for the cave, and the input passes `test`', async () => {
+  const solved = await command('solve', { file: ex('cave.kiln') });
+  assert.equal(solved.code, 0, solved.text);
+  const lines = solved.text.trim().split('\n');
+  assert.match(lines.at(-1)!, /^ok solved tick=\d+ states=\d+$/);
+  const input = lines.slice(0, -1).join('\n') + '\n';
+  assert.match(input, /^0 (right|down) down\n/);
+
+  // `at 255 hero.pos.x == 10.1` is tied to the hand-written route, so check the searched goal only.
+  const replay = await command('test', { file: ex('cave.kiln'), input });
+  assert.match(replay.text, /^pass .*gone gem by 300/m);
+});
+
+test('solve: a platformer needs jumps, and gets them', { timeout: 60000 }, async () => {
+  const solved = await command('solve', { file: ex('platformer.kiln') });
+  assert.equal(solved.code, 0, solved.text);
+  assert.match(solved.text, /^\d+ up down$/m);
+  const input = solved.text.trim().split('\n').slice(0, -1).join('\n') + '\n';
+  const replay = await command('test', { file: ex('platformer.kiln'), input, ticks: 300 });
+  assert.match(replay.text, /pass .*gone #coin by 300/);
+  assert.match(replay.text, /pass .*event win by 300/);
+  assert.match(replay.text, /pass .*never hero pit/);
+});
+
+test('solve: an unreachable goal is reported with how far the search got', async () => {
+  const scene = 'entity map\n  pos 0 0\n  tiles\n    #######\n    #..#..#\n    #######\n' +
+    'entity hero\n  pos 1.1 1.1\n  box 0.8 0.8\n  vel\n  ctrl 4\n' +
+    'entity gem\n  pos 5.2 1.2\n  box 0.5 0.5\n  trigger hero gem despawn-self\n' +
+    'expect gone gem by 120\n';
+  const r = await command('solve', { scene });
+  assert.equal(r.code, 1);
+  assert.match(r.text, /^fail no input reaches the goals by tick 120; best run met 0\/1, still open: gone gem by 120/);
+
+  const none = await command('solve', { scene: 'entity a\n  pos 0 0\nexpect at 5 a.pos.x == 0\n' });
+  assert.match(none.text, /^fail nothing to solve/);
+});

@@ -5,6 +5,8 @@ const HELP = `kiln <command> [scene] [options]
   check SCENE            parse and validate only
   run SCENE              run headless, print state hash
   test SCENE             run and evaluate the scene's expect lines (exit 1 on failure)
+  solve SCENE            search for an input script that meets the scene's reach/gone/event expects
+                         (--step N ticks per key choice, --max-states N, --out FILE saves the input)
   schema [SCENE]         print the component reference (with SCENE: including its scripts)
   mcp                    serve these commands as one MCP tool over stdio
   play SCENE             open the scene in a browser (--port N, default 5207; --input FILE replays it)
@@ -36,6 +38,11 @@ if (cmd === 'mcp') {
     else if (k === '--input') a.inputFile = rest[++i];
     else if (k === '--out') a.out = rest[++i];
     else if (k === '--ticks') a.ticks = /^\d+$/.test(rest[++i] ?? '') ? +rest[i] : -1;
+    else if (k === '--step' || k === '--max-states') {
+      const n = /^[1-9]\d*$/.test(rest[++i] ?? '') ? +rest[i] : NaN;
+      if (Number.isNaN(n)) { console.log(`E K002 ${k} must be a positive integer`); process.exit(2); }
+      a[k === '--step' ? 'stepTicks' : 'maxStates'] = n;
+    }
     else if (k === '--view' || k === '--observe' || k === '--events') a[k.slice(2) as 'view' | 'observe' | 'events'] = true;
     else { console.log(`E K002 unknown option '${k}'`); process.exit(2); }
   }
