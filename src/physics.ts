@@ -198,6 +198,17 @@ export function physicsStep(w: World): void {
     const p = w.get(id, 'pos')!, b = w.get(id, 'box')!;
     world.moveKinematic(id, [num(p, 'x') + num(b, 'w') / 2, num(p, 'y') + num(b, 'h') / 2, num(p, 'z') + num(b, 'd') / 2]);
   }
+  // Pushes that the scene or a script asked for: a force every tick, an impulse once.
+  for (const id of w.query('force')) {
+    const f = w.get(id, 'force')!;
+    if (kinds.get(id) === 'dynamic') world.push(id, [num(f, 'x') / w.hz, num(f, 'y') / w.hz, num(f, 'z') / w.hz]);
+  }
+  for (const id of w.query('impulse')) {
+    if (kinds.get(id) !== 'dynamic') continue;
+    const j = w.get(id, 'impulse')!;
+    world.push(id, [num(j, 'x'), num(j, 'y'), num(j, 'z')]);
+    w.drop(id, 'impulse');
+  }
   world.step();
 
   // The backend's result, rounded to fixed-point, becomes what the rest of the engine sees.

@@ -14,35 +14,37 @@ export function defineComponent(name: string, doc: string, fields: Field[] = [])
 
 const f = (name: string, type: FieldType, def?: number | string): Field => ({ name, type, def });
 
-defineComponent('pos', 'corner with the smallest x, y, z. y grows downward; z is depth, 3D only',
+defineComponent('pos', 'corner with the smallest x, y, z',
   [f('x', 'fx'), f('y', 'fx'), f('z', 'fx', 0)]);
 defineComponent('vel', 'velocity in units/second', [f('x', 'fx', 0), f('y', 'fx', 0), f('z', 'fx', 0)]);
-defineComponent('box', 'axis-aligned size on x, y and (3D) z; needed for collision and triggers', [f('w', 'fx'), f('h', 'fx'), f('d', 'fx', 65536)]);
+defineComponent('box', 'axis-aligned size on x, y and (3D) z; for collision and triggers', [f('w', 'fx'), f('h', 'fx'), f('d', 'fx', 65536)]);
 defineComponent('solid', 'blocks entities that have pos+vel+box');
-defineComponent('push', 'on a solid: movers shove it instead of stopping (one crate at a time; not along y under gravity)');
-defineComponent('body', 'gets world gravity; carried by a moving solid it stands on. grounded and ride (what it stands on) are written by the engine',
+defineComponent('push', 'on a solid: movers shove it instead of stopping (one at a time; not along y under gravity)');
+defineComponent('body', 'gets world gravity; carried by what it stands on. grounded and ride (its name) are set by the engine',
   [f('grounded', 'int', 0), f('ride', 'str', '')]);
 defineComponent('ctrl', 'input-driven. jump=0: 4-way. jump>0: platformer, up jumps when grounded. plane=xz (3D): up/down walk along z, `a` jumps',
   [f('speed', 'fx'), f('jump', 'fx', 0), f('plane', 'str', 'xy')]);
 defineComponent('pace', 'walks back and forth along axis (x, y or z) between min and max at speed; needs vel',
   [f('axis', 'str'), f('min', 'fx'), f('max', 'fx'), f('speed', 'fx')]);
-defineComponent('tag', 'group label; reference it elsewhere as #name', [f('name', 'str')]);
+defineComponent('tag', 'group label; refer to it as #name', [f('name', 'str')]);
 defineComponent('trigger', 'emits event when target (entity name or #tag) starts overlapping. action: none, despawn-self, despawn-other, despawn:REF (REF: name or #tag), load:FILE (emits event load; the player opens that scene); join with +',
   [f('target', 'str'), f('event', 'str'), f('action', 'str', 'none')]);
 defineComponent('tiles', 'grid of square cells at pos. rows follow, indented 4 spaces, one character per cell. size: cell size. solid: characters that block movers. spawn: CHAR:PREFAB pairs (o:coin,@:hero), replaced by entities on load. plane=xz lays the grid flat as a 3D floor plan (rows run along z); depth is then the wall height',
   [f('size', 'fx', 65536), f('solid', 'str', '#'), f('spawn', 'str', ''), f('depth', 'fx', 65536), f('plane', 'str', 'xy')]);
-defineComponent('sprite', 'glyph: character for the ASCII view. color: CSS color. image: svg/png beside the scene, drawn in 2D. mesh: .obj, .gltf or .glb beside the scene, drawn in 3D fitted to the box',
+defineComponent('sprite', 'glyph: character for the ASCII view. color: CSS color. image (2D): svg/png beside the scene. mesh (3D): .obj, .gltf or .glb beside the scene, fitted to the box',
   [f('glyph', 'str', ''), f('color', 'str', 'white'), f('image', 'str', ''), f('mesh', 'str', '')]);
 defineComponent('rot', 'turned angle degrees about axis (x, y, z) through the box centre, clockwise in 2D. spin: degrees/second. Collision ignores it',
   [f('angle', 'fx', 0), f('spin', 'fx', 0), f('axis', 'str', 'z')]);
-defineComponent('quat', '3D orientation as a unit quaternion, instead of rot. sx sy sz: degrees/second about world axes',
+defineComponent('quat', '3D turn as a unit quaternion, instead of rot. sx sy sz: degrees/second about world axes',
   [f('x', 'fx', 0), f('y', 'fx', 0), f('z', 'fx', 0), f('w', 'fx', 65536), f('sx', 'fx', 0), f('sy', 'fx', 0), f('sz', 'fx', 0)]);
-defineComponent('rigid', 'rigid body (needs world physics=rapier): falls, tumbles; blocks movers, who shove it. shape: box or ball',
+defineComponent('rigid', 'needs world physics=rapier: falls, tumbles; blocks movers, who shove it. shape: box or ball',
   [f('shape', 'str', 'box'), f('density', 'fx', 65536), f('bounce', 'fx', 0), f('friction', 'fx', 32768)]);
-defineComponent('eye', 'draws the scene in 3D: a camera at this entity plus the offset, looking at it; ignored headless',
+defineComponent('impulse', 'on a rigid: one shove (mass x speed), then removed', [f('x', 'fx', 0), f('y', 'fx', 0), f('z', 'fx', 0)]);
+defineComponent('force', 'on a rigid: a push every tick', [f('x', 'fx', 0), f('y', 'fx', 0), f('z', 'fx', 0)]);
+defineComponent('eye', '3D view: a camera at this entity plus the offset, looking at it; ignored headless',
   [f('x', 'fx'), f('y', 'fx'), f('z', 'fx'), f('fov', 'int', 55)]);
 defineComponent('label', 'text drawn above the entity in 2D; _ is a space', [f('text', 'str'), f('color', 'str', 'white')]);
-defineComponent('camera', 'the 2D view follows this entity and shows w x h units; ignored headless', [f('w', 'fx'), f('h', 'fx')]);
+defineComponent('camera', '2D view: follows this entity, shows w x h units; ignored headless', [f('w', 'fx'), f('h', 'fx')]);
 
 export class World {
   tick = 0;
@@ -109,6 +111,11 @@ export class World {
     if (!m) this.comps.set(comp, (m = new Map()));
     m.set(id, data);
     return data;
+  }
+
+  /** Take a component off an entity. */
+  drop(id: number, comp: string): void {
+    this.comps.get(comp)?.delete(id);
   }
 
   get(id: number, comp: string): Comp | undefined {

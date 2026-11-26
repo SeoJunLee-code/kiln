@@ -188,6 +188,43 @@ test('physics: a pushed crate (fixed-point) is stopped by a body too', { skip },
   freeLink(w);
 });
 
+test('physics: an impulse changes a body\'s speed once and is used up; a force keeps pushing', { skip }, async () => {
+  // No gravity, so that the only changes of speed are the pushes. The ball's mass is 2 x 4/3 pi 0.5^3.
+  const scene = 'world physics=rapier\n' +
+    'entity ball\n  pos 0 0 0\n  box 1 1 1\n  rigid ball 2\n  impulse 3 0 -1.5\n' +
+    'entity crate\n  pos 5 0 0\n  box 1 1 1\n  rigid\n  force 0 -6 0\n' +
+    'entity ghost\n  pos 9 0 0\n  box 1 1 1\n  impulse 1 0 0\n';
+  const w = run(scene, { ticks: 1 }).world;
+  const mass = 2 * (4 / 3) * Math.PI * 0.125;
+  assert.ok(Math.abs(at(w, 'ball', 'vel', 'x') - 3 / mass) < 0.001 && Math.abs(at(w, 'ball', 'vel', 'z') - -1.5 / mass) < 0.001, `ball speed ${at(w, 'ball', 'vel', 'x')}, ${at(w, 'ball', 'vel', 'z')}`);
+  assert.equal(w.has(w.ids.get('ball')!, 'impulse'), false);
+  for (let t = 1; t < 60; t++) step(w);
+  // A second later the ball still has that speed, and the crate (mass 1) has gained 6 units/s upward.
+  assert.ok(Math.abs(at(w, 'ball', 'vel', 'x') - 3 / mass) < 0.001);
+  assert.ok(Math.abs(at(w, 'crate', 'vel', 'y') - -6) < 0.01, `crate speed ${at(w, 'crate', 'vel', 'y')}`);
+  assert.equal(w.has(w.ids.get('crate')!, 'force'), true);
+  // The text holds the force and no longer the impulse, so a reader of the scene sees what is still acting.
+  assert.match(serialize(w), /entity crate\n(  .*\n)*  force 0 -6\n/);
+  assert.doesNotMatch(serialize(w), /entity ball\n(  .*\n)*  impulse/);
+  // On something that is not a rigid body they do nothing, and check says so.
+  assert.equal(at(w, 'ghost', 'pos', 'x'), 9);
+  assert.match((await command('check', { scene })).text, /^W K310 scene 'ghost' has 'impulse' but no 'rigid'/m);
+  freeLink(w);
+});
+
+test('physics: a script kicks a body by giving it an impulse', { skip }, () => {
+  // What a script does: on a tick of its choosing, add the component. Here the kick beats gravity for a moment.
+  const scene = `world gravity=0,30 physics=rapier\n${FLOOR}entity ball\n  pos 0 -1 0\n  box 1 1 1\n  rigid ball\n`;
+  const kick = (x: World): void => { if (x.tick === 30) x.add(x.ids.get('ball')!, 'impulse', { x: 0, y: -5 * ONE, z: 0 }); };
+  const w = run(scene, { ticks: 30, mods: { pre: [kick], post: [] } }).world;
+  assert.ok(Math.abs(at(w, 'ball', 'pos', 'y') - -1) < 0.01, 'the ball should rest on the floor before the kick');
+  let top = 0;
+  for (let t = 30; t < 90; t++) { step(w); top = Math.min(top, at(w, 'ball', 'pos', 'y')); }
+  // Mass 0.52, so it leaves at about 9.5 units/s and rises about 1.5 units under gravity 30.
+  assert.ok(top < -2.2 && top > -2.8, `the ball rose to y=${top}`);
+  freeLink(w);
+});
+
 test('physics: a saved state continues exactly while the character is pushing', { skip }, () => {
   const scene = `${WALK}entity crate\n  pos 1 -1 0\n  box 1 1 1\n  rigid\nentity ball\n  pos 3 -0.8 0.2\n  box 0.8 0.8 0.8\n  rigid ball bounce=0.4\n`;
   const w = parseScene(scene).world;

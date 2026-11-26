@@ -19,6 +19,8 @@ const NEEDS: Record<string, string[]> = {
   rot: ['pos', 'box'],
   quat: ['pos', 'box'],
   rigid: ['pos', 'box'],
+  impulse: ['rigid'],
+  force: ['rigid'],
 };
 
 /**

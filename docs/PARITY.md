@@ -83,7 +83,7 @@ Neither engine was built for this; these rows are why Kiln exists.
 | Feature | Godot | Unreal | Kiln | Check |
 |---|---|---|---|---|
 | Deterministic across OSes | no | no | **gated** | hashes on 3 OSes |
-| 3D rigid bodies, convex shapes | yes | yes | **gated** (boxes and balls, Rapier backend) | pinned state hash and example hash on 3 OSes; browser replay equals headless; save and restore continue exactly; `solve` through physics; bodies stop, carry and are shoved by the character without overlap, also wedged against a wall; a body at 4 units per tick does not pass a thin wall; WebGPU reference image (`tumble3d`). No joints, no other shapes; a body cannot move the character |
+| 3D rigid bodies, convex shapes | yes | yes | **gated** (boxes and balls, Rapier backend) | pinned state hash and example hash on 3 OSes; browser replay equals headless; save and restore continue exactly; `solve` through physics; bodies stop, carry and are shoved by the character without overlap, also wedged against a wall; a body at 4 units per tick does not pass a thin wall; `impulse` and `force` from the scene or a script; WebGPU reference image (`tumble3d`). No joints, no other shapes; a body cannot move the character |
 | Navigation | yes | yes | none (`pace` only) | |
 | World streaming | no | yes | none | |
 | Networking | yes | yes | none | |
