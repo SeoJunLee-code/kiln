@@ -29,8 +29,8 @@ defineComponent('pace', 'walks back and forth along axis (x, y or z) between min
 defineComponent('tag', 'group label; reference it elsewhere as #name', [f('name', 'str')]);
 defineComponent('trigger', 'emits event when target (entity name or #tag) starts overlapping. action: none, despawn-self, despawn-other, despawn:REF (REF = name or #tag, e.g. a door); join several with +',
   [f('target', 'str'), f('event', 'str'), f('action', 'str', 'none')]);
-defineComponent('tiles', 'grid of square cells at pos. rows follow the line, each indented 4 spaces, one character per cell. size: cell size. solid: characters that block movers. spawn: CHAR:PREFAB pairs, e.g. o:coin,@:hero, replaced by entities when the scene loads',
-  [f('size', 'fx', 65536), f('solid', 'str', '#'), f('spawn', 'str', ''), f('depth', 'fx', 65536)]);
+defineComponent('tiles', 'grid of square cells at pos. rows follow the line, each indented 4 spaces, one character per cell. size: cell size. solid: characters that block movers. spawn: CHAR:PREFAB pairs, e.g. o:coin,@:hero, replaced by entities when the scene loads. plane=xz lays the grid flat as a 3D floor plan (rows run along z); depth is then the wall height',
+  [f('size', 'fx', 65536), f('solid', 'str', '#'), f('spawn', 'str', ''), f('depth', 'fx', 65536), f('plane', 'str', 'xy')]);
 defineComponent('sprite', 'appearance. glyph: character for the ASCII view. color: CSS color. image: file next to the scene (svg/png), drawn in 2D. mesh: .obj file next to the scene, drawn in 3D fitted to the box',
   [f('glyph', 'str', ''), f('color', 'str', 'white'), f('image', 'str', ''), f('mesh', 'str', '')]);
 defineComponent('eye', 'makes the player draw the scene in 3D: a perspective camera at this entity plus the offset, looking at the entity; ignored headless',

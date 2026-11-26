@@ -157,7 +157,7 @@ origin 0,0
 fail tick=20 states=94
 ```
 
-Ten of the eleven examples solve in under a second on one laptop, and the largest ([examples/quest.kiln](examples/quest.kiln): a key, a door and a guard sweeping the corridor) in a little over one. They include the 3D one, a crate-pushing puzzle ([examples/sokoban.kiln](examples/sokoban.kiln)), a gap that can only be crossed by riding a lift ([examples/lift.kiln](examples/lift.kiln)), a key-and-door puzzle ([examples/vault.kiln](examples/vault.kiln)) and a corridor of pacing guards where the crossing has to be timed ([examples/gauntlet.kiln](examples/gauntlet.kiln)). The search tries inputs that get nearer to a goal first; it has only been tried with one controllable character in small levels, and it gives up (and says so) when it runs out of states. `at` expectations are not searched for.
+Eleven of the twelve examples solve in under a second on one laptop, and the largest ([examples/quest.kiln](examples/quest.kiln): a key, a door and a guard sweeping the corridor) in a little over one. They include the 3D one, a crate-pushing puzzle ([examples/sokoban.kiln](examples/sokoban.kiln)), a gap that can only be crossed by riding a lift ([examples/lift.kiln](examples/lift.kiln)), a key-and-door puzzle ([examples/vault.kiln](examples/vault.kiln)) and a corridor of pacing guards where the crossing has to be timed ([examples/gauntlet.kiln](examples/gauntlet.kiln)). The search tries inputs that get nearer to a goal first; it has only been tried with one controllable character in small levels, and it gives up (and says so) when it runs out of states. `at` expectations are not searched for.
 
 ## 3D
 
@@ -180,7 +180,26 @@ entity floor
   solid
 ```
 
-`y` grows downward, so things above the floor have negative `y`. `--top` prints a floor plan (the x/z plane) instead of a screenshot. A sprite can name an OBJ file (`sprite color=gold mesh=gem.obj`); OBJ is text, so an agent can write one. The mesh is drawn fitted to the entity's box, while collision stays the box. One sun with shadows; no textures or materials yet.
+A 3D level can also be drawn as a floor plan. `plane=xz` lays a tile map flat, with `depth` as the wall height ([examples/crypt3d.kiln](examples/crypt3d.kiln)):
+
+```
+entity map
+  pos 0 -1 0
+  tiles plane=xz spawn=@:hero,k:key,D:door,E:exit
+    ###########
+    #@..#.....#
+    #.#.#.###.#
+    #.#...#E#.#
+    #.#####D#.#
+    #k........#
+    ###########
+```
+
+![The floor plan above, drawn by the player](docs/crypt3d.jpg)
+
+`--top` prints the same picture back as text, so an agent can check a 3D level without a screenshot.
+
+`y` grows downward, so things above the floor have negative `y`. A sprite can name an OBJ file (`sprite color=gold mesh=gem.obj`); OBJ is text, so an agent can write one. The mesh is drawn fitted to the entity's box, while collision stays the box. One sun with shadows; no textures or materials yet.
 
 ## Scripts
 

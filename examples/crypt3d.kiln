@@ -1,0 +1,42 @@
+# A 3D level drawn as a floor plan. `plane=xz` lays the grid flat: rows run along z,
+# and `depth` is how tall the walls stand. The key opens the door; the exit is behind it.
+world hz=60 gravity=0,30
+
+prefab hero
+  box 0.8 1 0.8
+  vel
+  body
+  ctrl 4 0 xz
+  eye 0 -11 5
+  sprite @ dodgerblue
+prefab key
+  box 0.5 0.5 0.5
+  trigger hero key despawn-self+despawn:door
+  sprite k gold mesh=gem.obj
+prefab door
+  box 1 1 1
+  solid
+  sprite D sienna
+prefab exit
+  box 0.8 1 0.8
+  trigger hero win
+  sprite E limegreen mesh=spire.obj
+
+entity floor
+  pos 0 0 0
+  box 11 1 7
+  solid
+  sprite color=dimgray
+
+entity map
+  pos 0 -1 0
+  tiles plane=xz spawn=@:hero,k:key,D:door,E:exit
+    ###########
+    #@..#.....#
+    #.#.#.###.#
+    #.#...#E#.#
+    #.#####D#.#
+    #k........#
+    ###########
+
+expect event win by 1200

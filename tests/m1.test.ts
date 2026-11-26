@@ -382,3 +382,10 @@ test('expect count: the number of events by a tick', async () => {
   assert.match(lines[3], /^FAIL .*count coin == 3 at 999 -- run ended before tick 999$/);
   assert.match((await command('check', { scene: 'entity a\n  pos 0 0\nexpect count coin == x at 5\n' })).text, /^E K104 /);
 });
+
+test('crypt3d example: a 3D level drawn as a floor plan, solved by the engine', { timeout: 90000 }, async () => {
+  const solved = await command('solve', { file: ex('crypt3d.kiln') });
+  assert.equal(solved.code, 0, solved.text);
+  const input = solved.text.trim().split('\n').slice(0, -1).join('\n') + '\n';
+  assert.equal((await command('test', { file: ex('crypt3d.kiln'), input })).code, 0);
+});

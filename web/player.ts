@@ -102,7 +102,7 @@ try {
       x0 = Math.min(x0, p.x as number); y0 = Math.min(y0, p.y as number);
       x1 = Math.max(x1, (p.x as number) + (b.w as number)); y1 = Math.max(y1, (p.y as number) + (b.h as number));
     }
-    for (const m of world.query('tiles', 'pos')) {
+    for (const m of world.query('tiles', 'pos').filter((i) => world.get(i, 'tiles')!.plane === 'xy')) {
       const t = world.get(m, 'tiles')!, p = world.get(m, 'pos')!, rows = tileRows(t);
       x0 = Math.min(x0, p.x as number); y0 = Math.min(y0, p.y as number);
       x1 = Math.max(x1, (p.x as number) + Math.max(...rows.map((r) => r.length)) * (t.size as number));
@@ -134,7 +134,12 @@ try {
       tileRows(t).forEach((row, r) => {
         for (let c = 0; c < row.length; c++) {
           if (row[c] === '.') continue;
-          boxes.push({ p: [u(p.x) + c * size, u(p.y) + r * size, u(p.z)], s: [size, size, u(t.depth)], color: rgb((t.solid as string).includes(row[c]) ? '#59616e' : '#7a8494') });
+          const flat = t.plane === 'xz';
+          boxes.push({
+            p: flat ? [u(p.x) + c * size, u(p.y), u(p.z) + r * size] : [u(p.x) + c * size, u(p.y) + r * size, u(p.z)],
+            s: flat ? [size, u(t.depth), size] : [size, size, u(t.depth)],
+            color: rgb((t.solid as string).includes(row[c]) ? '#59616e' : '#7a8494'),
+          });
         }
       });
     }
@@ -178,7 +183,7 @@ try {
     }
     const scale = Math.min(cw / vw, ch / vh);
     const ox = (cw - vw * scale) / 2 - vx * scale, oy = (ch - vh * scale) / 2 - vy * scale;
-    for (const m of world.query('tiles', 'pos')) {
+    for (const m of world.query('tiles', 'pos').filter((i) => world.get(i, 'tiles')!.plane === 'xy')) {
       const t = world.get(m, 'tiles')!, p = world.get(m, 'pos')!;
       const size = ((t.size as number) / ONE) * scale;
       tileRows(t).forEach((row, r) => {

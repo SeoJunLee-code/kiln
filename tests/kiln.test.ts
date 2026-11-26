@@ -284,8 +284,8 @@ test('3d: the floor plan view looks down on x/z', () => {
   const rows = v.split('\n');
   assert.equal(rows[0], 'origin -4,-4');
   assert.equal(rows[1], '~'.repeat(20), 'the pit lies below everything, so it only shows around the floor');
-  assert.equal(rows[6], '~~~~#@########E#~~~~');
-  assert.equal(rows[14], '~~~~#########*##~~~~');
+  assert.equal(rows[6], '~~~~.@...#....E.~~~~', 'floor is ground, the wall is a wall');
+  assert.equal(rows[14], '~~~~........#*#.~~~~', 'the gem sits on the raised step');
 });
 
 test('trigger: despawn:REF removes another entity, so a key can open a door', () => {
@@ -354,4 +354,35 @@ test('ride: a body standing on a moving solid goes with it, and stays put when i
 test('view: an entity that covers no cell centre is still shown', () => {
   const w = parseScene('entity floor\n  pos 0 1\n  box 4 1\n  solid\nentity bug\n  pos 1.6 0.1\n  box 0.8 0.8\n  vel\n  sprite @\n').world;
   assert.equal(view(w), 'origin 0,0\n..@.\n####\n');
+});
+
+const crypt = readFileSync(new URL('../examples/crypt3d.kiln', import.meta.url), 'utf8');
+
+test('tiles plane=xz: a floor plan becomes walls along z, and spawns stand on the floor', () => {
+  const w = parseScene(crypt).world;
+  const hero = w.get(w.ids.get('hero')!, 'pos')!, box = w.get(w.ids.get('hero')!, 'box')!;
+  // The map sits at y=-1 with walls 1 high, so the walls' feet and the hero's feet are at y=0.
+  assert.equal((hero.y as number) + (box.h as number), 0);
+  assert.equal(fmtFx(hero.z as number).slice(0, 3), '1.0');
+
+  const scene = (vx: number, vz: number) =>
+    `entity map\n  pos 0 -2 0\n  tiles depth=2 plane=xz\n    #####\n    #...#\n    #...#\n    #####\nentity m\n  pos 2 -1 1.5\n  box 1 1 1\n  vel ${vx} 0 ${vz}\n`;
+  const end = (vx: number, vz: number) => {
+    const p = run(scene(vx, vz), { ticks: 120 }).world.get(1, 'pos')!;
+    return [fmtFx(p.x as number), fmtFx(p.y as number), fmtFx(p.z as number)];
+  };
+  assert.deepEqual(end(9, 0), ['3', '-1', '1.5']);
+  assert.deepEqual(end(-9, 0), ['1', '-1', '1.5']);
+  assert.deepEqual(end(0, 9), ['2', '-1', '2']);
+  assert.deepEqual(end(0, -9), ['2', '-1', '1']);
+  // Above the walls there is nothing to hit.
+  const over = run(scene(9, 0).replace('pos 2 -1 1.5', 'pos 2 -4 1.5'), { ticks: 120 }).world.get(1, 'pos')!;
+  assert.equal(fmtFx(over.x as number), '20');
+  assert.deepEqual(codes(() => parseScene('entity m\n  pos 0 0\n  tiles plane=yz\n    #\n')), ['K104']);
+});
+
+test('tiles plane=xz: the floor plan view shows the map, the side view does not', () => {
+  const w = parseScene(crypt).world;
+  assert.match(view(w, 'xz'), /^origin 0,0\n#{11}\n#@/);
+  assert.doesNotMatch(view(w, 'xy'), /#@\.\.#/, 'the side view does not draw the floor plan');
 });

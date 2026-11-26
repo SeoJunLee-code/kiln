@@ -47,10 +47,10 @@ export function tileRows(t: Comp): string[] {
   return c.rows;
 }
 
-/** Tile character at a world point, or '' outside the map. */
-export function tileAt(w: World, map: number, x: number, y: number): string {
+/** Tile character at a point of the map's own plane (x and y, or x and z for plane=xz), or '' outside the map. */
+export function tileAt(w: World, map: number, x: number, v: number): string {
   const t = w.get(map, 'tiles')!, mp = w.get(map, 'pos')!;
-  const row = tileRows(t)[fdiv(y - (mp.y as number), t.size as number)];
+  const row = tileRows(t)[fdiv(v - (mp[t.plane === 'xz' ? 'z' : 'y'] as number), t.size as number)];
   return row?.[fdiv(x - (mp.x as number), t.size as number)] ?? '';
 }
 
@@ -111,14 +111,22 @@ export function blockers(w: World, self: number, index: SolidIndex, maps: number
   for (const m of maps) {
     const t = w.get(m, 'tiles')!, mp = w.get(m, 'pos')!;
     const size = t.size as number, solid = t.solid as string, rows = tileRows(t);
-    const mx = mp.x as number, my = mp.y as number, mz = mp.z as number, depth = t.depth as number;
-    if (!(lo[2] < mz + depth && hi[2] > mz)) continue;
-    const c0 = Math.max(0, fdiv(lo[0] - mx, size)), c1 = fdiv(hi[0] - 1 - mx, size);
-    const r0 = Math.max(0, fdiv(lo[1] - my, size)), r1 = Math.min(rows.length - 1, fdiv(hi[1] - 1 - my, size));
+    // Rows run along `vi` (y, or z for a floor plan); `wi` is the axis the cells are extruded on.
+    const vi = t.plane === 'xz' ? 2 : 1, wi = 3 - vi;
+    const at = [mp.x as number, mp.y as number, mp.z as number], depth = t.depth as number;
+    if (!(lo[wi] < at[wi] + depth && hi[wi] > at[wi])) continue;
+    const c0 = Math.max(0, fdiv(lo[0] - at[0], size)), c1 = fdiv(hi[0] - 1 - at[0], size);
+    const r0 = Math.max(0, fdiv(lo[vi] - at[vi], size)), r1 = Math.min(rows.length - 1, fdiv(hi[vi] - 1 - at[vi], size));
     for (let r = r0; r <= r1; r++) {
       const row = rows[r];
       for (let c = c0; c <= c1 && c < row.length; c++) {
-        if (solid.includes(row[c])) out.push([mx + c * size, my + r * size, mz, size, size, depth, -1]);
+        if (!solid.includes(row[c])) continue;
+        const b: Block = [at[0] + c * size, 0, 0, size, 0, 0, -1];
+        b[vi] = at[vi] + r * size;
+        b[vi + 3] = size;
+        b[wi] = at[wi];
+        b[wi + 3] = depth;
+        out.push(b);
       }
     }
   }

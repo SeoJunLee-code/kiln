@@ -166,6 +166,10 @@ export function parseScene(text: string, file = 'scene'): Scene {
       if (fd.def === undefined) { if (!bad) err('K105', line, `'${def.name}' is missing '${fd.name}'`, `usage: ${sig(def)}`); bad = true; }
       else data[fd.name] = fd.def;
     }
+    if (def.name === 'tiles' && !bad && data.plane !== 'xy' && data.plane !== 'xz') {
+      err('K104', line, `tiles plane must be xy or xz, got '${data.plane}'`);
+      bad = true;
+    }
     if (def.name === 'pace' && !bad && !['x', 'y', 'z'].includes(data.axis as string)) {
       err('K104', line, `pace axis must be x, y or z, got '${data.axis}'`, 'usage: pace axis min max speed');
       bad = true;
@@ -219,11 +223,17 @@ export function parseScene(text: string, file = 'scene'): Scene {
       for (const l of prefabs.get(name)!) addComp(id, l.tok, l.line);
       const b = world.get(id, 'box');
       // Centred in its cell when it has a box.
-      world.add(id, 'pos', {
-        x: (mp.x as number) + c * size + (b ? (size - (b.w as number)) >> 1 : 0),
-        y: (mp.y as number) + r * size + (b ? (size - (b.h as number)) >> 1 : 0),
-        z: mp.z as number,
-      });
+      const cx = (mp.x as number) + c * size + (b ? (size - (b.w as number)) >> 1 : 0);
+      // On a floor plan the row gives z, and the entity stands on the level the walls stand on.
+      if (t.plane === 'xz') {
+        world.add(id, 'pos', {
+          x: cx,
+          y: (mp.y as number) + (t.depth as number) - (b ? (b.h as number) : 0),
+          z: (mp.z as number) + r * size + (b ? (size - (b.d as number)) >> 1 : 0),
+        });
+      } else {
+        world.add(id, 'pos', { x: cx, y: (mp.y as number) + r * size + (b ? (size - (b.h as number)) >> 1 : 0), z: mp.z as number });
+      }
       return '.';
     }).join('')).join('\n');
     t.spawn = '';
