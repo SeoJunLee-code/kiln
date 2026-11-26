@@ -26,7 +26,7 @@ Kiln is a few days old. The long-term aim is an engine that agents can take from
 
 | Works today | Not yet |
 |---|---|
-| Text scenes, 15 built-in components, levels drawn as character grids with prefabs | Textures, materials, skeletal animation, shaders |
+| Text scenes, 17 built-in components, levels drawn as character grids with prefabs | Textures, materials, skeletal animation, shaders |
 | Fixed-point simulation on x, y and z; swept box collision; triggers that emit events and remove things (keys, doors, pickups); pacing guards; pushable crates; moving platforms that carry what stands on them | Rotation, non-box shapes, joints |
 | `expect` checks with explanations on failure | Animation, UI widgets |
 | TypeScript scripts with a determinism check | Asset pipeline beyond single images |

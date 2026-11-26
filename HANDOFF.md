@@ -1,6 +1,6 @@
 # Kiln 인수인계
 
-갱신: 2026-11-26 (2차)
+갱신: 2026-11-26 (3차)
 
 ## 목표
 
@@ -32,10 +32,10 @@ AI 에이전트가 1급 사용자인 오픈소스 게임 엔진. 방향은 **"AI
 
 | 파일 | 역할 |
 |---|---|
-| `src/fx.ts` | 고정소수점 연산, 텍스트 왕복 |
-| `src/world.ts` | ECS, 컴포넌트 레지스트리 15종. `pos`·`vel`·`box`는 선택적 z/d 값을 갖는다 |
+| `src/fx.ts` | 고정소수점 연산, 텍스트 왕복, 정수 sin/cos(`sinCos`, 2^24 배율 표), `isqrt` |
+| `src/world.ts` | ECS, 컴포넌트 레지스트리 17종. `pos`·`vel`·`box`는 선택적 z/d 값을 갖는다. `rot`(한 축 각도+spin), `quat`(사원수+축별 각속도)는 상태이고 해시에 들어간다 |
 | `src/scene.ts` | 씬 파서·직렬화(`state` 줄, `prefab` 블록, 타일 `spawn` 전개), 진단 |
-| `src/sim.ts` | 틱 진행(입력→ctrl→스크립트 pre→중력→이동·스윕 충돌→트리거→스크립트 post), 상태 해시. x·y·z 3축 |
+| `src/sim.ts` | 틱 진행(입력→ctrl→스크립트 pre→중력→이동·스윕 충돌→회전→트리거→스크립트 post), 상태 해시. x·y·z 3축 |
 | `src/expect.ts` | `expect` 5종 평가, 실패 시 관측값 설명 |
 | `src/run.ts` | 헤드리스 실행, ASCII 뷰, 엔티티 덤프 |
 | `src/solve.ts` | `solve`: expect를 만족하는 입력 탐색. 답은 재생으로 검증한 뒤 보고 |
@@ -51,9 +51,9 @@ AI 에이전트가 1급 사용자인 오픈소스 게임 엔진. 방향은 **"AI
 | `web/player.ts` | 브라우저 플레이어. `?paused`로 정지 시작, `?renderer=webgpu\|webgl2`, `?offscreen`, `window.kiln.shot()` |
 | **`web/gpu.ts`** | WebGPU 렌더러(주). 물체마다 변환 행렬을 가진 인스턴스, 메시당 그리기 호출 1회, 4x MSAA, 그림자 맵. `read()`는 프레임을 텍스처에 다시 그려 복사해 온다 |
 | `web/gl.ts` | WebGL2 렌더러(폴백, 동결) |
-| **`web/mesh.ts`** | 두 렌더러가 같이 쓰는 기하·행렬·OBJ 해석·`Renderer3` 인터페이스 |
+| **`web/mesh.ts`** | 두 렌더러가 같이 쓰는 기하·행렬·OBJ 해석·`Renderer3` 인터페이스. `boxMatrix`가 상자 중심 기준 회전을 포함한 인스턴스 행렬을 만든다 |
 | `scripts/hashes.ts` | 예제 해시를 `examples/HASHES`와 비교. 의도한 변경이면 `--write` |
-| **`scripts/images.ts`** | 예제 11장면을 그려 `tests/images/`와 비교. Linux CI에서만 강제, 다른 곳은 참고 출력 |
+| **`scripts/images.ts`** | 예제 13장면을 그려 `tests/images/`와 비교. `'own'` 표시 장면은 WebGPU 전용 기준(`NAME.webgpu.png`)을 쓴다. Linux CI에서만 강제, 다른 곳은 참고 출력 |
 | **`tests/browser.test.ts`** | 브라우저 동작 검사 10개. Chrome이 없으면 건너뛴다 |
 | **`docs/PARITY.md`**, **`bench/PROTOCOL.md`** | 점수판, 측정 규칙 |
 | **`spikes/`** | 사전 시험과 결과(`RESULTS.md`). 엔진이 import하지 않는다 |

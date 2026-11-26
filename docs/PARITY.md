@@ -37,7 +37,7 @@ Neither engine was built for this; these rows are why Kiln exists.
 |---|---|---|
 | Scene as plain text, round-trips exactly | **gated** | tests |
 | Every error at once, with codes and hints | **gated** | tests |
-| Headless run with the same result as the browser | **gated** | all 14 examples replay in a browser to the headless hash, on 3 OSes |
+| Headless run with the same result as the browser | **gated** | all 16 examples replay in a browser to the headless hash, on 3 OSes |
 | `solve`: the engine finds the input that wins a level | **gated** | tests on 14 examples |
 | `check` warns about parts that silently do nothing | **gated** | tests |
 | One-call guide for an agent, kept small | **gated** | size budget in tests |
@@ -49,9 +49,9 @@ Neither engine was built for this; these rows are why Kiln exists.
 
 | Feature | Godot | Kiln | Check |
 |---|---|---|---|
-| Sprites, tile maps, camera | yes | **gated** | reference images of 7 scenes |
+| Sprites, tile maps, camera | yes | **gated** | reference images of 8 scenes |
 | Box collision, swept movement | yes | **gated** | tests, hashes |
-| Rotation | yes | none | |
+| Rotation | yes | **gated** (drawn only) | angle is hashed state on 3 OSes; reference image (`windmill`). Collision ignores it |
 | Circle and polygon collision | yes | none | |
 | Rigid bodies, joints | yes | none | |
 | Sprite animation | yes | none | |
@@ -69,7 +69,7 @@ Neither engine was built for this; these rows are why Kiln exists.
 |---|---|---|---|---|
 | Boxes and OBJ meshes, one shadowed sun | yes | yes | **gated** | reference images, both renderers |
 | WebGPU renderer | — | — | **gated** | held to the WebGL2 reference images; canvas output tested on Windows and macOS |
-| Rotation and full transforms | yes | yes | none | |
+| Rotation and full transforms | yes | yes | **gated** (WebGPU; no parenting) | quaternion is hashed state on 3 OSes; WebGPU-only reference image (`orrery3d`). Collision ignores it |
 | glTF import | yes | yes | none | |
 | PBR materials, textures | yes | yes | none | |
 | Many lights, cascaded shadows | yes | yes | none | |
