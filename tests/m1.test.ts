@@ -243,3 +243,13 @@ test('build: a static folder with js modules only, scripts converted, assets cop
   const sim = await import(pathToFileURL(join(out, 'engine/src/sim.js')).href);
   assert.equal(typeof sim.step, 'function');
 });
+
+test('vault example: the solver has to fetch the key before the door will open', { timeout: 60000 }, async () => {
+  const solved = await command('solve', { file: ex('vault.kiln') });
+  assert.equal(solved.code, 0, solved.text);
+  const input = solved.text.trim().split('\n').slice(0, -1).join('\n') + '\n';
+  const replay = await command('test', { file: ex('vault.kiln'), input, events: true });
+  assert.equal(replay.code, 0, replay.text);
+  const order = [...replay.text.matchAll(/^event \d+ (\w+)/gm)].map((m) => m[1]);
+  assert.deepEqual(order, ['key', 'win']);
+});

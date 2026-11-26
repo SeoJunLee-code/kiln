@@ -166,6 +166,14 @@ export function parseScene(text: string, file = 'scene'): Scene {
       if (fd.def === undefined) { if (!bad) err('K105', line, `'${def.name}' is missing '${fd.name}'`, `usage: ${sig(def)}`); bad = true; }
       else data[fd.name] = fd.def;
     }
+    if (def.name === 'trigger' && !bad) {
+      for (const act of (data.action as string).split('+')) {
+        if (!/^(none|despawn-self|despawn-other|despawn:#?[A-Za-z_][\w-]*)$/.test(act)) {
+          err('K104', line, `unknown trigger action '${act}'`, suggest(act, ['none', 'despawn-self', 'despawn-other']) ?? 'valid: none, despawn-self, despawn-other, despawn:NAME, despawn:#tag; join with +');
+          bad = true;
+        }
+      }
+    }
     if (bad) return;
     world.add(id, def.name, data);
     if (def.name === 'tiles') {

@@ -23,7 +23,7 @@ defineComponent('body', 'receives world gravity; grounded is engine-written stat
 defineComponent('ctrl', 'input-driven. jump=0: 4-way (left/right/up/down). jump>0: platformer, up jumps when grounded. plane=xz (3D): up/down walk along z and `a` jumps',
   [f('speed', 'fx'), f('jump', 'fx', 0), f('plane', 'str', 'xy')]);
 defineComponent('tag', 'group label; reference it elsewhere as #name', [f('name', 'str')]);
-defineComponent('trigger', 'emits event when target (entity name or #tag) starts overlapping. action: none|despawn-self|despawn-other',
+defineComponent('trigger', 'emits event when target (entity name or #tag) starts overlapping. action: none, despawn-self, despawn-other, despawn:REF (REF = name or #tag, e.g. a door); join several with +',
   [f('target', 'str'), f('event', 'str'), f('action', 'str', 'none')]);
 defineComponent('tiles', 'grid of square cells at pos. rows follow the line, each indented 4 spaces, one character per cell. size: cell size. solid: characters that block movers. spawn: CHAR:PREFAB pairs, e.g. o:coin,@:hero, replaced by entities when the scene loads',
   [f('size', 'fx', 65536), f('solid', 'str', '#'), f('spawn', 'str', ''), f('depth', 'fx', 65536)]);

@@ -159,8 +159,11 @@ export function step(w: World, script?: InputScript): void {
       if (w.overlaps.has(key)) continue;
       w.overlaps.add(key);
       w.events.push({ tick: w.tick, name: tr.event as string, a: w.names[t]!, b: w.names[o]! });
-      if (tr.action === 'despawn-self') doomed.push(t);
-      else if (tr.action === 'despawn-other') doomed.push(o);
+      for (const act of (tr.action as string).split('+')) {
+        if (act === 'despawn-self') doomed.push(t);
+        else if (act === 'despawn-other') doomed.push(o);
+        else if (act.startsWith('despawn:')) doomed.push(...w.match(act.slice(8)));
+      }
     }
   }
   for (const id of doomed) w.despawn(id);

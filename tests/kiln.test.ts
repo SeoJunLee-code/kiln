@@ -286,3 +286,17 @@ test('3d: the floor plan view looks down on x/z', () => {
   assert.equal(rows[6], '~~~~#@########E#~~~~');
   assert.equal(rows[14], '~~~~#########*##~~~~');
 });
+
+test('trigger: despawn:REF removes another entity, so a key can open a door', () => {
+  const scene = 'entity p\n  pos 0 0\n  box 1 1\n  vel 3 0\n' +
+    'entity key\n  pos 2 0\n  box 0.5 0.5\n  trigger p key despawn-self+despawn:#door\n' +
+    'entity door1\n  pos 5 0\n  box 1 1\n  solid\n  tag door\n' +
+    'entity door2\n  pos 5 3\n  box 1 1\n  solid\n  tag door\n';
+  const opened = run(scene, { ticks: 180 }).world;
+  assert.deepEqual([...opened.ids.keys()], ['p']);
+  assert.equal(fmtFx(opened.get(0, 'pos')!.x as number), '9');
+
+  const locked = run(scene.replace('despawn-self+despawn:#door', 'none'), { ticks: 180 }).world;
+  assert.equal(fmtFx(locked.get(0, 'pos')!.x as number), '4', 'stopped flush against the door');
+  assert.deepEqual(codes(() => parseScene('entity a\n  pos 0 0\n  box 1 1\n  trigger a x despawn-slef\n')), ['K104']);
+});

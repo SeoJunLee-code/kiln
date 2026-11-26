@@ -1,0 +1,34 @@
+# A locked room. The exit is behind a door; the key that opens it is the other way.
+# No script: the key's trigger removes the door.
+world hz=60
+
+prefab hero
+  box 0.8 0.8
+  vel
+  ctrl 4
+  sprite @
+prefab key
+  box 0.5 0.5
+  trigger hero key despawn-self+despawn:door
+  sprite k gold
+prefab door
+  box 1 1
+  solid
+  sprite D sienna
+prefab exit
+  box 0.8 0.8
+  trigger hero win
+  sprite E limegreen
+
+entity map
+  pos 0 0
+  tiles spawn=@:hero,k:key,D:door,E:exit
+    ###########
+    #k..#.....#
+    #.#.#.###.#
+    #.#...#E#.#
+    #.#####D#.#
+    #....@....#
+    ###########
+
+expect event win by 900

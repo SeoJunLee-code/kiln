@@ -4,3 +4,4 @@ dungeon.kiln tick=600 hash=a5dec40f expects=pass
 maze.kiln tick=240 hash=3015b961 expects=pass
 patrol.kiln tick=240 hash=54f1c06c expects=pass
 platformer.kiln tick=300 hash=a265b330 expects=pass
+vault.kiln tick=900 hash=789cf99b expects=pass
