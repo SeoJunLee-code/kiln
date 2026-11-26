@@ -57,14 +57,55 @@ export function tileAt(w: World, map: number, x: number, y: number): string {
 /** A blocking box: position on x, y, z followed by size on x, y, z. */
 export type Block = [x: number, y: number, z: number, w: number, h: number, d: number];
 
-/** Solid boxes and solid tiles that overlap the region lo..hi (half-open on each axis), except `self`. */
-export function blockers(w: World, self: number, solids: number[], maps: number[], lo: number[], hi: number[]): Block[] {
-  const out: Block[] = [];
+/**
+ * Solids bucketed on a coarse x/y grid, rebuilt every tick. A query then looks only at
+ * the cells its region touches instead of at every solid in the world.
+ */
+export interface SolidIndex { ids: number[]; box: Block[]; cells: Map<number, number[]>; big: number[]; seen: Int32Array; query: number }
+
+// Cell edge is 4 units (2^18 in fixed-point), so a shift gives the cell coordinate.
+const CELL_SHIFT = 18;
+const cellKey = (cx: number, cy: number): number => (cx + 32768) * 65536 + (cy + 32768);
+
+export function buildIndex(w: World, solids: number[]): SolidIndex {
+  const ids: number[] = [], box: Block[] = [], cells = new Map<number, number[]>(), big: number[] = [];
   for (const s of solids) {
-    if (s === self) continue;
     const sp = w.get(s, 'pos')!, sb = w.get(s, 'box')!;
     const r: Block = [sp.x as number, sp.y as number, sp.z as number, sb.w as number, sb.h as number, sb.d as number];
+    const i = ids.push(s) - 1;
+    box.push(r);
+    const x0 = r[0] >> CELL_SHIFT, x1 = (r[0] + r[3] - 1) >> CELL_SHIFT, y0 = r[1] >> CELL_SHIFT, y1 = (r[1] + r[4] - 1) >> CELL_SHIFT;
+    // Something that covers many cells (a floor, a wall) is cheaper to test every time.
+    if ((x1 - x0 + 1) * (y1 - y0 + 1) > 64) { big.push(i); continue; }
+    for (let cx = x0; cx <= x1; cx++) for (let cy = y0; cy <= y1; cy++) {
+      const k = cellKey(cx, cy);
+      const list = cells.get(k);
+      if (list) list.push(i);
+      else cells.set(k, [i]);
+    }
+  }
+  return { ids, box, cells, big, seen: new Int32Array(ids.length), query: 0 };
+}
+
+/**
+ * Solid boxes and solid tiles that overlap the region lo..hi (half-open on each axis), except `self`.
+ * The callers only take minima and maxima over the result, so its order does not affect the simulation.
+ */
+export function blockers(w: World, self: number, index: SolidIndex, maps: number[], lo: number[], hi: number[]): Block[] {
+  const out: Block[] = [];
+  const q = ++index.query;
+  const test = (i: number): void => {
+    if (index.seen[i] === q) return;
+    index.seen[i] = q;
+    if (index.ids[i] === self) return;
+    const r = index.box[i];
     if (lo[0] < r[0] + r[3] && hi[0] > r[0] && lo[1] < r[1] + r[4] && hi[1] > r[1] && lo[2] < r[2] + r[5] && hi[2] > r[2]) out.push(r);
+  };
+  for (const i of index.big) test(i);
+  const x1 = (hi[0] - 1) >> CELL_SHIFT, y1 = (hi[1] - 1) >> CELL_SHIFT;
+  for (let cx = lo[0] >> CELL_SHIFT; cx <= x1; cx++) for (let cy = lo[1] >> CELL_SHIFT; cy <= y1; cy++) {
+    const list = index.cells.get(cellKey(cx, cy));
+    if (list) for (const i of list) test(i);
   }
   for (const m of maps) {
     const t = w.get(m, 'tiles')!, mp = w.get(m, 'pos')!;
@@ -114,7 +155,7 @@ export function step(w: World, script?: InputScript): void {
     v.z = ((v.z as number) + tickShare(w.gz, k, w.hz)) | 0;
   }
 
-  const solids = w.query('solid', 'pos', 'box');
+  const index = buildIndex(w, w.query('solid', 'pos', 'box'));
   const maps = w.query('tiles', 'pos');
   for (const id of w.query('pos', 'vel')) {
     const p = w.get(id, 'pos')!, v = w.get(id, 'vel')!, b = w.get(id, 'box');
@@ -134,7 +175,7 @@ export function step(w: World, script?: InputScript): void {
       const lo = [...cur], hi = [cur[0] + size[0], cur[1] + size[1], cur[2] + size[2]];
       lo[a] = Math.min(from, to);
       hi[a] = Math.max(from, to) + size[a];
-      for (const r of blockers(w, id, solids, maps, lo, hi)) {
+      for (const r of blockers(w, id, index, maps, lo, hi)) {
         to = d[a] > 0 ? Math.min(to, r[a] - size[a]) : Math.max(to, r[a] + r[a + 3]);
         v[P[a]] = 0;
         if (a === 1 && d[a] > 0) grounded = 1;

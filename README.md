@@ -203,6 +203,10 @@ The server exposes one tool, `kiln`, with a `cmd` argument (`check`, `run`, `tes
 
 One measurement so far: the maze example, with its play-through and checks, is 729 characters in Kiln and 4,937 in a hand-written Godot 4 equivalent (scene, scripts and a GUT test). That is one small game, the Godot files were not run in Godot, and tokens were not counted with a real tokenizer. Details and caveats are in [bench/](bench/README.md).
 
+## How fast is it?
+
+On one laptop, single thread, no rendering: 1,000 falling bodies among 1,000 solid blocks take about 0.7 ms per tick, and 10,000 bodies among 5,000 blocks about 7 ms, inside a 60 Hz frame. Collision candidates come from a coarse grid rebuilt each tick. The script and the full table are in [bench/PERF.md](bench/PERF.md); the numbers are one run on one machine.
+
 ## Roadmap
 
 1. Connect a real agent over MCP and build a complete small game with it; fix what hurts.
