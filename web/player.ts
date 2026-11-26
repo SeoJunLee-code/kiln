@@ -43,13 +43,16 @@ let world: World, expects: Expect[], script: InputScript;
 let log: string[] = [];
 // Keys held right now. Tracked here because world.pressed only changes on the next tick.
 const held = new Set<string>();
+// Everything is fetched relative to the page, so the same files work from the dev server
+// and from a built folder under any path on a static host.
+const GAME = new URL('game/', location.href);
 // Image cache by path. An image that fails to load falls back to the colored box.
 const images = new Map<string, HTMLImageElement>();
 const image = (path: string): HTMLImageElement | null => {
   let im = images.get(path);
   if (!im) {
     im = new Image();
-    im.src = new URL(path, `${location.origin}/game/`).href;
+    im.src = new URL(path, GAME).href;
     images.set(path, im);
   }
   return im.complete && im.naturalWidth > 0 ? im : null;
@@ -58,18 +61,19 @@ let paused = false;
 let bounds = { x: 0, y: 0, w: 1, h: 1 };
 
 try {
-  const cfg = await (await fetch('/config.json')).json();
+  const cfg = await (await fetch('config.json')).json();
   // ?scene=NAME opens another scene from the same folder (live input only).
   const other = new URLSearchParams(location.search).get('scene');
   if (other) Object.assign(cfg, { scene: other, input: false });
-  const sceneRes = await fetch(`/game/${cfg.scene}`);
+  const sceneRes = await fetch(new URL(cfg.scene, GAME));
   if (!sceneRes.ok) throw new Error(`E K001 cannot read scene '${cfg.scene}'`);
   const sceneText = await sceneRes.text();
-  const replay: string | null = cfg.input ? await (await fetch('/input')).text() : null;
+  const replay: string | null = cfg.input ? await (await fetch('input')).text() : null;
   const mods: Mods = { pre: [], post: [] };
   const api = makeApi(mods);
   for (const m of sceneText.matchAll(/^use\s+(\S+)\s*$/gm)) {
-    (await import(new URL(m[1], `${location.origin}/game/`).href)).default(api);
+    // A built folder holds scripts as .js.
+    (await import(new URL(cfg.built ? m[1].replace(/\.ts$/, '.js') : m[1], GAME).href)).default(api);
   }
 
   const reset = (): void => {
@@ -203,6 +207,13 @@ try {
     if (!expects.length) ex.textContent = '(scene has no expect lines)';
     $('events').textContent = world.events.slice(-8).map((e) => `${e.tick} ${e.name} ${e.a} ${e.b}`).join('\n') || '(none yet)';
   };
+
+  if (cfg.scenes?.length > 1) {
+    const pick = $('scenes') as HTMLSelectElement;
+    for (const name of cfg.scenes) pick.add(new Option(name.replace(/\.kiln$/, ''), name, false, name === cfg.scene));
+    pick.onchange = () => { location.search = `?scene=${encodeURIComponent(pick.value)}`; };
+    $('scenes-label').hidden = false;
+  }
 
   reset();
   addEventListener('keydown', (e) => {

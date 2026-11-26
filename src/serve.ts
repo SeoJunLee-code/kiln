@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { stripTypeScriptTypes } from 'node:module';
 import { basename, dirname, resolve, sep } from 'node:path';
@@ -20,7 +20,8 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  */
 export function serve(sceneFile: string, inputFile: string | undefined, port: number): Promise<{ port: number; close: () => void }> {
   const gameDir = resolve(dirname(sceneFile));
-  const config = JSON.stringify({ scene: basename(sceneFile), input: !!inputFile });
+  const scenes = readdirSync(gameDir).filter((f) => f.endsWith('.kiln')).sort();
+  const config = JSON.stringify({ scene: basename(sceneFile), input: !!inputFile, scenes });
 
   const send = (res: import('node:http').ServerResponse, status: number, type: string, body: string | Buffer): void => {
     res.writeHead(status, { 'content-type': /^image\/(png|jpeg|webp|gif)$/.test(type) ? type : `${type}; charset=utf-8`, 'cache-control': 'no-store' });

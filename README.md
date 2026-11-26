@@ -4,6 +4,8 @@
 
 An open-source game engine whose primary user is an AI agent, not a person in a GUI editor.
 
+**[Play the examples in your browser](https://seojunlee-code.github.io/kiln/)** — built from this repository by `kiln build`; pick a scene from the menu.
+
 Game engines assume a human looking at an editor window. An agent using them pays for that: verbose scene files, results it can only check by looking at pixels, and runs that differ every time. Kiln is designed the other way round.
 
 - **Everything is text.** Scenes are short, diffable files. There is no required editor.
@@ -28,7 +30,8 @@ Kiln is a few days old. The long-term aim is an engine that agents can take from
 | TypeScript scripts with a determinism check | Asset pipeline beyond single images |
 | Browser player: Canvas 2D, and lit, shadowed boxes in WebGL2 for 3D scenes | WebGPU renderer, images in 3D |
 | `solve`: automatic search for a winning input |  |
-| MCP server, CLI | Networking, export to desktop or mobile |
+| `build`: export to a static web folder |  |
+| MCP server, CLI | Networking, desktop and mobile export |
 
 No human has play-tested it yet, and the MCP server has only been exercised by its own tests. See [HANDOFF.md](HANDOFF.md) (Korean) for the detailed status and known limits.
 
@@ -47,6 +50,14 @@ node src/cli.ts play examples/platformer.kiln
 For the 3D example, open the printed URL with `?scene=arena3d.kiln` (arrows or WASD to walk, Space to jump).
 
 `play` prints a local URL; add `?scene=cave.kiln` to open another scene from the same folder. What you press there is recorded as an input script, so a play session can be replayed headless with `kiln test SCENE --input FILE` and gives the same state hash.
+
+## Ship it
+
+```
+node src/cli.ts build mygame/level1.kiln --out dist
+```
+
+`dist` then holds the player, the engine modules it needs and everything next to the scene, as plain files any static host can serve (GitHub Pages, itch.io, an S3 bucket). The demo linked at the top is produced this way on every push.
 
 ## A scene
 

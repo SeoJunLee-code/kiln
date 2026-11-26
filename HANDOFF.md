@@ -31,6 +31,8 @@ AI 에이전트가 1급 사용자인 오픈소스 게임 엔진. 사용자의 �
 | `src/cli.ts` | `check` / `run` / `test` / `schema` / `mcp` / `play` |
 | `src/mcp.ts` | stdio MCP 서버, 도구는 `kiln` 하나 |
 | `src/serve.ts` | `play`용 HTTP 서버. `.ts`를 요청 시 타입 제거해 준다 |
+| `src/build.ts` | `build`: 정적 웹 폴더로 내보내기. 플레이어가 import하는 엔진 모듈만 타입 제거 후 `.js`로, 씬 폴더의 파일은 전부 복사 |
+| `.github/workflows/pages.yml` | push마다 예제를 빌드해 GitHub Pages(https://seojunlee-code.github.io/kiln/)에 배포 |
 | `web/` | 브라우저 플레이어(Canvas 2D, 이미지 스프라이트, 카메라, 입력 기록). `eye`가 있으면 `web/gl.ts`의 WebGL2로 조명과 그림자(태양 하나, 2048 섀도 맵)가 있는 상자를 원근 투영해 그린다 |
 | `scripts/hashes.ts` | 예제 해시를 `examples/HASHES`와 비교. 의도한 변경이면 `--write` |
 | `bench/` | Godot 4 대응 구현과 크기 비교 |
@@ -38,7 +40,7 @@ AI 에이전트가 1급 사용자인 오픈소스 게임 엔진. 사용자의 �
 
 검증 (2026-11-26):
 
-- `npm test` → 43개 통과.
+- `npm test` → 44개 통과.
 - `solve` 측정(Windows 노트북 1대, 1회, 프로세스 시작 포함): cave 0.26초·908상태, maze 0.20초·133상태, patrol 0.20초·195상태, platformer 0.54초·2,365상태, dungeon 0.29초·767상태, arena3d 0.82초·4,497상태. 여섯 개 모두 답이 재생 검증을 통과했다. 우선순위 탐색 이전(너비 우선)에는 patrol 6.6초·119,454상태, platformer 6.8초·69,214상태였고 arena3d는 20만 상태 한도에서 실패했다.
 - 브라우저(프리뷰 `kiln`, `?scene=arena3d.kiln`): WebGL2로 바닥·벽·발판·주인공·보석·출구가 조명과 함께 그려지는 것을 스크린샷으로 확인. 2D 캔버스는 숨겨진다.
 - `node scripts/hashes.ts --check` → 예제 6개(arena3d, cave, dungeon, maze, patrol, platformer) 해시가 `examples/HASHES`와 일치.

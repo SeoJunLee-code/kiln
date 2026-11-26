@@ -4,7 +4,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { command } from '../src/commands.ts';
 import { parseScene, serialize } from '../src/scene.ts';
 import { World } from '../src/world.ts';
@@ -104,7 +104,9 @@ test('serve: strips types from engine and game files and refuses paths outside t
     const get = async (p: string) => { const r = await fetch(`http://127.0.0.1:${port}${p}`); return { status: r.status, type: r.headers.get('content-type'), text: await r.text() }; };
 
     assert.match((await get('/')).text, /<title>Kiln player<\/title>/);
-    assert.deepEqual(JSON.parse((await get('/config.json')).text), { scene: 'patrol.kiln', input: true });
+    const cfg = JSON.parse((await get('/config.json')).text);
+  assert.deepEqual([cfg.scene, cfg.input], ['patrol.kiln', true]);
+  assert.ok(cfg.scenes.includes('maze.kiln'));
     const engine = await get('/engine/src/world.ts');
     assert.match(engine.type!, /text\/javascript/);
     assert.doesNotMatch(engine.text, /export interface|: FieldType/);
@@ -215,4 +217,29 @@ test('guide: one call covers every component and command, and stays small', asyn
   const sample = 'prefab hero\n  box 0.8 0.8\nprefab coin\n  box 0.5 0.5\n' + g.slice(g.indexOf('entity map'), g.indexOf('A spawned prefab'));
   assert.equal((await command('check', { scene: sample })).code, 0);
   assert.ok(g.length < 6000, `guide is ${g.length} characters`);
+});
+
+test('build: a static folder with js modules only, scripts converted, assets copied', async () => {
+  const { build } = await import('../src/build.ts');
+  const { readFileSync: read, existsSync } = await import('node:fs');
+  const out = mkdtempSync(join(tmpdir(), 'kiln-build-'));
+  const files = build(ex('patrol.kiln'), out);
+
+  for (const f of ['index.html', 'config.json', 'engine/web/player.js', 'engine/web/gl.js', 'engine/src/sim.js', 'game/patrol.kiln', 'game/patrol.js', 'game/hero.svg']) {
+    assert.ok(files.includes(f) && existsSync(join(out, f)), f);
+  }
+  // Node-only modules are not part of what the browser needs.
+  assert.ok(!files.some((f) => /engine\/src\/(cli|mcp|serve|commands|load|build)\.js$/.test(f)));
+  for (const f of files.filter((x) => x.endsWith('.js'))) {
+    const code = read(join(out, f), 'utf8');
+    assert.doesNotMatch(code, /from '\.\.?\/[^']+\.ts'/, `${f} still imports .ts`);
+    assert.doesNotMatch(code, /: (string|number)\b|^import type/m, `${f} still has types`);
+  }
+  assert.match(read(join(out, 'index.html'), 'utf8'), /src="engine\/web\/player\.js"/);
+  const cfg = JSON.parse(read(join(out, 'config.json'), 'utf8'));
+  assert.equal(cfg.built, true);
+  assert.ok(cfg.scenes.includes('arena3d.kiln'));
+  // The built simulation is the same code: load it and run a scene with it.
+  const sim = await import(pathToFileURL(join(out, 'engine/src/sim.js')).href);
+  assert.equal(typeof sim.step, 'function');
 });

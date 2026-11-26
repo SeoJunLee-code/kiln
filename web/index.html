@@ -18,6 +18,8 @@
   pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
   .pass { color: var(--ok); } .fail { color: var(--bad); } .open { color: var(--dim); }
   button { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 4px 10px; cursor: pointer; }
+  select { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 3px 6px; margin: 0 0 8px 6px; }
+  label[hidden] { display: none; }
   button:hover { border-color: var(--dim); }
   button:focus-visible { outline: 2px solid var(--ok); outline-offset: 1px; }
   .row { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -32,6 +34,7 @@
 </div>
 <aside>
   <h2>State</h2>
+  <label for="scenes" hidden id="scenes-label">Scene <select id="scenes"></select></label>
   <pre id="state"></pre>
   <div class="row" style="margin-top:8px">
     <button id="restart" type="button">Restart (R)</button>
@@ -50,6 +53,6 @@ input script that replays headless:
 kiln test SCENE --input FILE</pre>
   <pre id="error"></pre>
 </aside>
-<script type="module" src="/engine/web/player.ts"></script>
+<script type="module" src="engine/web/player.ts"></script>
 </body>
 </html>
