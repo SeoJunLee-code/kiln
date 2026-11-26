@@ -13,7 +13,8 @@ const HELP = `kiln <command> [scene] [options]
   mcp                    serve these commands as one MCP tool over stdio
   play SCENE             open the scene in a browser (--port N, default 5207; --input FILE replays it)
   look SCENE             draw the scene in a headless browser and save a picture of the game view
-                         (--tick N, --input FILE, --out FILE.png, --size WxH; needs Chrome or Edge)
+                         (--tick N, --input FILE, --out FILE.png, --size WxH,
+                         --renderer webgpu|webgl2 for 3D; needs Chrome or Edge)
   new DIR                start a game: starter scene, agent instructions, MCP config
   build SCENE --out DIR  write a folder any static web host can serve (player, engine, the scene's folder)
 options:
@@ -60,7 +61,9 @@ if (cmd === 'mcp') {
   const tick = flag('--tick') ?? '0';
   if (!size || !/^\d+$/.test(tick)) { console.log('E K002 look takes --tick N and --size WxH'); process.exit(2); }
   const { lookCommand } = await import('./look.ts');
-  const r = await lookCommand(rest[0], flag('--out'), { tick: +tick, inputFile: flag('--input'), width: +size[1], height: +size[2] });
+  const renderer = flag('--renderer');
+  if (renderer !== undefined && renderer !== 'webgpu' && renderer !== 'webgl2') { console.log('E K002 --renderer is webgpu or webgl2'); process.exit(2); }
+  const r = await lookCommand(rest[0], flag('--out'), { tick: +tick, inputFile: flag('--input'), width: +size[1], height: +size[2], query: renderer && `renderer=${renderer}` });
   process.stdout.write(r.text);
   // The headless browser can keep the event loop alive for a moment after it closes.
   process.exit(r.code);

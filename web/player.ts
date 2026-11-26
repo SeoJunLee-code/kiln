@@ -1,7 +1,8 @@
 // Browser player. It runs the same simulation modules as the headless CLI and only
 // adds drawing and keyboard input. Floats appear here for drawing, never in the simulation.
 import { makeRenderer3 } from './gl.ts';
-import type { Box3, Renderer3 } from './gl.ts';
+import { makeRendererGpu } from './gpu.ts';
+import type { Box3, Renderer3 } from './mesh.ts';
 import { makeApi } from '../src/api.ts';
 import { evalTick, parseExpects } from '../src/expect.ts';
 import type { Expect } from '../src/expect.ts';
@@ -20,19 +21,36 @@ const $ = (id: string): HTMLElement => document.getElementById(id)!;
 const canvas = $('view') as HTMLCanvasElement;
 const g = canvas.getContext('2d')!;
 const canvas3 = $('view3d') as HTMLCanvasElement;
-// Created on first use, so 2D scenes never ask for a WebGL context.
+// The 3D renderer, asked for on first use so 2D scenes never touch the GPU. WebGPU is
+// preferred and WebGL2 is the fallback; ?renderer=webgl2 or ?renderer=webgpu picks one.
+// Starting WebGPU takes a moment, so the 2D view shows until the renderer is there.
 let gl3: Renderer3 | null | undefined;
+let rendererAsked = false;
+const wantRenderer = (): void => {
+  if (rendererAsked) return;
+  rendererAsked = true;
+  const only = new URLSearchParams(location.search).get('renderer');
+  loading.push((async () => {
+    let made: Renderer3 | null = null;
+    if (only !== 'webgl2') made = await makeRendererGpu(canvas3).catch(() => null);
+    if (!made && only !== 'webgpu') made = makeRenderer3(canvas3);
+    for (const [path, text] of meshText) made?.addMesh(path, text);
+    gl3 = made;
+  })());
+};
 
 // Mesh files asked for so far. Each is fetched once and handed to the renderer when it arrives;
 // until then (or if it fails) the entity is drawn as its box.
 const meshAsked = new Set<string>();
+// Mesh text that has arrived, kept for a renderer that is made later.
+const meshText = new Map<string, string>();
 // Assets still on their way. A picture taken for a check waits for these, so it never
 // shows the fallback box of a mesh or image that simply had not arrived yet.
 const loading: Promise<unknown>[] = [];
 const wantMesh = (path: string): string => {
   if (!meshAsked.has(path)) {
     meshAsked.add(path);
-    loading.push(fetch(new URL(path, GAME)).then((r) => (r.ok ? r.text() : '')).then((t) => { if (t) gl3?.addMesh(path, t); }).catch(() => {}));
+    loading.push(fetch(new URL(path, GAME)).then((r) => (r.ok ? r.text() : '')).then((t) => { if (t) { meshText.set(path, t); gl3?.addMesh(path, t); } }).catch(() => {}));
   }
   return path;
 };
@@ -192,7 +210,7 @@ try {
 
   const draw = (): void => {
     const eyeId = world.query('eye', 'pos')[0];
-    if (eyeId !== undefined && gl3 === undefined) gl3 = makeRenderer3(canvas3);
+    if (eyeId !== undefined) wantRenderer();
     const use3 = eyeId !== undefined && !!gl3;
     canvas3.hidden = !use3;
     canvas.hidden = use3;

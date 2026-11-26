@@ -18,14 +18,18 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const REFERENCES = join(ROOT, 'tests', 'images');
 const ACTUAL = join(ROOT, 'out', 'images');
 
-// Scene, and the tick of its recorded run at which the picture is taken.
-const CASES: [scene: string, tick: number][] = [
+// Scene, the tick of its recorded run at which the picture is taken, and for 3D scenes
+// the renderer. Both renderers are held to the same reference picture, which was drawn
+// by WebGL2: WebGPU has to match it until it is given features WebGL2 does not have.
+const CASES: [scene: string, tick: number, renderer?: string][] = [
   ['maze', 0], ['cave', 60], ['dungeon', 0], ['platformer', 90], ['level1', 0],
-  ['sokoban', 120], ['quest', 200], ['arena3d', 120], ['crypt3d', 60],
+  ['sokoban', 120], ['quest', 200],
+  ['arena3d', 120, 'webgl2'], ['arena3d', 120, 'webgpu'], ['crypt3d', 60, 'webgl2'], ['crypt3d', 60, 'webgpu'],
 ];
-// A pixel counts as changed when a channel moves by more than 8 of 255;
-// a picture fails when more than 0.2% of its pixels changed.
-const CHANNEL = 8, SHARE = 0.002;
+// A pixel counts as changed when a channel moves by more than 8 of 255. A picture fails
+// when more than 0.2% of its pixels changed; across renderers, where edges are
+// smoothed slightly differently, 0.5%.
+const CHANNEL = 8, SHARE = 0.002, SHARE_ACROSS = 0.005;
 
 const write = process.argv.includes('--write');
 const reference = process.platform === 'linux' && !!process.env.CI;
@@ -35,21 +39,22 @@ mkdirSync(REFERENCES, { recursive: true });
 const browser = await launch({ args: GPU_SWITCHES });
 let failed = 0;
 try {
-  for (const [scene, tick] of CASES) {
+  for (const [scene, tick, renderer] of CASES) {
     const file = join(ROOT, 'examples', `${scene}.kiln`), name = `${scene}@${tick}.png`;
-    const seen = await look(file, { tick, inputFile: join(ROOT, 'examples', `${scene}.input`), browser });
-    writeFileSync(join(ACTUAL, name), seen.png);
+    const seen = await look(file, { tick, inputFile: join(ROOT, 'examples', `${scene}.input`), browser, query: renderer && `renderer=${renderer}` });
+    writeFileSync(join(ACTUAL, renderer === 'webgpu' ? name.replace('.png', '.webgpu.png') : name), seen.png);
     const problems: string[] = [];
     if (!summarize(seen.picture).box) problems.push('the frame is blank');
     if (seen.errors.length) problems.push(`page error: ${seen.errors[0].split('\n')[0]}`);
+    if (reference && renderer && seen.renderer !== renderer) problems.push(`asked for ${renderer}, got ${seen.renderer}`);
     let distance = 'no reference';
-    if (write) writeFileSync(join(REFERENCES, name), seen.png);
+    if (write && renderer !== 'webgpu') writeFileSync(join(REFERENCES, name), seen.png);
     else if (existsSync(join(REFERENCES, name))) {
       const d = compare(decodePng(readFileSync(join(REFERENCES, name))), seen.picture, CHANNEL);
       distance = d.sameSize ? `changed=${(d.changed * 100).toFixed(3)}% worst=${d.worst}` : 'size differs';
-      if (reference && (!d.sameSize || d.changed > SHARE)) problems.push(`differs from its reference (${distance})`);
+      if (reference && (!d.sameSize || d.changed > (renderer === 'webgpu' ? SHARE_ACROSS : SHARE))) problems.push(`differs from its reference (${distance})`);
     } else if (reference) problems.push('has no reference image');
-    console.log(`${problems.length ? 'FAIL' : 'ok  '} ${name} renderer=${seen.renderer} ${write ? 'written' : distance}${problems.length ? ` -- ${problems.join('; ')}` : ''}`);
+    console.log(`${problems.length ? 'FAIL' : 'ok  '} ${name} renderer=${seen.renderer} ${write && renderer !== 'webgpu' ? 'written' : distance}${problems.length ? ` -- ${problems.join('; ')}` : ''}`);
     if (problems.length) failed++;
   }
 } finally {

@@ -54,15 +54,29 @@ test('browser: a 2D scene is drawn, and look reports what is in the frame', { sk
   assert.deepEqual(seen.errors, []);
 });
 
-test('browser: a 3D scene is drawn by the GPU renderer, with its meshes', { skip }, async () => {
-  const seen = await look(ex('arena3d.kiln'), { browser });
-  assert.match(seen.renderer, /^web(gl2|gpu)$/);
+test('browser: WebGPU is the 3D renderer when the browser has it, and draws what WebGL2 draws', { skip }, async () => {
+  const at = { tick: 120, inputFile: ex('arena3d.input'), browser };
+  const chosen = await look(ex('arena3d.kiln'), at);
+  const gl = await look(ex('arena3d.kiln'), { ...at, query: 'renderer=webgl2' });
+  assert.equal(gl.renderer, 'webgl2');
+  assert.deepEqual(gl.errors, []);
+  if (chosen.renderer !== 'webgpu') return; // this browser has no WebGPU; the fallback was just checked
+  assert.deepEqual(chosen.errors, []);
+  // Same scene, same camera, same lighting model: only edge pixels may differ.
+  const d = compare(gl.picture, chosen.picture);
+  assert.ok(d.sameSize && d.changed < 0.01, `WebGPU differs from WebGL2 in ${(d.changed * 100).toFixed(2)}% of pixels`);
+});
+
+for (const renderer of ['webgl2', 'webgpu']) test(`browser: a 3D scene is drawn by ${renderer}, with its meshes`, { skip }, async () => {
+  const seen = await look(ex('arena3d.kiln'), { browser, query: `renderer=${renderer}` });
+  // Asking for a renderer the browser lacks leaves the 2D view; nothing to check then.
+  if (seen.renderer !== renderer) return;
   assert.ok(summarize(seen.picture).drawn > 0.1);
   assert.deepEqual(seen.errors, []);
 
   // A mesh that fails to draw falls back to its box. The gem and the spire are meshes and
   // are in view by tick 120 of the recorded run, so the frame has to change without them.
-  const player = await openPlayer(ex('arena3d.kiln'), { inputFile: ex('arena3d.input'), browser });
+  const player = await openPlayer(ex('arena3d.kiln'), { inputFile: ex('arena3d.input'), browser, query: `renderer=${renderer}` });
   try {
     const shots = await player.page.eval<{ mesh: string; box: string }>(`(async () => {
       kiln.runTo(120);
