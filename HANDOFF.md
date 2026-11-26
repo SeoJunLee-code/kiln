@@ -77,7 +77,7 @@ AI 에이전트가 1급 사용자인 오픈소스 게임 엔진. 방향은 **"AI
 - 측정으로 찾아 고친 것 세 가지, 전부 결과 비트는 그대로(벤치 해시 10개와 새 테스트 해시가 고치기 전 코드와 같다. `git stash`로 대조): (1) `physicsSync`가 틱마다 강체를 다시 읽지 않고 지난 스텝이 읽어 둔 값(`Link.seen`, 저장 안 됨, 복원 뒤 첫 틱은 다시 읽는다)과 비교한다. 틱당 `read`가 2N→N. (2) 어댑터의 `place`가 호출마다 하던 `propagateModifiedBodyPositionsToColliders`를 다음 `cast`·`save` 직전 한 번으로 미뤘다. (3) `cast`가 "새 강체"를 하나씩 물을 때 쓸고 가는 공간에서 닿을 수 없이 먼 것은 건너뛴다. 스크립트가 모든 강체를 매 틱 고치는 경우 500개 26.9ms → 11.1ms, 2,000개 181ms → 54ms.
 - `npm test` → 111개 통과(이 PC, 건너뜀 0). 늘어난 1개: 스크립트가 매 틱 고치는 강체 24개 사이를 걷는 캐릭터가 강체에 파고들지 않고 밀며, 180틱 해시가 `2b87d1e3`(고치기 전 코드에서 뽑은 값).
 - `node scripts/hashes.ts --check` → 18개 일치. `node scripts/images.ts` → 0 failed(이 PC는 참고 출력).
-- CI: 아래 "8차 CI" 줄 참고.
+- CI: 커밋 accd3e6에서 `ci`(Linux·macOS·Windows, 새 고정 해시 `2b87d1e3` 포함), `images`, `demo` 모두 초록.
 
 ## 검증 (2026-11-26 7차, 이전 기록: 강체가 캐릭터를 민다)
 
