@@ -354,6 +354,14 @@ try {
         // Arriving assets can ask for more, so wait until a draw adds nothing new.
         for (let seen = -1; seen !== loading.length;) { seen = loading.length; await Promise.all(loading); draw(); }
         const use3 = !canvas3.hidden;
+        const pixels = use3 ? await gl3!.read?.() : null;
+        if (pixels) {
+          const copy = document.createElement('canvas');
+          copy.width = pixels.width;
+          copy.height = pixels.height;
+          copy.getContext('2d')!.putImageData(new ImageData(pixels.rgba, pixels.width, pixels.height), 0, 0);
+          return { renderer: gl3!.name, png: copy.toDataURL('image/png') };
+        }
         return { renderer: use3 ? gl3!.name : '2d', png: (use3 ? canvas3 : canvas).toDataURL('image/png') };
       },
       expects: () => expects.map((e) => `${e.ok === undefined ? 'open' : e.ok ? 'pass' : 'FAIL'} ${e.text}`),

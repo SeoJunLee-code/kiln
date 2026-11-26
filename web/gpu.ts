@@ -136,83 +136,123 @@ export async function makeRendererGpu(canvas: HTMLCanvasElement): Promise<Render
   let color: any, depth: any, sizedFor = '';
   const sun = norm(SUN);
 
+  // Match the canvas and the multisampled targets to the size the page shows the canvas at.
+  // This has to happen before the canvas is asked for its texture, which takes the canvas's size.
+  const fit = (): void => {
+    const dpr = window.devicePixelRatio || 1;
+    const w = Math.max(1, Math.round(canvas.clientWidth * dpr)), h = Math.max(1, Math.round(canvas.clientHeight * dpr));
+    if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+    if (sizedFor !== `${w}x${h}`) {
+      color?.destroy();
+      depth?.destroy();
+      color = device.createTexture({ size: [w, h], format, sampleCount: SAMPLES, usage: TEX.RENDER_ATTACHMENT });
+      depth = device.createTexture({ size: [w, h], format: 'depth24plus', sampleCount: SAMPLES, usage: TEX.RENDER_ATTACHMENT });
+      sizedFor = `${w}x${h}`;
+    }
+  };
+
+  // Draw one frame into `into`, a texture of the canvas's size and format.
+  const render = (boxes: Box3[], eye: number[], target: number[], fovDeg: number, into: any): void => {
+    const w = canvas.width, h = canvas.height;
+
+    // Instances, grouped so that each mesh is one draw call.
+    const groups = new Map<Mesh, Box3[]>();
+    for (const b of boxes) {
+      const mesh = (b.mesh && meshes.get(b.mesh)) || box;
+      let group = groups.get(mesh);
+      if (!group) groups.set(mesh, (group = []));
+      group.push(b);
+    }
+    if (boxes.length * INSTANCE_FLOATS > instances.length) {
+      instances = new Float32Array(Math.max(boxes.length, instances.length / INSTANCE_FLOATS * 2) * INSTANCE_FLOATS);
+      instanceBuffer.destroy();
+      instanceBuffer = device.createBuffer({ size: instances.byteLength, usage: USAGE.VERTEX | USAGE.COPY_DST });
+    }
+    let at = 0;
+    for (const group of groups.values()) for (const b of group) {
+      // Unit cube -> box, with the simulation's downward y turned to point up.
+      instances.fill(0, at, at + 16);
+      instances[at] = b.s[0]; instances[at + 5] = -b.s[1]; instances[at + 10] = b.s[2];
+      instances[at + 12] = b.p[0]; instances[at + 13] = -b.p[1]; instances[at + 14] = b.p[2]; instances[at + 15] = 1;
+      instances[at + 16] = b.color[0]; instances[at + 17] = b.color[1]; instances[at + 18] = b.color[2]; instances[at + 19] = 1;
+      at += INSTANCE_FLOATS;
+    }
+    device.queue.writeBuffer(instanceBuffer, 0, instances, 0, at);
+
+    // The sun's box: centred on what the camera looks at, wide enough for the area around it.
+    const t = [target[0], -target[1], target[2]], e = [eye[0], -eye[1], eye[2]];
+    const reach = Math.max(14, Math.hypot(...sub(e, t)) * 1.6);
+    const light = mul(ortho01(reach, 0.1, reach * 4), lookAt([t[0] + sun[0] * reach * 2, t[1] + sun[1] * reach * 2, t[2] + sun[2] * reach * 2], t));
+    frame.set(mul(perspective01(fovDeg, w / h, 0.1, 200), lookAt(e, t)), 0);
+    frame.set(light, 16);
+    frame.set(e, 32);
+    frame.set(sun, 36);
+    frame.set(SKY, 40);
+    device.queue.writeBuffer(frameBuffer, 0, frame);
+
+    const drawAll = (pass: any): void => {
+      pass.setVertexBuffer(1, instanceBuffer);
+      let first = 0;
+      for (const [mesh, group] of groups) {
+        pass.setVertexBuffer(0, mesh.buffer);
+        pass.draw(mesh.count, group.length, 0, first);
+        first += group.length;
+      }
+    };
+    const encoder = device.createCommandEncoder();
+    const shadowPass = encoder.beginRenderPass({ colorAttachments: [], depthStencilAttachment: { view: shadowView, depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'store' } });
+    shadowPass.setPipeline(shadowPipeline);
+    shadowPass.setBindGroup(0, shadowBind);
+    drawAll(shadowPass);
+    shadowPass.end();
+    const mainPass = encoder.beginRenderPass({
+      colorAttachments: [{ view: color.createView(), resolveTarget: into.createView(), clearValue: [...SKY, 1], loadOp: 'clear', storeOp: 'discard' }],
+      depthStencilAttachment: { view: depth.createView(), depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'discard' },
+    });
+    mainPass.setPipeline(mainPipeline);
+    mainPass.setBindGroup(0, mainBind);
+    drawAll(mainPass);
+    mainPass.end();
+    device.queue.submit([encoder.finish()]);
+  };
+
+  let last: [Box3[], number[], number[], number] | undefined;
   return {
     name: 'webgpu',
     addMesh(name, obj) {
       const data = parseObj(obj);
       if (data.length) meshes.set(name, upload(data));
     },
-    draw(boxes: Box3[], eye, target, fovDeg) {
-      const dpr = window.devicePixelRatio || 1;
-      const w = Math.max(1, Math.round(canvas.clientWidth * dpr)), h = Math.max(1, Math.round(canvas.clientHeight * dpr));
-      if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
-      if (sizedFor !== `${w}x${h}`) {
-        color?.destroy();
-        depth?.destroy();
-        color = device.createTexture({ size: [w, h], format, sampleCount: SAMPLES, usage: TEX.RENDER_ATTACHMENT });
-        depth = device.createTexture({ size: [w, h], format: 'depth24plus', sampleCount: SAMPLES, usage: TEX.RENDER_ATTACHMENT });
-        sizedFor = `${w}x${h}`;
-      }
-
-      // Instances, grouped so that each mesh is one draw call.
-      const groups = new Map<Mesh, Box3[]>();
-      for (const b of boxes) {
-        const mesh = (b.mesh && meshes.get(b.mesh)) || box;
-        let group = groups.get(mesh);
-        if (!group) groups.set(mesh, (group = []));
-        group.push(b);
-      }
-      if (boxes.length * INSTANCE_FLOATS > instances.length) {
-        instances = new Float32Array(Math.max(boxes.length, instances.length / INSTANCE_FLOATS * 2) * INSTANCE_FLOATS);
-        instanceBuffer.destroy();
-        instanceBuffer = device.createBuffer({ size: instances.byteLength, usage: USAGE.VERTEX | USAGE.COPY_DST });
-      }
-      let at = 0;
-      for (const group of groups.values()) for (const b of group) {
-        // Unit cube -> box, with the simulation's downward y turned to point up.
-        instances.fill(0, at, at + 16);
-        instances[at] = b.s[0]; instances[at + 5] = -b.s[1]; instances[at + 10] = b.s[2];
-        instances[at + 12] = b.p[0]; instances[at + 13] = -b.p[1]; instances[at + 14] = b.p[2]; instances[at + 15] = 1;
-        instances[at + 16] = b.color[0]; instances[at + 17] = b.color[1]; instances[at + 18] = b.color[2]; instances[at + 19] = 1;
-        at += INSTANCE_FLOATS;
-      }
-      device.queue.writeBuffer(instanceBuffer, 0, instances, 0, at);
-
-      // The sun's box: centred on what the camera looks at, wide enough for the area around it.
-      const t = [target[0], -target[1], target[2]], e = [eye[0], -eye[1], eye[2]];
-      const reach = Math.max(14, Math.hypot(...sub(e, t)) * 1.6);
-      const light = mul(ortho01(reach, 0.1, reach * 4), lookAt([t[0] + sun[0] * reach * 2, t[1] + sun[1] * reach * 2, t[2] + sun[2] * reach * 2], t));
-      frame.set(mul(perspective01(fovDeg, w / h, 0.1, 200), lookAt(e, t)), 0);
-      frame.set(light, 16);
-      frame.set(e, 32);
-      frame.set(sun, 36);
-      frame.set(SKY, 40);
-      device.queue.writeBuffer(frameBuffer, 0, frame);
-
-      const drawAll = (pass: any): void => {
-        pass.setVertexBuffer(1, instanceBuffer);
-        let first = 0;
-        for (const [mesh, group] of groups) {
-          pass.setVertexBuffer(0, mesh.buffer);
-          pass.draw(mesh.count, group.length, 0, first);
-          first += group.length;
-        }
-      };
+    draw(boxes, eye, target, fovDeg) {
+      last = [boxes, eye, target, fovDeg];
+      fit();
+      render(boxes, eye, target, fovDeg, context.getCurrentTexture());
+    },
+    // The canvas cannot be read back reliably: with software rendering on Linux it comes
+    // back blank. So the last frame is drawn again into a texture and copied out of that.
+    async read() {
+      if (!last) return null;
+      const w = canvas.width, h = canvas.height, rowBytes = Math.ceil((w * 4) / 256) * 256;
+      const texture = device.createTexture({ size: [w, h], format, usage: TEX.RENDER_ATTACHMENT | TEX.COPY_SRC });
+      const buffer = device.createBuffer({ size: rowBytes * h, usage: USAGE.COPY_DST | USAGE.MAP_READ });
+      render(...last, texture);
       const encoder = device.createCommandEncoder();
-      const shadowPass = encoder.beginRenderPass({ colorAttachments: [], depthStencilAttachment: { view: shadowView, depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'store' } });
-      shadowPass.setPipeline(shadowPipeline);
-      shadowPass.setBindGroup(0, shadowBind);
-      drawAll(shadowPass);
-      shadowPass.end();
-      const mainPass = encoder.beginRenderPass({
-        colorAttachments: [{ view: color.createView(), resolveTarget: context.getCurrentTexture().createView(), clearValue: [...SKY, 1], loadOp: 'clear', storeOp: 'discard' }],
-        depthStencilAttachment: { view: depth.createView(), depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'discard' },
-      });
-      mainPass.setPipeline(mainPipeline);
-      mainPass.setBindGroup(0, mainBind);
-      drawAll(mainPass);
-      mainPass.end();
+      encoder.copyTextureToBuffer({ texture }, { buffer, bytesPerRow: rowBytes }, [w, h]);
       device.queue.submit([encoder.finish()]);
+      await buffer.mapAsync((globalThis as any).GPUMapMode.READ);
+      const padded = new Uint8Array(buffer.getMappedRange()), rgba = new Uint8ClampedArray(w * h * 4);
+      const swap = String(format).startsWith('bgra');
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const from = y * rowBytes + x * 4, to = (y * w + x) * 4;
+        rgba[to] = padded[from + (swap ? 2 : 0)];
+        rgba[to + 1] = padded[from + 1];
+        rgba[to + 2] = padded[from + (swap ? 0 : 2)];
+        rgba[to + 3] = 255;
+      }
+      buffer.unmap();
+      buffer.destroy();
+      texture.destroy();
+      return { width: w, height: h, rgba };
     },
   };
 }
