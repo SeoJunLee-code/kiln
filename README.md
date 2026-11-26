@@ -14,17 +14,19 @@ Game engines assume a human looking at an editor window. An agent using them pay
 - **The engine can play its own levels.** `kiln solve` searches for an input that meets a scene's goals, so a level is shown to be finishable without anyone playing it.
 - **One MCP tool.** An agent connects over MCP and gets the whole engine as a single tool.
 
+![The 3D example in the browser player: lit boxes with shadows, and the live state, checks and controls beside it](docs/arena3d.jpg)
+
 ## Where it stands
 
 Kiln is a few days old. The long-term aim is an engine that agents can take from prototype to a shipped, good-looking game — the role Unreal and Godot play for human teams. Today it is a small core for box-shaped worlds, in 2D and (as a first step) 3D.
 
 | Works today | Not yet |
 |---|---|
-| Text scenes, 12 built-in components, levels drawn as character grids with prefabs | Meshes, materials, shadows, shaders |
+| Text scenes, 12 built-in components, levels drawn as character grids with prefabs | Meshes, materials, textures, shaders |
 | Fixed-point simulation on x, y and z; swept box collision; triggers | Rotation, non-box shapes, joints |
 | `expect` checks with explanations on failure | Audio, animation, UI |
 | TypeScript scripts with a determinism check | Asset pipeline beyond single images |
-| Browser player: Canvas 2D, and lit boxes in WebGL2 for 3D scenes | WebGPU renderer, images in 3D |
+| Browser player: Canvas 2D, and lit, shadowed boxes in WebGL2 for 3D scenes | WebGPU renderer, images in 3D |
 | `solve`: automatic search for a winning input |  |
 | MCP server, CLI | Networking, export to desktop or mobile |
 
@@ -150,7 +152,7 @@ entity floor
   solid
 ```
 
-`y` grows downward, so things above the floor have negative `y`. `--top` prints a floor plan (the x/z plane) instead of a screenshot. This is 3D for box worlds only: no meshes, textures or shadows yet.
+`y` grows downward, so things above the floor have negative `y`. `--top` prints a floor plan (the x/z plane) instead of a screenshot. This is 3D for box worlds only: one sun with shadows, no meshes or textures yet.
 
 ## Scripts
 
@@ -185,7 +187,7 @@ One measurement so far: the maze example, with its play-through and checks, is 7
 1. Connect a real agent over MCP and build a complete small game with it; fix what hurts.
 2. Animation, audio, a WebGPU renderer.
 3. Rotation and more collision shapes.
-4. 3D beyond boxes: meshes, PBR materials, shadows, a mesh format that stays readable.
+4. 3D beyond boxes: meshes, PBR materials, more lights, a mesh format that stays readable.
 5. Export targets and networking built on the deterministic core (rollback, replays).
 
 ## Contributing
