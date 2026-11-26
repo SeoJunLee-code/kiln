@@ -105,6 +105,8 @@ B의 (d)(e)다. 실행 조건은 **내가 정했다**(사용자 확인 없음). 
 - 한계(COMPARE.md에 더 있다): 각 1회라 편차를 모른다. Kiln 2차는 엔진 수정과 모델의 다른 뽑기가 섞여 있고 레벨도 더 단순하다. 명세를 Kiln이 썼다(녹화 입력·테스트 명령·폴더 통과는 Kiln이 가진 것이다). Godot 게임은 아무도 화면으로 보지 않았고 프레임 속도·내보내기 크기를 재지 않았다. 두 번째·Godot 실행의 에이전트가 한국어로 답했다(기계의 어떤 설정이 닿았다는 뜻이다. 도구 구성은 같다).
 - 로그는 스크래치패드에만 있다(절대경로가 들어 있어 저장소에 넣지 않았다).
 - `npm test` → 153개 통과(이 PC, 건너뜀 0). `node scripts/hashes.ts --check` → 일치. `node scripts/images.ts` → 0 failed(이 PC는 참고 출력).
+- CI: 커밋 `f804a7b`에서 `ci`(3 OS), `images`, `demo` 모두 초록.
+- 세션 메모: 이 세션(13~14차)은 다른 세션이 시작한 세션이라 앱이 `start_session`의 직접 시작(`user_asked`)을 거부했다("Start sessions only on the user's own words"). 그런 세션에서는 제안 카드(`own_initiative`)만 낼 수 있다.
 
 ## 검증 (2026-11-26~27 13차: Lite 증명 게임 프레임 속도)
 
