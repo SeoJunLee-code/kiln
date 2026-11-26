@@ -76,10 +76,20 @@ export async function command(cmd: string, a: CmdArgs): Promise<{ text: string; 
     }
     if (cmd === 'solve') {
       const s = solve(text, { file, mods, stepTicks: a.stepTicks, maxStates: a.maxStates });
-      if (!s.ok) return out.push(`fail ${s.note}`, `fail tick=${s.tick} states=${s.states}`), done(1);
+      if (!s.ok) {
+        out.push(`fail ${s.note}`);
+        // Show where the furthest attempt ended, so the level can be fixed without guessing.
+        if (s.input) {
+          const far = run(text, { input: s.input, file, mods, ticks: s.tick - parseScene(text, file).world.tick });
+          out.push(`furthest attempt, tick ${s.tick}:`, view(far.world).trimEnd());
+          if (a.out) writeFileSync(a.out, s.input);
+        }
+        out.push(`fail tick=${s.tick} states=${s.states}${a.out && s.input ? ` wrote=${a.out} (furthest attempt, not a solution)` : ''}`);
+        return done(1);
+      }
       // Replay the answer through the normal path, so a solution is never reported without being checked.
       const check = run(text, { input: s.input, file, mods, ticks: s.tick - parseScene(text, file).world.tick });
-      const broken = check.expects.filter((e) => e.kind !== 'at' && e.ok === false);
+      const broken = check.expects.filter((e) => e.kind !== 'at' && e.kind !== 'count' && e.ok === false);
       if (broken.length) return out.push(`E K131 solver answer failed replay: ${broken[0].text}`), done(2);
       if (a.out) writeFileSync(a.out, s.input);
       out.push(s.input.trimEnd(), `ok solved tick=${s.tick} states=${s.states}${a.out ? ` wrote=${a.out}` : ''}`);

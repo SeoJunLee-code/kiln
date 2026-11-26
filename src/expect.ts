@@ -8,7 +8,7 @@ import type { World } from './world.ts';
 export interface Expect {
   line: number;
   text: string;
-  kind: 'reach' | 'never' | 'at' | 'event' | 'gone';
+  kind: 'reach' | 'never' | 'at' | 'event' | 'gone' | 'count';
   a: string;
   b: string;
   /** deadline tick; Infinity = whole run */
@@ -26,7 +26,7 @@ const OPS: Record<string, (a: number | string, b: number | string) => boolean> =
   '<': (a, b) => a < b, '<=': (a, b) => a <= b, '>': (a, b) => a > b, '>=': (a, b) => a >= b,
   '==': (a, b) => a === b, '!=': (a, b) => a !== b,
 };
-const USAGE = `forms: reach A B by N | never A B | gone A by N | event NAME by N | at N A.comp.field OP VALUE`;
+const USAGE = `forms: reach A B by N | never A B | gone A by N | event NAME by N | count NAME OP VALUE at N | at N A.comp.field OP VALUE`;
 
 /**
  * Expectation forms (A/B are entity names or #tags):
@@ -34,6 +34,7 @@ const USAGE = `forms: reach A B by N | never A B | gone A by N | event NAME by N
  *   never A B           A never overlaps B during the run
  *   gone A by N         A has been despawned by tick N
  *   event NAME by N     a trigger emitted NAME by tick N
+ *   count NAME OP V at N   the number of NAME events emitted up to tick N compares true
  *   at N A.comp.field OP VALUE
  */
 export function parseExpects(raw: RawExpect[], w: World, file = 'scene'): Expect[] {
@@ -52,6 +53,12 @@ export function parseExpects(raw: RawExpect[], w: World, file = 'scene'): Expect
     else if (t[0] === 'never' && t.length === 3) { e.kind = 'never'; e.a = ref(t[1]); e.b = ref(t[2]); }
     else if (t[0] === 'gone' && t.length === 4 && t[2] === 'by') { e.kind = 'gone'; e.a = ref(t[1]); e.by = int(t[3]); }
     else if (t[0] === 'event' && t.length === 4 && t[2] === 'by') { e.kind = 'event'; e.a = t[1]; e.by = int(t[3]); }
+    else if (t[0] === 'count' && t.length === 6 && t[4] === 'at') {
+      e.kind = 'count'; e.a = t[1]; e.op = t[2]; e.by = int(t[5]);
+      e.val = int(t[3]);
+      if (Number.isNaN(e.val)) err('K104', `'${t[3]}' is not a valid count`);
+      if (!OPS[e.op]) err('K111', `unknown operator '${e.op}'`, 'valid: < <= > >= == !=');
+    }
     else if (t[0] === 'at' && t.length === 5) {
       e.kind = 'at'; e.by = int(t[1]); e.path = t[2].split('.'); e.op = t[3];
       const [name, comp, field] = e.path;
@@ -116,6 +123,11 @@ export function evalTick(w: World, es: Expect[]): void {
       const ev = w.events.find((x) => x.name === e.a);
       if (ev) { e.ok = true; e.note = `tick ${ev.tick}`; }
       else if (w.tick >= e.by) { e.ok = false; e.note = `events so far: ${[...new Set(w.events.map((x) => x.name))].join(' ') || 'none'}`; }
+    } else if (e.kind === 'count') {
+      if (w.tick !== e.by) continue;
+      const n = w.events.filter((x) => x.name === e.a).length;
+      e.ok = OPS[e.op](n, e.val);
+      e.note = `actual ${n}`;
     } else if (w.tick === e.by) {
       const [name, comp, field] = e.path;
       const id = w.match(name)[0];
@@ -133,6 +145,6 @@ export function finish(es: Expect[]): void {
   for (const e of es) {
     if (e.ok !== undefined) continue;
     e.ok = e.kind === 'never';
-    if (e.kind === 'at') e.note = `run ended before tick ${e.by}`;
+    if (e.kind === 'at' || e.kind === 'count') e.note = `run ended before tick ${e.by}`;
   }
 }

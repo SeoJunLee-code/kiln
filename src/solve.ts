@@ -32,7 +32,7 @@ interface Node { w: World; ex: Expect[]; parent: Node | null; keys: string[]; do
 
 export interface SolveResult {
   ok: boolean;
-  /** input script that satisfies the goals, when ok */
+  /** input script that satisfies the goals when ok; otherwise the input of the attempt that got furthest */
   input: string;
   tick: number;
   states: number;
@@ -43,14 +43,14 @@ const GOALS = ['reach', 'gone', 'event'];
 
 /**
  * Search for an input script that satisfies every reach/gone/event expectation without
- * breaking a `never`. `at` expectations are not searched for (they are checked by `test`).
+ * breaking a `never`. `at` and `count` expectations are not searched for (they are checked by `test`).
  *   stepTicks  how long each key choice is held (smaller = finer control, larger search)
  *   maxStates  give up after this many distinct states
  */
 export function solve(sceneText: string, opts: { file?: string; mods?: Mods; stepTicks?: number; maxStates?: number } = {}): SolveResult {
   const { world, expects: raw } = parseScene(sceneText, opts.file);
   if (opts.mods) { world.pre = opts.mods.pre; world.post = opts.mods.post; }
-  const expects = parseExpects(raw, world, opts.file).filter((e) => e.kind !== 'at');
+  const expects = parseExpects(raw, world, opts.file).filter((e) => e.kind !== 'at' && e.kind !== 'count');
   const goals = expects.filter((e) => GOALS.includes(e.kind)).length;
   const stepTicks = opts.stepTicks ?? 5, maxStates = opts.maxStates ?? 200000;
   const fail = (note: string, tick = 0, states = 0): SolveResult => ({ ok: false, input: '', tick, states, note });
@@ -158,7 +158,8 @@ export function solve(sceneText: string, opts: { file?: string; mods?: Mods; ste
   const root: Node = { w: world, ex: expects, parent: null, keys: [], done: count(expects), depth: 0, f: 0, seq: seq++ };
   const seen = new Set([key(root)]);
   push(root);
-  let best = root, goal: Node | null = root.done === goals ? root : null;
+  // Furthest attempt so far: fewest open goals, then nearest to the next one.
+  let best = root, bestF = Infinity, goal: Node | null = root.done === goals ? root : null;
 
   while (heap.length && !goal && seen.size <= maxStates) {
     const n = pop();
@@ -177,30 +178,34 @@ export function solve(sceneText: string, opts: { file?: string; mods?: Mods; ste
       if (seen.has(k)) continue;
       seen.add(k);
       c.done = count(c.ex);
-      if (c.done > best.done) best = c;
       if (c.done === goals) { goal = c; break; }
       c.f = rank(c);
+      if (c.f - c.depth * 2048 < bestF) { best = c; bestF = c.f - c.depth * 2048; }
       push(c);
     }
   }
 
+  // Walk back to the root and write key changes as an input script.
+  const script = (end: Node): string => {
+    const path: Node[] = [];
+    for (let n: Node | null = end; n && n.parent; n = n.parent) path.unshift(n);
+    const lines: string[] = [];
+    let held: string[] = [], t = root.w.tick;
+    for (const n of path) {
+      for (const a of held) if (!n.keys.includes(a)) lines.push(`${t} ${a} up`);
+      for (const a of n.keys) if (!held.includes(a)) lines.push(`${t} ${a} down`);
+      held = n.keys;
+      t += stepTicks;
+    }
+    for (const a of held) lines.push(`${t} ${a} up`);
+    return lines.join('\n') + (lines.length ? '\n' : '');
+  };
+
   if (!goal) {
     const open = best.ex.find((e) => GOALS.includes(e.kind) && !e.ok)!;
     const why = seen.size > maxStates ? `gave up after ${maxStates} states` : `no input reaches the goals by tick ${limit}`;
-    return fail(`${why}; best run met ${best.done}/${goals}, still open: ${open.text}${open.note ? ` (${open.note})` : ''}`, best.w.tick, seen.size);
+    return { ...fail(`${why}; best run met ${best.done}/${goals}, still open: ${open.text}${open.note ? ` (${open.note})` : ''}`, best.w.tick, seen.size), input: script(best) };
   }
 
-  // Walk back to the root and write key changes as an input script.
-  const path: Node[] = [];
-  for (let n: Node | null = goal; n && n.parent; n = n.parent) path.unshift(n);
-  const lines: string[] = [];
-  let held: string[] = [], t = root.w.tick;
-  for (const n of path) {
-    for (const a of held) if (!n.keys.includes(a)) lines.push(`${t} ${a} up`);
-    for (const a of n.keys) if (!held.includes(a)) lines.push(`${t} ${a} down`);
-    held = n.keys;
-    t += stepTicks;
-  }
-  for (const a of held) lines.push(`${t} ${a} up`);
-  return { ok: true, input: lines.join('\n') + (lines.length ? '\n' : ''), tick: goal.w.tick, states: seen.size, note: '' };
+  return { ok: true, input: script(goal), tick: goal.w.tick, states: seen.size, note: '' };
 }

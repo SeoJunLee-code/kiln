@@ -125,6 +125,7 @@ Expectations (`A` and `B` are entity names or `#tags`):
 | `never A B` | A never overlaps B during the run |
 | `gone A by N` | A was despawned by tick N |
 | `event NAME by N` | a trigger emitted NAME by tick N |
+| `count NAME OP VALUE at N` | the number of NAME events by tick N compares true |
 | `at N A.comp.field OP VALUE` | the comparison holds at tick N |
 
 When a check fails, the output says what happened instead:
@@ -144,10 +145,16 @@ $ node src/cli.ts solve examples/cave.kiln --out cave.input
 ok solved tick=250 states=2507 wrote=cave.input
 ```
 
-Because a run is fully determined by scene and input, the engine can search the input space: over which keys are held for the next few ticks, merging states that are the same. An answer is replayed through the normal path before it is reported. If nothing works it says how far it got:
+Because a run is fully determined by scene and input, the engine can search the input space: over which keys are held for the next few ticks, merging states that are the same. An answer is replayed through the normal path before it is reported. If nothing works it says which goal is still open and draws where its furthest attempt ended:
 
 ```
 fail no input reaches the goals by tick 120; best run met 0/1, still open: gone gem by 120
+furthest attempt, tick 20:
+origin 0,0
+#######
+#.h#.g#
+#######
+fail tick=20 states=94
 ```
 
 Ten of the eleven examples solve in under a second on one laptop, and the largest ([examples/quest.kiln](examples/quest.kiln): a key, a door and a guard sweeping the corridor) in a little over one. They include the 3D one, a crate-pushing puzzle ([examples/sokoban.kiln](examples/sokoban.kiln)), a gap that can only be crossed by riding a lift ([examples/lift.kiln](examples/lift.kiln)), a key-and-door puzzle ([examples/vault.kiln](examples/vault.kiln)) and a corridor of pacing guards where the crossing has to be timed ([examples/gauntlet.kiln](examples/gauntlet.kiln)). The search tries inputs that get nearer to a goal first; it has only been tried with one controllable character in small levels, and it gives up (and says so) when it runs out of states. `at` expectations are not searched for.

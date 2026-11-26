@@ -178,6 +178,8 @@ test('solve: an unreachable goal is reported with how far the search got', async
   const r = await command('solve', { scene });
   assert.equal(r.code, 1);
   assert.match(r.text, /^fail no input reaches the goals by tick 120; best run met 0\/1, still open: gone gem by 120/);
+  // The furthest attempt is drawn: the hero has walked up to the wall that cuts it off.
+  assert.match(r.text, /^furthest attempt, tick \d+:\norigin 0,0\n#######\n#\.h#\.g#\n#######$/m);
 
   const none = await command('solve', { scene: 'entity a\n  pos 0 0\nexpect at 5 a.pos.x == 0\n' });
   assert.match(none.text, /^fail nothing to solve/);
@@ -365,4 +367,18 @@ test('test DIR: every scene with its own input, one line each, failures in full'
   assert.match(mixed.text, /^bad\.kiln FAIL .*actual 0$/m);
   assert.match(mixed.text, /^good\.kiln ok /m);
   assert.match(mixed.text, /^fail scenes=2 passed=1 failed=1$/m);
+});
+
+test('expect count: the number of events by a tick', async () => {
+  const scene = 'entity p\n  pos 0 0\n  box 1 1\n  vel 3 0\n' +
+    ['2', '4', '6'].map((x, i) => `entity c${i}\n  pos ${x} 0\n  box 0.5 0.5\n  trigger p coin despawn-self\n`).join('') +
+    'expect count coin == 3 at 120\nexpect count coin >= 1 at 30\nexpect count coin == 3 at 30\nexpect count coin == 3 at 999\n';
+  const r = await command('test', { scene, ticks: 200 });
+  assert.equal(r.code, 1);
+  const lines = r.text.trim().split('\n');
+  assert.match(lines[0], /^pass .*count coin == 3 at 120 -- actual 3$/);
+  assert.match(lines[1], /^pass .*count coin >= 1 at 30 -- actual 1$/);
+  assert.match(lines[2], /^FAIL .*count coin == 3 at 30 -- actual 1$/);
+  assert.match(lines[3], /^FAIL .*count coin == 3 at 999 -- run ended before tick 999$/);
+  assert.match((await command('check', { scene: 'entity a\n  pos 0 0\nexpect count coin == x at 5\n' })).text, /^E K104 /);
 });

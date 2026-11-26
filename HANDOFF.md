@@ -42,7 +42,7 @@ AI 에이전트가 1급 사용자인 오픈소스 게임 엔진. 사용자의 �
 
 검증 (2026-11-26):
 
-- `npm test` → 59개 통과.
+- `npm test` → 60개 통과.
 - `node src/cli.ts test examples` → 예제 11개 전부 통과(폴더 단위 테스트).
 - 통합 예제 `quest.kiln`(열쇠·문·복도를 쓸고 다니는 적): `solve` 1.26초·12,308상태, 열쇠 194틱 → 출구 372틱, 접촉 없음.
 - 예제 9개 전부 `solve`로 풀린다(상태 수: arena3d 4,497, cave 908, dungeon 767, gauntlet 549, maze 133, patrol 195, platformer 2,365, sokoban 3,000, vault 3,039).

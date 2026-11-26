@@ -36,6 +36,7 @@ expect reach A B by N        A overlaps B at some tick <= N
 expect never A B             A never overlaps B
 expect gone A by N           A (or every entity with that #tag) was despawned
 expect event NAME by N       a trigger emitted NAME
+expect count NAME OP VALUE at N       how many NAME events were emitted by tick N
 expect at N A.comp.field OP VALUE     OP: < <= > >= == !=
 
 INPUT  one per line: TICK ACTION down|up     actions: left right up down a b
@@ -58,7 +59,8 @@ E CODE file:line message (hint: ...)     all errors at once; fix them all, then 
 
 WORKFLOW
 1. Write the scene with expects that say what "working" means.
-2. check, then solve. If solve fails, read "still open" and fix the level.
+2. check, then solve. If solve fails, it prints the goal still open and a picture of
+   the furthest attempt: fix the level there.
 3. Save the input with --out and keep test passing as you change things.
 
 SCRIPTS  only when components cannot express the rule
