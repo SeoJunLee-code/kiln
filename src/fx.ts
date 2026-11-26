@@ -25,6 +25,14 @@ export function div(a: number, b: number): number {
 export const tickShare = (perSecond: number, k: number, hz: number): number =>
   (Math.floor((perSecond * (k + 1)) / hz) - Math.floor((perSecond * k) / hz)) | 0;
 
+/** Exact floor(a / n) for integers, n > 0. Plain float division can be off by one near a boundary. */
+export function fdiv(a: number, n: number): number {
+  let q = Math.floor(a / n);
+  while (q * n > a) q--;
+  while ((q + 1) * n <= a) q++;
+  return q;
+}
+
 const DEC = /^-?(\d+\.?\d*|\.\d+)$/;
 
 /** Parse a decimal literal to fixed-point; null if it is not a plain decimal. */

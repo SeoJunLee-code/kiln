@@ -1,4 +1,4 @@
-import { tickShare } from './fx.ts';
+import { fdiv, tickShare } from './fx.ts';
 import { KilnFail, serialize, suggest } from './scene.ts';
 import type { Diag } from './scene.ts';
 import type { Comp, World } from './world.ts';
@@ -30,6 +30,50 @@ export function overlap(ap: Comp, ab: Comp, bp: Comp, bb: Comp): boolean {
   return ax < bx + (bb.w as number) && ax + (ab.w as number) > bx && ay < by + (bb.h as number) && ay + (ab.h as number) > by;
 }
 
+const rowCache = new WeakMap<Comp, { src: string; rows: string[] }>();
+
+/** Rows of a tiles component, split once per distinct content. */
+export function tileRows(t: Comp): string[] {
+  const src = t.rows as string;
+  let c = rowCache.get(t);
+  if (!c || c.src !== src) rowCache.set(t, (c = { src, rows: src.split('\n') }));
+  return c.rows;
+}
+
+/** Tile character at a world point, or '' outside the map. */
+export function tileAt(w: World, map: number, x: number, y: number): string {
+  const t = w.get(map, 'tiles')!, mp = w.get(map, 'pos')!;
+  const row = tileRows(t)[fdiv(y - (mp.y as number), t.size as number)];
+  return row?.[fdiv(x - (mp.x as number), t.size as number)] ?? '';
+}
+
+export type Rect = [x: number, y: number, w: number, h: number];
+
+/** Solid boxes and solid tiles that overlap the region [x0,x1) x [y0,y1), except `self`. */
+export function blockers(w: World, self: number, solids: number[], maps: number[], x0: number, y0: number, x1: number, y1: number): Rect[] {
+  const out: Rect[] = [];
+  for (const s of solids) {
+    if (s === self) continue;
+    const sp = w.get(s, 'pos')!, sb = w.get(s, 'box')!;
+    const sx = sp.x as number, sy = sp.y as number, sw = sb.w as number, sh = sb.h as number;
+    if (x0 < sx + sw && x1 > sx && y0 < sy + sh && y1 > sy) out.push([sx, sy, sw, sh]);
+  }
+  for (const m of maps) {
+    const t = w.get(m, 'tiles')!, mp = w.get(m, 'pos')!;
+    const size = t.size as number, solid = t.solid as string, rows = tileRows(t);
+    const mx = mp.x as number, my = mp.y as number;
+    const c0 = Math.max(0, fdiv(x0 - mx, size)), c1 = fdiv(x1 - 1 - mx, size);
+    const r0 = Math.max(0, fdiv(y0 - my, size)), r1 = Math.min(rows.length - 1, fdiv(y1 - 1 - my, size));
+    for (let r = r0; r <= r1; r++) {
+      const row = rows[r];
+      for (let c = c0; c <= c1 && c < row.length; c++) {
+        if (solid.includes(row[c])) out.push([mx + c * size, my + r * size, size, size]);
+      }
+    }
+  }
+  return out;
+}
+
 /** Advance one fixed tick. System order is fixed: input, ctrl, gravity, move, triggers. */
 export function step(w: World, script?: InputScript): void {
   for (const [action, down] of script?.get(w.tick) ?? []) {
@@ -57,40 +101,31 @@ export function step(w: World, script?: InputScript): void {
   }
 
   const solids = w.query('solid', 'pos', 'box');
+  const maps = w.query('tiles', 'pos');
   for (const id of w.query('pos', 'vel')) {
     const p = w.get(id, 'pos')!, v = w.get(id, 'vel')!, b = w.get(id, 'box');
     const dx = tickShare(v.x as number, k, w.hz), dy = tickShare(v.y as number, k, w.hz);
+    const x0 = p.x as number, y0 = p.y as number;
     if (!b || w.has(id, 'solid')) {
-      p.x = ((p.x as number) + dx) | 0;
-      p.y = ((p.y as number) + dy) | 0;
+      p.x = (x0 + dx) | 0;
+      p.y = (y0 + dy) | 0;
       continue;
     }
     // Swept test per axis: a solid anywhere along the path stops the mover, however fast it is.
-    const x0 = p.x as number, bw = b.w as number, bh = b.h as number;
+    const bw = b.w as number, bh = b.h as number;
     let nx = (x0 + dx) | 0;
     if (dx !== 0) {
-      const lo = Math.min(x0, nx), hi = Math.max(x0, nx) + bw;
-      for (const s of solids) {
-        if (s === id) continue;
-        const sp = w.get(s, 'pos')!, sb = w.get(s, 'box')!;
-        const sx = sp.x as number, sy = sp.y as number;
-        if (!(lo < sx + (sb.w as number) && hi > sx && (p.y as number) < sy + (sb.h as number) && (p.y as number) + bh > sy)) continue;
-        nx = dx > 0 ? Math.min(nx, sx - bw) : Math.max(nx, sx + (sb.w as number));
+      for (const [sx, , sw] of blockers(w, id, solids, maps, Math.min(x0, nx), y0, Math.max(x0, nx) + bw, y0 + bh)) {
+        nx = dx > 0 ? Math.min(nx, sx - bw) : Math.max(nx, sx + sw);
         v.x = 0;
       }
     }
     p.x = nx;
-    const y0 = p.y as number;
     let ny = (y0 + dy) | 0, grounded = 0;
     if (dy !== 0) {
-      const lo = Math.min(y0, ny), hi = Math.max(y0, ny) + bh;
-      for (const s of solids) {
-        if (s === id) continue;
-        const sp = w.get(s, 'pos')!, sb = w.get(s, 'box')!;
-        const sx = sp.x as number, sy = sp.y as number;
-        if (!(lo < sy + (sb.h as number) && hi > sy && nx < sx + (sb.w as number) && nx + bw > sx)) continue;
+      for (const [, sy, , sh] of blockers(w, id, solids, maps, nx, Math.min(y0, ny), nx + bw, Math.max(y0, ny) + bh)) {
         if (dy > 0) { ny = Math.min(ny, sy - bh); grounded = 1; }
-        else ny = Math.max(ny, sy + (sb.h as number));
+        else ny = Math.max(ny, sy + sh);
         v.y = 0;
       }
     }

@@ -2,7 +2,7 @@ import { ONE, fmtFx } from './fx.ts';
 import { evalTick, finish, lastTick, parseExpects } from './expect.ts';
 import type { Expect } from './expect.ts';
 import { parseScene } from './scene.ts';
-import { hash, parseInput, step } from './sim.ts';
+import { hash, parseInput, step, tileAt, tileRows } from './sim.ts';
 import type { System, World } from './world.ts';
 
 export interface RunResult { world: World; hash: string; expects: Expect[]; ok: boolean; uses: string[] }
@@ -27,8 +27,16 @@ export function run(sceneText: string, opts: { input?: string; ticks?: number; f
 /** ASCII picture of the world, one character per world unit. Cheap for an agent to read. */
 export function view(w: World, maxW = 100, maxH = 50): string {
   const items = w.query('pos', 'box');
-  if (!items.length) return '(nothing with pos+box)\n';
+  const maps = w.query('tiles', 'pos');
+  if (!items.length && !maps.length) return '(nothing with pos+box or tiles)\n';
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const m of maps) {
+    const t = w.get(m, 'tiles')!, p = w.get(m, 'pos')!, rows = tileRows(t);
+    x0 = Math.min(x0, Math.floor((p.x as number) / ONE));
+    y0 = Math.min(y0, Math.floor((p.y as number) / ONE));
+    x1 = Math.max(x1, Math.ceil(((p.x as number) + Math.max(...rows.map((r) => r.length)) * (t.size as number)) / ONE));
+    y1 = Math.max(y1, Math.ceil(((p.y as number) + rows.length * (t.size as number)) / ONE));
+  }
   for (const id of items) {
     const p = w.get(id, 'pos')!, b = w.get(id, 'box')!;
     x0 = Math.min(x0, Math.floor((p.x as number) / ONE));
@@ -38,6 +46,12 @@ export function view(w: World, maxW = 100, maxH = 50): string {
   }
   const cols = Math.min(x1 - x0, maxW), rows = Math.min(y1 - y0, maxH);
   const grid = Array.from({ length: rows }, () => Array<string>(cols).fill('.'));
+  for (const m of maps) {
+    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+      const ch = tileAt(w, m, (x0 + x) * ONE + ONE / 2, (y0 + y) * ONE + ONE / 2);
+      if (ch && ch !== '.') grid[y][x] = ch;
+    }
+  }
   // Draw order: solids, then static things, then movers, so the things that move stay visible.
   const layer = (id: number): number => (w.has(id, 'solid') ? 0 : w.has(id, 'vel') ? 2 : 1);
   for (const id of [...items].sort((a, b) => layer(a) - layer(b) || a - b)) {

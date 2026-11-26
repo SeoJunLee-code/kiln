@@ -1,0 +1,29 @@
+# A level drawn as a character grid. '#' cells are solid.
+world hz=60
+
+entity map
+  pos 0 0
+  tiles
+    ############
+    #....#.....#
+    #.##.#.###.#
+    #.#....#...#
+    #.####.#.#.#
+    #......#.#.#
+    ############
+
+entity hero
+  pos 1.1 1.1
+  box 0.8 0.8
+  vel
+  ctrl 4
+  sprite @
+
+entity gem
+  pos 10.25 5.25
+  box 0.5 0.5
+  trigger hero gem despawn-self
+  sprite * gold
+
+expect gone gem by 300
+expect at 255 hero.pos.x == 10.1

@@ -52,11 +52,21 @@ export function parseScene(text: string, file = 'scene'): Scene {
   const diags: Diag[] = [];
   const err = (code: string, line: number, msg: string, hint?: string) => diags.push({ code, file, line, msg, hint });
   let cur = -1;
+  // The tiles component whose rows are being read, and where each one was declared.
+  let rowsOf: Comp | null = null;
+  const tileLines: [Comp, number][] = [];
 
   text.split(/\r?\n/).forEach((raw, i) => {
     const line = i + 1;
+    // Tile rows are taken verbatim: '#' is a tile here, not a comment.
+    if (rowsOf && /^ {4}\S/.test(raw)) {
+      const row = raw.slice(4).trimEnd();
+      rowsOf.rows = rowsOf.rows ? `${rowsOf.rows}\n${row}` : row;
+      return;
+    }
     const body = raw.replace(/#(?![\w-]).*$|^\s*#.*$/, '').trimEnd();
     if (!body.trim()) return;
+    rowsOf = null;
     const indented = /^\s/.test(body);
     const tok = body.trim().split(/\s+/);
 
@@ -132,9 +142,18 @@ export function parseScene(text: string, file = 'scene'): Scene {
       if (fd.def === undefined) { if (!bad) err('K105', line, `'${def.name}' is missing '${fd.name}'`, `usage: ${sig(def)}`); bad = true; }
       else data[fd.name] = fd.def;
     }
-    if (!bad) world.add(cur, def.name, data);
+    if (bad) return;
+    world.add(cur, def.name, data);
+    if (def.name === 'tiles') {
+      data.rows = '';
+      rowsOf = data;
+      tileLines.push([data, line]);
+    }
   });
 
+  for (const [t, line] of tileLines) {
+    if (!t.rows) err('K105', line, `'tiles' has no rows`, 'put the rows under it, each indented 4 spaces');
+  }
   if (diags.length) throw new KilnFail(diags);
   return { world, expects, uses };
 }
@@ -153,6 +172,7 @@ export function serialize(w: World, expects: RawExpect[] = [], uses: string[] = 
       let end = vals.length;
       while (end > 0 && def.fields[end - 1].def !== undefined && c[def.fields[end - 1].name] === def.fields[end - 1].def) end--;
       out.push(`  ${[def.name, ...vals.slice(0, end)].join(' ')}`);
+      if (def.name === 'tiles') for (const r of (c.rows as string).split('\n')) out.push(`    ${r}`);
     }
   });
   if (w.pressed.size || w.overlaps.size) {

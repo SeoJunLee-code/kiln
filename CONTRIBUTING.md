@@ -35,7 +35,7 @@ Tests live in `tests/` and use Node's built-in runner. A behavior change needs a
 
 - More `expect` forms (for example comparing two entities, or counting entities with a tag).
 - Collision shapes beyond boxes.
-- A tilemap component and its ASCII view.
+- Tile legends: map a tile character to a color, an image, or a trigger.
 - Trying the MCP server with a real agent and reporting where it wastes tokens.
 
 ## License

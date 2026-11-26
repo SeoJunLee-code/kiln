@@ -24,6 +24,8 @@ defineComponent('ctrl', 'input-driven. jump=0: 4-way (left/right/up/down). jump>
 defineComponent('tag', 'group label; reference it elsewhere as #name', [f('name', 'str')]);
 defineComponent('trigger', 'emits event when target (entity name or #tag) starts overlapping. action: none|despawn-self|despawn-other',
   [f('target', 'str'), f('event', 'str'), f('action', 'str', 'none')]);
+defineComponent('tiles', 'grid of square cells at pos. rows follow the line, each indented 4 spaces, one character per cell. size: cell size. solid: characters that block movers',
+  [f('size', 'fx', 65536), f('solid', 'str', '#')]);
 defineComponent('sprite', 'appearance. glyph: character for the ASCII view. color: CSS color. image: file next to the scene (svg/png), drawn by the player',
   [f('glyph', 'str', ''), f('color', 'str', 'white'), f('image', 'str', '')]);
 defineComponent('camera', 'the player view follows this entity and shows w x h world units; ignored headless', [f('w', 'fx'), f('h', 'fx')]);

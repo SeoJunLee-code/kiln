@@ -181,3 +181,43 @@ test('scene: held keys and trigger overlaps survive a save', () => {
   assert.match(text, /^state pressed=up overlaps=exit:player$/m);
   assert.equal(hash(parseScene(text).world), hash(w));
 });
+
+const cave = readFileSync(new URL('../examples/cave.kiln', import.meta.url), 'utf8');
+const caveInput = readFileSync(new URL('../examples/cave.input', import.meta.url), 'utf8');
+
+test('tiles: rows round-trip, including # which is otherwise a comment', () => {
+  const s = parseScene(cave);
+  const text = serialize(s.world, s.expects);
+  assert.match(text, /^  tiles\n    ############\n    #\.\.\.\.#\.\.\.\.\.#$/m);
+  assert.equal(serialize(parseScene(text).world, s.expects), text);
+  assert.deepEqual(codes(() => parseScene('entity m\n  pos 0 0\n  tiles\nentity b\n  pos 1 1\n')), ['K105']);
+});
+
+test('tiles: solid cells stop movers flush on every side, other cells do not', () => {
+  const scene = (vx: number, vy: number) =>
+    `entity map\n  pos 0 0\n  tiles 2\n    #####\n    #.~.#\n    #...#\n    #####\nentity m\n  pos 4.5 4\n  box 1 1\n  vel ${vx} ${vy}\n`;
+  const end = (vx: number, vy: number) => {
+    const p = run(scene(vx, vy), { ticks: 120 }).world.get(1, 'pos')!;
+    return [fmtFx(p.x as number), fmtFx(p.y as number)];
+  };
+  assert.deepEqual(end(900, 0), ['7', '4']);
+  assert.deepEqual(end(-900, 0), ['2', '4']);
+  assert.deepEqual(end(0, 900), ['4.5', '5']);
+  assert.deepEqual(end(0, -900), ['4.5', '2']);
+});
+
+test('cave example: solved by the recorded input, and the view shows the map', () => {
+  const r = run(cave, { input: caveInput });
+  assert.deepEqual(r.expects.filter((e) => !e.ok).map((e) => `${e.text} -- ${e.note}`), []);
+  assert.equal(view(r.world), [
+    'origin 0,0',
+    '############',
+    '#....#.....#',
+    '#.##.#.###.#',
+    '#.#....#...#',
+    '#.####.#.#.#',
+    '#......#.#@#',
+    '############',
+    '',
+  ].join('\n'));
+});

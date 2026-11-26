@@ -19,9 +19,9 @@ Kiln is a few days old. The long-term aim is an engine that agents can take from
 
 | Works today | Not yet |
 |---|---|
-| Text scenes, 10 built-in components | 3D, lighting, shaders |
+| Text scenes, 11 built-in components, tile maps drawn as character grids | 3D, lighting, shaders |
 | Fixed-point simulation, swept box collision, triggers | Rotation, non-box shapes, joints |
-| `expect` checks with explanations on failure | Audio, animation, tilemaps, UI |
+| `expect` checks with explanations on failure | Audio, animation, UI |
 | TypeScript scripts with a determinism check | Asset pipeline beyond single images |
 | Browser player with input recording, image sprites, camera | WebGPU renderer (Canvas 2D for now) |
 | MCP server, CLI | Networking, export to desktop or mobile |
@@ -40,7 +40,7 @@ node src/cli.ts test examples/platformer.kiln --input examples/platformer.input 
 node src/cli.ts play examples/platformer.kiln
 ```
 
-`play` prints a local URL. What you press there is recorded as an input script, so a play session can be replayed headless with `kiln test SCENE --input FILE` and gives the same state hash.
+`play` prints a local URL; add `?scene=cave.kiln` to open another scene from the same folder. What you press there is recorded as an input script, so a play session can be replayed headless with `kiln test SCENE --input FILE` and gives the same state hash.
 
 ## A scene
 
@@ -66,6 +66,18 @@ entity flag
 
 expect event win by 300
 expect at 300 hero.body.grounded == 1
+```
+
+Levels can be drawn as a grid, one character per cell (see [examples/cave.kiln](examples/cave.kiln)):
+
+```
+entity map
+  pos 0 0
+  tiles
+    ############
+    #....#.....#
+    #.##.#.###.#
+    ############
 ```
 
 Values are positional or `name=value`. `node src/cli.ts schema` prints the component reference in a compact form meant to be pasted into an agent's context.
@@ -119,7 +131,7 @@ One measurement so far: the maze example, with its play-through and checks, is 7
 ## Roadmap
 
 1. Connect a real agent over MCP and build a complete small game with it; fix what hurts.
-2. Tilemaps, animation, audio, a WebGPU renderer.
+2. Animation, audio, tile triggers and legends, a WebGPU renderer.
 3. Rotation and more collision shapes.
 4. 3D: meshes, PBR materials, a 3D scene format that stays readable.
 5. Export targets and networking built on the deterministic core (rollback, replays).

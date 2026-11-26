@@ -6,7 +6,7 @@ import type { Expect } from '../src/expect.ts';
 import { ONE } from '../src/fx.ts';
 import type { Mods } from '../src/run.ts';
 import { parseScene } from '../src/scene.ts';
-import { hash, parseInput, step } from '../src/sim.ts';
+import { hash, parseInput, step, tileRows } from '../src/sim.ts';
 import type { InputScript } from '../src/sim.ts';
 import type { World } from '../src/world.ts';
 
@@ -38,7 +38,12 @@ let bounds = { x: 0, y: 0, w: 1, h: 1 };
 
 try {
   const cfg = await (await fetch('/config.json')).json();
-  const sceneText = await (await fetch(`/game/${cfg.scene}`)).text();
+  // ?scene=NAME opens another scene from the same folder (live input only).
+  const other = new URLSearchParams(location.search).get('scene');
+  if (other) Object.assign(cfg, { scene: other, input: false });
+  const sceneRes = await fetch(`/game/${cfg.scene}`);
+  if (!sceneRes.ok) throw new Error(`E K001 cannot read scene '${cfg.scene}'`);
+  const sceneText = await sceneRes.text();
   const replay: string | null = cfg.input ? await (await fetch('/input')).text() : null;
   const mods: Mods = { pre: [], post: [] };
   const api = makeApi(mods);
@@ -60,6 +65,12 @@ try {
       const p = world.get(id, 'pos')!, b = world.get(id, 'box')!;
       x0 = Math.min(x0, p.x as number); y0 = Math.min(y0, p.y as number);
       x1 = Math.max(x1, (p.x as number) + (b.w as number)); y1 = Math.max(y1, (p.y as number) + (b.h as number));
+    }
+    for (const m of world.query('tiles', 'pos')) {
+      const t = world.get(m, 'tiles')!, p = world.get(m, 'pos')!, rows = tileRows(t);
+      x0 = Math.min(x0, p.x as number); y0 = Math.min(y0, p.y as number);
+      x1 = Math.max(x1, (p.x as number) + Math.max(...rows.map((r) => r.length)) * (t.size as number));
+      y1 = Math.max(y1, (p.y as number) + rows.length * (t.size as number));
     }
     if (x0 <= x1) bounds = { x: x0 / ONE - 0.5, y: y0 / ONE - 0.5, w: (x1 - x0) / ONE + 1, h: (y1 - y0) / ONE + 1 };
     evalTick(world, expects);
@@ -100,6 +111,18 @@ try {
     }
     const scale = Math.min(cw / vw, ch / vh);
     const ox = (cw - vw * scale) / 2 - vx * scale, oy = (ch - vh * scale) / 2 - vy * scale;
+    for (const m of world.query('tiles', 'pos')) {
+      const t = world.get(m, 'tiles')!, p = world.get(m, 'pos')!;
+      const size = ((t.size as number) / ONE) * scale;
+      tileRows(t).forEach((row, r) => {
+        for (let c = 0; c < row.length; c++) {
+          if (row[c] === '.') continue;
+          g.fillStyle = (t.solid as string).includes(row[c]) ? '#3a404b' : '#59616e';
+          // Overdraw by a fraction of a pixel so neighbouring cells leave no seams.
+          g.fillRect(((p.x as number) / ONE) * scale + ox + c * size, ((p.y as number) / ONE) * scale + oy + r * size, size + 0.5, size + 0.5);
+        }
+      });
+    }
     const layer = (id: number): number => (world.has(id, 'solid') ? 0 : world.has(id, 'vel') ? 2 : 1);
     for (const id of world.query('pos', 'box').sort((a, b) => layer(a) - layer(b) || a - b)) {
       const p = world.get(id, 'pos')!, b = world.get(id, 'box')!, sp = world.get(id, 'sprite');
