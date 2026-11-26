@@ -23,6 +23,17 @@ const canvas3 = $('view3d') as HTMLCanvasElement;
 // Created on first use, so 2D scenes never ask for a WebGL context.
 let gl3: Renderer3 | null | undefined;
 
+// Mesh files asked for so far. Each is fetched once and handed to the renderer when it arrives;
+// until then (or if it fails) the entity is drawn as its box.
+const meshAsked = new Set<string>();
+const wantMesh = (path: string): string => {
+  if (!meshAsked.has(path)) {
+    meshAsked.add(path);
+    fetch(new URL(path, GAME)).then((r) => (r.ok ? r.text() : '')).then((t) => { if (t) gl3?.addMesh(path, t); }).catch(() => {});
+  }
+  return path;
+};
+
 // CSS color name -> rgb 0..1, resolved by the browser and cached.
 const rgbCache = new Map<string, number[]>();
 const probe = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!;
@@ -128,8 +139,12 @@ try {
       });
     }
     for (const id of world.query('pos', 'box')) {
-      const p = world.get(id, 'pos')!, b = world.get(id, 'box')!, color = (world.get(id, 'sprite')?.color as string) ?? 'white';
-      boxes.push({ p: [u(p.x), u(p.y), u(p.z)], s: [u(b.w), u(b.h), u(b.d)], color: rgb(color === 'white' ? (world.has(id, 'solid') ? '#59616e' : '#d7dbe2') : color) });
+      const p = world.get(id, 'pos')!, b = world.get(id, 'box')!, sp = world.get(id, 'sprite'), color = (sp?.color as string) ?? 'white';
+      boxes.push({
+        p: [u(p.x), u(p.y), u(p.z)], s: [u(b.w), u(b.h), u(b.d)],
+        color: rgb(color === 'white' ? (world.has(id, 'solid') ? '#59616e' : '#d7dbe2') : color),
+        mesh: sp?.mesh ? wantMesh(sp.mesh as string) : undefined,
+      });
     }
     const e = world.get(eyeId, 'eye')!, p = world.get(eyeId, 'pos')!, b = world.get(eyeId, 'box');
     const target = [u(p.x) + u(b?.w ?? 0) / 2, u(p.y) + u(b?.h ?? 0) / 2, u(p.z) + u(b?.d ?? 0) / 2];

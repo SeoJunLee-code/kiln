@@ -271,3 +271,22 @@ test('new: a fresh game folder checks, solves, and points an agent at the engine
   assert.match(read(join(dir, 'AGENTS.md'), 'utf8'), /cli\.ts guide/);
   assert.throws(() => newGame(dir), /exists and is not empty/);
 });
+
+test('mesh: OBJ text becomes unit-cube triangles with outward normals', async () => {
+  const { parseObj } = await import('../web/gl.ts');
+  const { readFileSync: read } = await import('node:fs');
+  const data = parseObj(read(ex('gem.obj'), 'utf8'));
+  assert.equal(data.length, 8 * 3 * 6);
+  for (let i = 0; i < data.length; i += 6) {
+    const p = [data[i], data[i + 1], data[i + 2]], n = [data[i + 3], data[i + 4], data[i + 5]];
+    assert.ok(p.every((x) => x >= 0 && x <= 1), `position ${p}`);
+    assert.ok(Math.abs(Math.hypot(...n) - 1) < 1e-5, `normal length ${n}`);
+  }
+  // Convex and centred, so every face normal must point away from the centre.
+  for (let i = 0; i < data.length; i += 18) {
+    const c = [0, 1, 2].map((a) => (data[i + a] + data[i + 6 + a] + data[i + 12 + a]) / 3 - 0.5);
+    assert.ok(c[0] * data[i + 3] + c[1] * data[i + 4] + c[2] * data[i + 5] > 0, `face ${i / 18} points inward`);
+  }
+  // A quad is split into two triangles; junk lines and bad indices are skipped.
+  assert.equal(parseObj('v 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\nvn 0 0 1\nf 1/1/1 2/2/1 3/3/1 4/4/1\nf 1 2 99\n').length, 2 * 3 * 6);
+});

@@ -27,8 +27,8 @@ defineComponent('trigger', 'emits event when target (entity name or #tag) starts
   [f('target', 'str'), f('event', 'str'), f('action', 'str', 'none')]);
 defineComponent('tiles', 'grid of square cells at pos. rows follow the line, each indented 4 spaces, one character per cell. size: cell size. solid: characters that block movers. spawn: CHAR:PREFAB pairs, e.g. o:coin,@:hero, replaced by entities when the scene loads',
   [f('size', 'fx', 65536), f('solid', 'str', '#'), f('spawn', 'str', ''), f('depth', 'fx', 65536)]);
-defineComponent('sprite', 'appearance. glyph: character for the ASCII view. color: CSS color. image: file next to the scene (svg/png), drawn by the player',
-  [f('glyph', 'str', ''), f('color', 'str', 'white'), f('image', 'str', '')]);
+defineComponent('sprite', 'appearance. glyph: character for the ASCII view. color: CSS color. image: file next to the scene (svg/png), drawn in 2D. mesh: .obj file next to the scene, drawn in 3D fitted to the box',
+  [f('glyph', 'str', ''), f('color', 'str', 'white'), f('image', 'str', ''), f('mesh', 'str', '')]);
 defineComponent('eye', 'makes the player draw the scene in 3D: a perspective camera at this entity plus the offset, looking at the entity; ignored headless',
   [f('x', 'fx'), f('y', 'fx'), f('z', 'fx'), f('fov', 'int', 55)]);
 defineComponent('camera', 'the player view follows this entity and shows w x h world units; ignored headless', [f('w', 'fx'), f('h', 'fx')]);

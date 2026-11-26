@@ -16,7 +16,7 @@ Game engines assume a human looking at an editor window. An agent using them pay
 - **The engine can play its own levels.** `kiln solve` searches for an input that meets a scene's goals, so a level is shown to be finishable without anyone playing it.
 - **One MCP tool.** An agent connects over MCP and gets the whole engine as a single tool.
 
-![The 3D example in the browser player: lit boxes with shadows, and the live state, checks and controls beside it](docs/arena3d.jpg)
+![The 3D example in the browser player: lit boxes and OBJ meshes with shadows, and the live state, checks and controls beside it](docs/arena3d.jpg)
 
 ## Where it stands
 
@@ -24,11 +24,11 @@ Kiln is a few days old. The long-term aim is an engine that agents can take from
 
 | Works today | Not yet |
 |---|---|
-| Text scenes, 12 built-in components, levels drawn as character grids with prefabs | Meshes, materials, textures, shaders |
+| Text scenes, 12 built-in components, levels drawn as character grids with prefabs | Textures, materials, skeletal animation, shaders |
 | Fixed-point simulation on x, y and z; swept box collision; triggers that emit events and remove things (keys, doors, pickups) | Rotation, non-box shapes, joints |
 | `expect` checks with explanations on failure | Audio, animation, UI |
 | TypeScript scripts with a determinism check | Asset pipeline beyond single images |
-| Browser player: Canvas 2D, and lit, shadowed boxes in WebGL2 for 3D scenes | WebGPU renderer, images in 3D |
+| Browser player: Canvas 2D, and lit, shadowed boxes and OBJ meshes in WebGL2 for 3D scenes | WebGPU renderer, images in 3D |
 | `solve`: automatic search for a winning input |  |
 | `build`: export to a static web folder |  |
 | MCP server, CLI | Networking, desktop and mobile export |
@@ -171,7 +171,7 @@ entity floor
   solid
 ```
 
-`y` grows downward, so things above the floor have negative `y`. `--top` prints a floor plan (the x/z plane) instead of a screenshot. This is 3D for box worlds only: one sun with shadows, no meshes or textures yet.
+`y` grows downward, so things above the floor have negative `y`. `--top` prints a floor plan (the x/z plane) instead of a screenshot. A sprite can name an OBJ file (`sprite color=gold mesh=gem.obj`); OBJ is text, so an agent can write one. The mesh is drawn fitted to the entity's box, while collision stays the box. One sun with shadows; no textures or materials yet.
 
 ## Scripts
 
@@ -206,7 +206,7 @@ One measurement so far: the maze example, with its play-through and checks, is 7
 1. Connect a real agent over MCP and build a complete small game with it; fix what hurts.
 2. Animation, audio, a WebGPU renderer.
 3. Rotation and more collision shapes.
-4. 3D beyond boxes: meshes, PBR materials, more lights, a mesh format that stays readable.
+4. 3D: PBR materials and textures, more lights, rotation, collision beyond boxes.
 5. Export targets and networking built on the deterministic core (rollback, replays).
 
 ## Contributing

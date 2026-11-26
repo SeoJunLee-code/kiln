@@ -28,15 +28,15 @@ entity step
   sprite color=peru
 
 entity gem
-  pos 9.25 -1.75 9.25
-  box 0.5 0.5 0.5
+  pos 9.2 -1.8 9.2
+  box 0.6 0.7 0.6
   trigger hero gem despawn-self
-  sprite * gold
+  sprite * gold mesh=gem.obj
 entity exit
   pos 10 -1 1
   box 1 1 1
   trigger hero win
-  sprite E limegreen
+  sprite E limegreen mesh=spire.obj
 entity pit
   pos -4 6 -4
   box 20 1 20
