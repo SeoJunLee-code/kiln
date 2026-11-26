@@ -16,6 +16,8 @@ import { GPU_SWITCHES, openPlayer } from '../src/look.ts';
 
 const GAME = fileURLToPath(new URL('../proof/lite/game', import.meta.url));
 const at = (name: string): string => join(GAME, name);
+// One frame of level 3 makes 81 Canvas 2D calls today (tiles, boxes, glyphs, the label).
+const BUDGET_CALLS = 90;
 const skip = findChrome() ? false : 'no Chrome or Edge on this machine';
 let browser: Browser;
 before(async () => { if (!skip) browser = await launch({ args: GPU_SWITCHES }); });
@@ -76,5 +78,27 @@ test('proof game (Lite), in a browser: a door that is still closed opens nothing
     await new Promise((r) => setTimeout(r, 1000));
     assert.doesNotMatch(await player.page.eval<string>('location.search'), /scene=/);
     assert.deepEqual(player.page.errors(), []);
+  } finally { await player.close(); }
+});
+
+// Frame time is measured on the reference PC (proof/lite/FPS.md); a shared CI machine cannot
+// check it. What it can check is the work a frame asks of the browser, which is the same on
+// every run: the number of Canvas 2D drawing calls for one frame of the largest level.
+test('proof game (Lite), in a browser: a frame of level 3 stays inside its drawing-call budget', { skip }, async () => {
+  const player = await openPlayer(at('level3.kiln'), { inputFile: at('level3.input'), browser });
+  try {
+    const calls = await player.page.eval<number>(`(() => {
+      kiln.runTo(300);
+      let n = 0;
+      const proto = CanvasRenderingContext2D.prototype, kept = {};
+      for (const name of ['fillRect', 'fillText', 'drawImage']) {
+        kept[name] = proto[name];
+        proto[name] = function (...a) { n++; return kept[name].apply(this, a); };
+      }
+      kiln.runTo(301);
+      Object.assign(proto, kept);
+      return n;
+    })()`);
+    assert.ok(calls > 0 && calls <= BUDGET_CALLS, `drawing calls in one frame: ${calls}`);
   } finally { await player.close(); }
 });

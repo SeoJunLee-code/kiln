@@ -44,16 +44,21 @@ export interface Page {
   screenshot(): Promise<Buffer>;
   /** Console errors and uncaught exceptions seen so far. */
   errors(): string[];
+  /** A DevTools protocol call on this page, for what the calls above do not cover. */
+  send(method: string, params?: object): Promise<any>;
 }
 
 export interface Browser {
-  open(url: string, size?: { width: number; height: number }): Promise<Page>;
+  /** `size: null` leaves the page at the size of its window (a browser with a window only). */
+  open(url: string, size?: { width: number; height: number } | null): Promise<Page>;
   close(): Promise<void>;
 }
 
 export interface LaunchOptions {
   /** Extra command-line switches, e.g. the ones that pick a GPU backend. */
   args?: string[];
+  /** Show a real window instead of running headless: frames then go to the display, as they do for a player. */
+  window?: { width: number; height: number };
   /** Milliseconds to wait for the browser to start and for each protocol call. */
   timeout?: number;
 }
@@ -64,7 +69,8 @@ export async function launch(options: LaunchOptions = {}): Promise<Browser> {
   const timeout = options.timeout ?? 30000;
   const profile = mkdtempSync(join(tmpdir(), 'kiln-chrome-'));
   const child = spawn(exe, [
-    '--headless=new', '--remote-debugging-port=0', `--user-data-dir=${profile}`,
+    ...(options.window ? [`--window-size=${options.window.width},${options.window.height}`, '--window-position=0,0'] : ['--headless=new']),
+    '--remote-debugging-port=0', `--user-data-dir=${profile}`,
     '--no-first-run', '--no-default-browser-check', '--disable-extensions', '--hide-scrollbars',
     '--force-device-scale-factor=1', '--force-color-profile=srgb',
     // A CI container has no user namespace for the sandbox; the pages opened here are the engine's own.
@@ -132,7 +138,7 @@ export async function launch(options: LaunchOptions = {}): Promise<Browser> {
       });
       await send('Page.enable', {}, sessionId);
       await send('Runtime.enable', {}, sessionId);
-      await send('Emulation.setDeviceMetricsOverride', { ...size, deviceScaleFactor: 1, mobile: false }, sessionId);
+      if (size) await send('Emulation.setDeviceMetricsOverride', { ...size, deviceScaleFactor: 1, mobile: false }, sessionId);
       await send('Page.navigate', { url }, sessionId);
       await load;
       return {
@@ -146,6 +152,7 @@ export async function launch(options: LaunchOptions = {}): Promise<Browser> {
           return Buffer.from(data, 'base64');
         },
         errors: () => errors.slice(),
+        send: (method, params = {}) => send(method, params, sessionId),
       };
     },
     async close() {

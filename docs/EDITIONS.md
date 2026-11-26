@@ -73,7 +73,7 @@ Four things, the same four for each edition. A feature list alone does not close
 
    | Edition | Reference machine | Proof game |
    |---|---|---|
-   | Lite | The reference PC with WebGPU turned off; one real phone | Gem Vault, a top-down game of three levels: [`proof/lite`](../proof/lite). Built once by an agent; frame rate not measured |
+   | Lite | The reference PC with WebGPU turned off; one real phone | Gem Vault, a top-down game of three levels: [`proof/lite`](../proof/lite). Built once by an agent. On the PC: far above 60 fps, with the GPU and without ([`FPS.md`](../proof/lite/FPS.md)). On a phone: not measured |
    | Standard | The reference PC (integrated GPU) | To be chosen: a third-person 3D game with physics |
    | Ultra | A machine with a discrete GPU. **None is available yet** | To be chosen |
 

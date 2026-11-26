@@ -52,7 +52,12 @@ models, and nothing about another engine: the same spec has not been built on Go
 
 ## What the run does not show
 
-- **60 fps on the Lite reference machine has not been measured**, on the PC with WebGPU off or on a phone. The Lite proof-game row stays open until it is.
+- **Frame rate: measured on the reference PC, not on a phone** ([`FPS.md`](FPS.md), `node bench/frames.ts`, 2026-11-26). The game draws with Canvas 2D, so it never asks for WebGPU; "WebGPU turned off" changes nothing for it, and the run with the GPU turned off altogether stands in for that machine. Without a frame cap the slowest 1% low of 12 runs was 247 fps; on the 144 Hz display no frame of 77,764 took longer than 16.67 ms.
+  - The Lite proof-game row stays open until a real phone has run it. The nearest thing here is the browser slowing the page's CPU 4x with the GPU off: 150 to 169 fps on average, but one run of three had a 1% low of 52 fps (71 frames of 9,019 over 16.67 ms). That is an imitation, not a phone, and it says a slow phone may drop frames.
+  - What was timed is the player as `kiln play` serves it, side panel included, looping each level's recorded input; the load at the end of a level is never reached. A level change, the end screen and the built folder were not timed.
+  - GPU frame time is not recorded (Canvas 2D has no timestamp queries). The browser's clock is coarsened to 0.1 ms, so per-frame times under about 0.2 ms are averages only.
+  - The window has to stay in front. In the first attempt two runs covered 18 and 26 of their 60 seconds because the window lost the screen; the script now refuses such a run and measures it again (it did so once in the final set).
+  - Nothing compares this with another engine: the same game does not exist on Godot yet.
 - Nobody has played it by hand. Whether it is any fun, or the guards are fair, is unknown.
 - The test scenes for B, C and D are copies of the levels with other expects. Change a level and its copy goes stale; Kiln has no way to run one scene under several inputs and expects.
 - The `count caught == 0 at 886` expects carry a tick the agent read off a run. They break if the level changes.
