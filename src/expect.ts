@@ -114,6 +114,9 @@ export function evalTick(w: World, es: Expect[]): void {
         if (g < 0) touching = true;
         else if (g < e.best) { e.best = g; e.note = `closest gap ${fmtFx(g)} at tick ${w.tick}, ${where(w, e.a)}`; }
       }
+      // A trigger that removes what it touches leaves nothing to measure: the contact still happened.
+      const is = (ref: string, name: string, tag: string): boolean => (ref.startsWith('#') ? ref.slice(1) === tag : ref === name);
+      if (!touching) touching = w.met.some((m) => (is(e.a, m.a, m.at) && is(e.b, m.b, m.bt)) || (is(e.a, m.b, m.bt) && is(e.b, m.a, m.at)));
       if (touching) { e.ok = e.kind === 'reach'; e.note = `tick ${w.tick}`; }
       else if (w.tick >= e.by) e.ok = false;
     } else if (e.kind === 'gone') {

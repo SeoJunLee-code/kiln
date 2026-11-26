@@ -319,6 +319,8 @@ export function step(w: World, script?: InputScript): void {
 
   w.tick++;
 
+  w.met = [];
+  const tagOf = (id: number): string => (w.get(id, 'tag')?.name as string | undefined) ?? '';
   const doomed: number[] = [];
   for (const t of w.query('trigger', 'pos', 'box')) {
     const tr = w.get(t, 'trigger')!, tp = w.get(t, 'pos')!, tb = w.get(t, 'box')!;
@@ -329,6 +331,7 @@ export function step(w: World, script?: InputScript): void {
       if (!overlap(tp, tb, op, ob)) { w.overlaps.delete(key); continue; }
       if (w.overlaps.has(key)) continue;
       w.overlaps.add(key);
+      w.met.push({ a: w.names[t]!, at: tagOf(t), b: w.names[o]!, bt: tagOf(o) });
       w.events.push({ tick: w.tick, name: tr.event as string, a: w.names[t]!, b: w.names[o]! });
       for (const act of (tr.action as string).split('+')) {
         if (act === 'despawn-self') doomed.push(t);

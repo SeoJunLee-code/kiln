@@ -69,6 +69,9 @@ export class World {
   /** "triggerName:otherName" pairs currently overlapping */
   overlaps = new Set<string>();
   events: GameEvent[] = [];
+  /** Pairs a trigger caught in the last step, with their tags. Lives one step and is not state: it lets
+   *  an expect see a contact whose trigger removed one side in the same step. */
+  met: { a: string; at: string; b: string; bt: string }[] = [];
   /** PRNG state; part of the saved and hashed state */
   seed = 0;
   /** Name of the rigid-body backend the scene asked for, or '' */
