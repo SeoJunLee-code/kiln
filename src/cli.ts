@@ -11,6 +11,7 @@ const HELP = `kiln <command> [scene] [options]
   guide                  print the whole manual, sized for an agent to read in one call
   mcp                    serve these commands as one MCP tool over stdio
   play SCENE             open the scene in a browser (--port N, default 5207; --input FILE replays it)
+  new DIR                start a game: starter scene, agent instructions, MCP config
   build SCENE --out DIR  write a folder any static web host can serve (player, engine, the scene's folder)
 options:
   --input FILE           input script (TICK ACTION down|up per line)
@@ -25,6 +26,14 @@ options:
 const [cmd, ...rest] = process.argv.slice(2);
 if (cmd === 'mcp') {
   await import('./mcp.ts');
+} else if (cmd === 'new' && rest[0] && !rest[0].startsWith('--')) {
+  const { newGame } = await import('./new.ts');
+  try {
+    console.log(`ok created ${rest[0]}: ${newGame(rest[0]).join(' ')}`);
+  } catch (e) {
+    console.log(`E K004 ${(e as Error).message}`);
+    process.exitCode = 2;
+  }
 } else if (cmd === 'build' && rest[0] && !rest[0].startsWith('--')) {
   const out = rest.includes('--out') ? rest[rest.indexOf('--out') + 1] : undefined;
   if (!out) { console.log('E K002 build needs --out DIR'); process.exit(2); }

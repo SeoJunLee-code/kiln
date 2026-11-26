@@ -253,3 +253,21 @@ test('vault example: the solver has to fetch the key before the door will open',
   const order = [...replay.text.matchAll(/^event \d+ (\w+)/gm)].map((m) => m[1]);
   assert.deepEqual(order, ['key', 'win']);
 });
+
+test('new: a fresh game folder checks, solves, and points an agent at the engine', async () => {
+  const { newGame } = await import('../src/new.ts');
+  const { readFileSync: read } = await import('node:fs');
+  const dir = join(mkdtempSync(join(tmpdir(), 'kiln-new-')), 'mygame');
+  assert.deepEqual(newGame(dir), ['game.kiln', 'AGENTS.md', 'CLAUDE.md', '.mcp.json']);
+
+  assert.equal((await command('check', { file: join(dir, 'game.kiln') })).code, 0);
+  const solved = await command('solve', { file: join(dir, 'game.kiln') });
+  assert.equal(solved.code, 0, solved.text);
+
+  const mcp = JSON.parse(read(join(dir, '.mcp.json'), 'utf8')).mcpServers.kiln;
+  assert.equal(mcp.command, 'node');
+  assert.match(mcp.args[0], /src\/cli\.ts$/);
+  assert.equal(mcp.args[1], 'mcp');
+  assert.match(read(join(dir, 'AGENTS.md'), 'utf8'), /cli\.ts guide/);
+  assert.throws(() => newGame(dir), /exists and is not empty/);
+});

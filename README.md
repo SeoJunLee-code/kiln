@@ -51,6 +51,14 @@ For the 3D example, open the printed URL with `?scene=arena3d.kiln` (arrows or W
 
 `play` prints a local URL; add `?scene=cave.kiln` to open another scene from the same folder. What you press there is recorded as an input script, so a play session can be replayed headless with `kiln test SCENE --input FILE` and gives the same state hash.
 
+## Start a game with an agent
+
+```
+node src/cli.ts new ../mygame
+```
+
+This writes a starter scene, an `AGENTS.md` (and `CLAUDE.md`) that tells an agent how to work with Kiln, and a `.mcp.json` that connects the engine as an MCP tool. Open the folder in Claude Code, or any agent that reads those files, and ask for a game.
+
 ## Ship it
 
 ```
