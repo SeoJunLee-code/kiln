@@ -1,0 +1,9 @@
+{
+  "name": "kiln-spike-physics",
+  "private": true,
+  "type": "module",
+  "description": "Throwaway test: is an existing physics engine deterministic and restorable enough for Kiln?",
+  "dependencies": {
+    "@dimforge/rapier3d-deterministic-compat": "0.21.0"
+  }
+}

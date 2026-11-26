@@ -1,0 +1,44 @@
+name: spikes
+
+# Feasibility tests for decisions the roadmap depends on. They answer a question
+# once per OS; they are not gates for the engine itself.
+on:
+  push:
+    branches: [main]
+    paths: ['spikes/**', 'src/chrome.ts', '.github/workflows/spikes.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  physics:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+        working-directory: spikes/physics
+      # The same pile of bodies must end in the same state on every OS.
+      - run: node rapier.ts
+        working-directory: spikes/physics
+
+  webgpu:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        mode: [default, software]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node spikes/webgpu/probe.ts ${{ matrix.mode }}
