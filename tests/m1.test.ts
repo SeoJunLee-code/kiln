@@ -117,6 +117,7 @@ test('serve: strips types from engine and game files and refuses paths outside t
     assert.equal((await get('/game/..%2fpackage.json')).status, 403);
     assert.equal((await get('/engine/..%2f..%2fREADME.md')).status, 403);
     assert.equal((await get('/game/nope.kiln')).status, 404);
+  assert.equal((await get('/game/HASHES')).status, 403, 'only game assets are served from the scene folder');
   } finally {
     close();
   }
@@ -223,7 +224,7 @@ test('build: a static folder with js modules only, scripts converted, assets cop
   const { build } = await import('../src/build.ts');
   const { readFileSync: read, existsSync } = await import('node:fs');
   const out = mkdtempSync(join(tmpdir(), 'kiln-build-'));
-  const files = build(ex('patrol.kiln'), out);
+  const files = build(ex('patrol.kiln'), out).written;
 
   for (const f of ['index.html', 'config.json', 'engine/web/player.js', 'engine/web/gl.js', 'engine/src/sim.js', 'game/patrol.kiln', 'game/patrol.js', 'game/hero.svg']) {
     assert.ok(files.includes(f) && existsSync(join(out, f)), f);
@@ -310,4 +311,19 @@ test('sokoban example: solve pushes the crate around the corner onto the pad', {
   assert.equal(solved.code, 0, solved.text);
   const input = solved.text.trim().split('\n').slice(0, -1).join('\n') + '\n';
   assert.equal((await command('test', { file: ex('sokoban.kiln'), input })).code, 0);
+});
+
+test('build: files that are not game assets are left out and reported', async () => {
+  const { build } = await import('../src/build.ts');
+  const { existsSync } = await import('node:fs');
+  const game = mkdtempSync(join(tmpdir(), 'kiln-game-'));
+  writeFileSync(join(game, 'level.kiln'), 'entity a\n  pos 0 0\n');
+  writeFileSync(join(game, '.env'), 'API_KEY=secret\n');
+  writeFileSync(join(game, 'notes.md'), 'private\n');
+  writeFileSync(join(game, 'id_rsa'), 'key\n');
+  const out = mkdtempSync(join(tmpdir(), 'kiln-out-'));
+  const b = build(join(game, 'level.kiln'), out);
+  assert.deepEqual(b.skipped.sort(), ['.env', 'id_rsa', 'notes.md']);
+  assert.ok(existsSync(join(out, 'game/level.kiln')));
+  for (const f of b.skipped) assert.ok(!existsSync(join(out, 'game', f)), f);
 });

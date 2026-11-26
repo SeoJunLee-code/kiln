@@ -215,6 +215,10 @@ On one laptop, single thread, no rendering: 1,000 falling bodies among 1,000 sol
 4. 3D: PBR materials and textures, more lights, rotation, collision beyond boxes.
 5. Export targets and networking built on the deterministic core (rollback, replays).
 
+## Safety
+
+A scene can load a script with `use`, and a script is ordinary code that runs with your permissions. Treat a scene from someone else the way you would treat a program. `play` listens on localhost only, and both `play` and `build` take only game assets (scenes, scripts, images, meshes, sounds) from the scene's folder; other files there are not served or copied.
+
 ## Contributing
 
 Issues and pull requests are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md).

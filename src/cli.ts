@@ -39,7 +39,9 @@ if (cmd === 'mcp') {
   if (!out) { console.log('E K002 build needs --out DIR'); process.exit(2); }
   const { build } = await import('./build.ts');
   try {
-    console.log(`ok built files=${build(rest[0], out).length} out=${out}`);
+    const b = build(rest[0], out);
+    if (b.skipped.length) console.log(`W K301 not copied (not a game asset): ${b.skipped.join(' ')}`);
+    console.log(`ok built files=${b.written.length} out=${out}`);
   } catch (e) {
     console.log(`E K001 build failed: ${(e as Error).message}`);
     process.exitCode = 2;

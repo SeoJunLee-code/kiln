@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { stripTypeScriptTypes } from 'node:module';
 import { basename, dirname, resolve, sep } from 'node:path';
+import { ASSETS } from './build.ts';
 import { fileURLToPath } from 'node:url';
 
 const TYPES: Record<string, string> = {
@@ -43,7 +44,11 @@ export function serve(sceneFile: string, inputFile: string | undefined, port: nu
     if (path === '/config.json') return send(res, 200, 'application/json', config);
     if (path === '/input' && inputFile) return file(res, dirname(resolve(inputFile)), basename(inputFile));
     if (path.startsWith('/engine/')) return file(res, ROOT, path.slice(8));
-    if (path.startsWith('/game/')) return file(res, gameDir, path.slice(6));
+    if (path.startsWith('/game/')) {
+      // Same rule as `build`: only game assets, never dotfiles or stray files next to the scene.
+      if (!ASSETS.test(path.slice(6))) return send(res, 403, 'text/plain', 'not a game asset');
+      return file(res, gameDir, path.slice(6));
+    }
     send(res, 404, 'text/plain', 'not found');
   });
   return new Promise((ok, fail) => {
