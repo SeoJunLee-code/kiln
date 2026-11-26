@@ -1,11 +1,12 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { parseExpects } from './expect.ts';
+import { guideText } from './guide.ts';
 import { loadMods } from './load.ts';
 import { observe, run, view } from './run.ts';
 import { KilnFail, parseScene, schemaText, serialize } from './scene.ts';
 import { solve } from './solve.ts';
 
-export const COMMANDS = ['check', 'run', 'test', 'solve', 'schema'];
+export const COMMANDS = ['check', 'run', 'test', 'solve', 'schema', 'guide'];
 
 export interface CmdArgs {
   /** scene path; `use` paths resolve relative to it */
@@ -32,6 +33,7 @@ export async function command(cmd: string, a: CmdArgs): Promise<{ text: string; 
   const out: string[] = [];
   const done = (code: number) => ({ text: out.join('\n') + '\n', code });
   if (!COMMANDS.includes(cmd)) return out.push(`E K003 unknown command '${cmd}' (hint: valid: ${COMMANDS.join(' ')})`), done(2);
+  if (cmd === 'guide') return { text: guideText(), code: 0 };
   if (cmd === 'schema' && !a.file && a.scene === undefined) return { text: schemaText(), code: 0 };
 
   const file = a.file ?? 'scene';

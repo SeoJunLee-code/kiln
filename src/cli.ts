@@ -8,6 +8,7 @@ const HELP = `kiln <command> [scene] [options]
   solve SCENE            search for an input script that meets the scene's reach/gone/event expects
                          (--step N ticks per key choice, --max-states N, --out FILE saves the input)
   schema [SCENE]         print the component reference (with SCENE: including its scripts)
+  guide                  print the whole manual, sized for an agent to read in one call
   mcp                    serve these commands as one MCP tool over stdio
   play SCENE             open the scene in a browser (--port N, default 5207; --input FILE replays it)
 options:
@@ -28,7 +29,7 @@ if (cmd === 'mcp') {
   const { serve } = await import('./serve.ts');
   const { port } = await serve(rest[0], flag('--input'), Number(flag('--port') ?? 5207));
   console.log(`ok play http://localhost:${port}/`);
-} else if (!COMMANDS.includes(cmd) || (cmd !== 'schema' && (!rest[0] || rest[0].startsWith('--')))) {
+} else if (!COMMANDS.includes(cmd) || (cmd !== 'schema' && cmd !== 'guide' && (!rest[0] || rest[0].startsWith('--')))) {
   process.stdout.write(HELP);
   process.exitCode = cmd ? 2 : 0;
 } else {

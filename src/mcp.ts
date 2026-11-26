@@ -6,9 +6,9 @@ import { COMMANDS, command } from './commands.ts';
 const TOOL = {
   name: 'kiln',
   description:
-    'Kiln game engine. cmd: check (validate a scene), run (simulate headless, returns state hash), ' +
+    'Kiln game engine. Call cmd=guide first: it returns the whole manual. cmd: check (validate a scene), run (simulate headless, returns state hash), ' +
     'test (run and evaluate the scene\'s expect lines), solve (search for an input script that meets the expects), ' +
-    'schema (component reference). ' +
+    'schema (component reference), guide (manual). ' +
     'Output is compact text; errors are lines starting with "E CODE file:line".',
   inputSchema: {
     type: 'object',

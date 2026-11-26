@@ -174,7 +174,7 @@ Scripts must stay deterministic. `Math.random`, `Date`, timers and similar are r
 { "mcpServers": { "kiln": { "command": "node", "args": ["/path/to/kiln/src/cli.ts", "mcp"] } } }
 ```
 
-The server exposes one tool, `kiln`, with a `cmd` argument (`check`, `run`, `test`, `solve`, `schema`). One tool instead of many keeps the definition an agent carries in context small.
+The server exposes one tool, `kiln`, with a `cmd` argument (`check`, `run`, `test`, `solve`, `schema`, `guide`). `guide` returns the whole manual in one call (about 4,500 characters; a test keeps it under 6,000), so an agent does not have to read this README or the source. One tool instead of many keeps the definition an agent carries in context small.
 
 ## Is it actually smaller?
 

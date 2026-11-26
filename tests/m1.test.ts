@@ -204,3 +204,15 @@ test('solve: the search limit is reported, not hidden', async () => {
   assert.equal(r.code, 1);
   assert.match(r.text, /^fail gave up after 50 states; best run met \d\/2, still open: /);
 });
+
+test('guide: one call covers every component and command, and stays small', async () => {
+  const { registry } = await import('../src/world.ts');
+  const { COMMANDS } = await import('../src/commands.ts');
+  const g = (await command('guide', {})).text;
+  for (const name of registry.keys()) assert.match(g, new RegExp(`^${name}( |$)`, 'm'), `component ${name}`);
+  for (const c of COMMANDS.filter((x) => x !== 'guide')) assert.match(g, new RegExp(`^${c} `, 'm'), `command ${c}`);
+  // The scene shown in the guide has to be real.
+  const sample = 'prefab hero\n  box 0.8 0.8\nprefab coin\n  box 0.5 0.5\n' + g.slice(g.indexOf('entity map'), g.indexOf('A spawned prefab'));
+  assert.equal((await command('check', { scene: sample })).code, 0);
+  assert.ok(g.length < 6000, `guide is ${g.length} characters`);
+});
