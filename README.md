@@ -6,7 +6,7 @@ English | [한국어](README.ko.md)
 
 An open-source game engine whose primary user is an AI agent, not a person in a GUI editor.
 
-**[Play the examples in your browser](https://seojunlee-code.github.io/kiln/)** — built from this repository by `kiln build`; pick a scene from the menu.
+**[Play the examples in your browser](https://seojunlee-code.github.io/kiln/)** — built from this repository by `kiln build`; pick a scene from the menu. It has on-screen buttons on a phone.
 
 Game engines assume a human looking at an editor window. An agent using them pays for that: verbose scene files, results it can only check by looking at pixels, and runs that differ every time. Kiln is designed the other way round.
 

@@ -283,6 +283,21 @@ try {
     if (a) { e.preventDefault(); press(a, true); }
   });
   addEventListener('keyup', (e) => { const a = KEYS[e.key]; if (a) press(a, false); });
+  // Touch controls: shown where the main pointer is a finger (or with ?pad=1 to try them).
+  const pad = $('pad');
+  pad.hidden = !(matchMedia('(pointer: coarse)').matches || new URLSearchParams(location.search).has('pad'));
+  for (const b of pad.querySelectorAll<HTMLButtonElement>('button')) {
+    const action = b.dataset.action!;
+    const set = (down: boolean) => (e: Event): void => {
+      e.preventDefault();
+      if (down) audio ??= new AudioContext();
+      b.classList.toggle('on', down);
+      press(action, down);
+    };
+    b.addEventListener('pointerdown', set(true));
+    for (const up of ['pointerup', 'pointercancel', 'pointerleave']) b.addEventListener(up, set(false));
+  }
+
   $('restart').onclick = reset;
   $('pause').onclick = () => void (paused = !paused);
   $('copy').onclick = () => navigator.clipboard.writeText(log.join('\n') + '\n');
