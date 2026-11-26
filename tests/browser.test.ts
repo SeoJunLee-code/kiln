@@ -216,3 +216,42 @@ test('browser: glTF models are drawn by WebGPU with their materials, and as boxe
     assert.ok(summarize(models).colors > summarize(plain).colors * 2, `colors ${summarize(models).colors} with models, ${summarize(plain).colors} without`);
   } finally { await player.close(); }
 });
+
+test('browser: a built folder plays a physics scene and a glTF scene from a plain static host', { skip }, async () => {
+  const { build } = await import('../src/build.ts');
+  const { run } = await import('../src/run.ts');
+  const { loadBackend } = await import('../src/physics.ts');
+  const { createServer } = await import('node:http');
+  const { existsSync, mkdtempSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join, extname } = await import('node:path');
+  if (!existsSync(ex('../backends/rapier/node_modules'))) return; // the optional backend is not installed
+  const out = mkdtempSync(join(tmpdir(), 'kiln-site-'));
+  build(ex('tumble3d.kiln'), out);
+  // A host that knows nothing about Kiln: files by extension, under a sub-path as on a project page.
+  const types: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml' };
+  const server = createServer((req, res) => {
+    const path = decodeURIComponent(new URL(req.url!, 'http://x').pathname).replace(/^\/site\//, '').replace(/\.\./g, '') || 'index.html';
+    try {
+      const body = readFileSync(join(out, path));
+      res.writeHead(200, { 'content-type': types[extname(path)] ?? 'application/octet-stream' });
+      res.end(body);
+    } catch { res.writeHead(404); res.end(); }
+  });
+  await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok));
+  const port = (server.address() as import('node:net').AddressInfo).port;
+  try {
+    await loadBackend('rapier');
+    for (const scene of ['tumble3d.kiln', 'gallery3d.kiln']) {
+      const page = await browser.open(`http://127.0.0.1:${port}/site/?paused&offscreen&scene=${scene}`, { width: 960, height: 600 });
+      const got = await page.eval<{ hash: string; renderer: string }>(`(async () => {
+        for (let i = 0; i < 500 && !window.kiln; i++) await new Promise((r) => setTimeout(r, 20));
+        const hash = kiln.runTo(90);
+        return { hash, renderer: (await kiln.shot()).renderer };
+      })()`);
+      // No recorded input in a built folder, so the comparison is with a headless run that presses nothing.
+      assert.equal(got.hash, run(readFileSync(ex(scene), 'utf8'), { ticks: 90 }).hash, scene);
+      assert.deepEqual(page.errors(), [], scene);
+    }
+  } finally { server.close(); server.closeAllConnections(); }
+});
