@@ -1,0 +1,130 @@
+# Parity scoreboard
+
+Where Kiln stands against Godot 4 and Unreal Engine 5, feature by feature.
+This file is the roadmap: work means moving a row to the right.
+
+## The rule
+
+**A feature that can regress without a check failing does not count.**
+Keeping what works is worth more than adding what is new.
+
+| Status | Meaning |
+|---|---|
+| none | not there |
+| works | implemented and seen working once, by a person or a manual run |
+| **gated** | a check in CI fails if it breaks: a test, a state hash, a reference image or a budget |
+
+Only **gated** rows count toward a gate below. A new feature lands together with
+its check; a change that turns a gated check red is fixed or reverted before
+anything else is added.
+
+Three kinds of check, because they fail differently:
+
+- **State** is exact. The simulation is integer fixed-point, so the same scene
+  and input give the same hash on Linux, macOS and Windows. CI compares hashes.
+- **Images** are compared with a tolerance, on one reference environment only
+  (Linux CI, software rasterizer). Pixels differ across GPUs, drivers and shader
+  compilers, so identical images across machines are not a goal.
+- **Speed** is checked in CI by counts that do not jitter (search states, draw
+  calls, bytes). Wall-clock time is measured on the reference PC only, by
+  [`bench/PROTOCOL.md`](../bench/PROTOCOL.md).
+
+## Agent-first (Kiln's own axis)
+
+Neither engine was built for this; these rows are why Kiln exists.
+
+| Feature | Kiln | Check |
+|---|---|---|
+| Scene as plain text, round-trips exactly | **gated** | tests |
+| Every error at once, with codes and hints | **gated** | tests |
+| Headless run with the same result as the browser | works | hash compared by hand in the browser |
+| `solve`: the engine finds the input that wins a level | **gated** | tests on 14 examples |
+| `check` warns about parts that silently do nothing | **gated** | tests |
+| One-call guide for an agent, kept small | **gated** | size budget in tests |
+| MCP server | **gated** (protocol) | JSON-RPC test; no real client run yet |
+| `look`: an agent sees what was drawn | none | |
+| Real token cost of building a game, measured | none | one size estimate only |
+
+## 2D (Godot 2D is the bar)
+
+| Feature | Godot | Kiln | Check |
+|---|---|---|---|
+| Sprites, tile maps, camera | yes | works | drawn in browser by hand |
+| Box collision, swept movement | yes | **gated** | tests, hashes |
+| Rotation | yes | none | |
+| Circle and polygon collision | yes | none | |
+| Rigid bodies, joints | yes | none | |
+| Sprite animation | yes | none | |
+| Per-tile color and image | yes | none | |
+| Particles | yes | none | |
+| Audio (samples, music, mixing) | yes | works (event tones only) | call count by hand |
+| UI (text, buttons, layout) | yes | works (labels only) | by hand |
+| Gamepad | yes | none | |
+| Touch | yes | works | synthetic events by hand |
+| State carried between levels | yes | none | |
+
+## 3D rendering
+
+| Feature | Godot | Unreal | Kiln | Check |
+|---|---|---|---|---|
+| Boxes and OBJ meshes, one shadowed sun | yes | yes | works (WebGL2) | screenshots by hand |
+| WebGPU renderer | — | — | none | feasibility: `spikes/webgpu` |
+| Rotation and full transforms | yes | yes | none | |
+| glTF import | yes | yes | none | |
+| PBR materials, textures | yes | yes | none | |
+| Many lights, cascaded shadows | yes | yes | none | |
+| Skeletal animation, blending, IK | yes | yes | none | |
+| GPU-driven culling, automatic LOD (Nanite class) | no | yes | none | |
+| Dynamic global illumination (Lumen class) | partial | yes | none | |
+| Post effects, temporal upscaling | yes | yes | none | |
+
+## Simulation and world
+
+| Feature | Godot | Unreal | Kiln | Check |
+|---|---|---|---|---|
+| Deterministic across OSes | no | no | **gated** | hashes on 3 OSes |
+| 3D rigid bodies, convex shapes | yes | yes | none | feasibility: `spikes/physics` |
+| Navigation | yes | yes | none (`pace` only) | |
+| World streaming | no | yes | none | |
+| Networking | yes | yes | none | |
+
+## Tools and platforms
+
+| Feature | Godot | Unreal | Kiln | Check |
+|---|---|---|---|---|
+| Editor for people | yes | yes | none (player page only) | |
+| Profiler | yes | yes | none | |
+| Web export | yes | no | **gated** | build test; live demo |
+| Desktop executable | yes | yes | none | |
+| Consoles | via partners | yes | none | needs platform contracts, not code |
+
+## Gates
+
+### Godot 2D class
+
+Three of Godot's official 2D demos rebuilt in Kiln, each solved by `solve`, each
+row they use **gated**.
+
+### Godot 3D class
+
+The glTF sample scenes within image tolerance of their references; a
+third-person demo at 60 fps on the reference PC.
+
+### Unreal class
+
+Every row measured against UE5 on the **same scene, same settings, same
+hardware**, by `bench/PROTOCOL.md`. Numbers are targets, to be revised when the
+first measurements exist.
+
+| Axis | Target |
+|---|---|
+| Geometry | A scene of 100M+ source triangles, no hand-made LODs, 1080p at 60 fps; frame time at or below UE5 |
+| Lighting | Dynamic global illumination; perceptual error against a path-traced reference at or below UE5 |
+| Characters | Skeletal animation, blending and IK; 100 characters at 60 fps |
+| Physics | 10,000 rigid bodies stable; replay from input gives the same hash |
+| World | 16 km² streamed with a stated frame-time ceiling during loading |
+| Network | A 64-player session demo |
+| Tools | glTF and USD import, a viewer and inspector for people, a profiler |
+| Platforms | Windows, macOS, Linux executables and the web |
+| Shipped | Games made with Kiln by people outside the project |
+| **Agent cost** | The same game spec built with UE5 + agent and with Kiln + agent: tokens, time, and whether it was finished |
