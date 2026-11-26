@@ -175,3 +175,21 @@ test('browser: a load trigger opens the next level', { skip }, async () => {
     assert.match(where, /scene=level2\.kiln/);
   } finally { await player.close(); }
 });
+
+test('browser: rotation changes what is drawn, in 2D and by WebGPU', { skip }, async () => {
+  for (const [scene, query, renderer] of [['windmill', '', '2d'], ['orrery3d', 'renderer=webgpu', 'webgpu']]) {
+    const player = await openPlayer(ex(`${scene}.kiln`), { inputFile: ex(`${scene}.input`), browser, query });
+    try {
+      const shots = await player.page.eval<{ renderer: string; turned: string; flat: string }>(`(async () => {
+        kiln.runTo(100);
+        const first = await kiln.shot();
+        for (const c of ['rot', 'quat']) for (const id of kiln.world.query(c)) kiln.world.comps.get(c).delete(id);
+        return { renderer: first.renderer, turned: first.png, flat: (await kiln.shot()).png };
+      })()`);
+      if (shots.renderer !== renderer) continue; // no WebGPU in this browser
+      const png = (url: string) => decodePng(Buffer.from(url.slice(url.indexOf(',') + 1), 'base64'));
+      assert.ok(compare(png(shots.turned), png(shots.flat)).changed > 0.01, `${scene}: turning made no difference to the frame`);
+      assert.deepEqual(player.page.errors(), [], scene);
+    } finally { await player.close(); }
+  }
+});

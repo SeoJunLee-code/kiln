@@ -174,6 +174,14 @@ export function parseScene(text: string, file = 'scene'): Scene {
       err('K104', line, `pace axis must be x, y or z, got '${data.axis}'`, 'usage: pace axis min max speed');
       bad = true;
     }
+    if (def.name === 'rot' && !bad && !['x', 'y', 'z'].includes(data.axis as string)) {
+      err('K104', line, `rot axis must be x, y or z, got '${data.axis}'`, 'usage: rot angle [spin] [axis]');
+      bad = true;
+    }
+    if (def.name === 'quat' && !bad && !data.x && !data.y && !data.z && !data.w) {
+      err('K104', line, `quat 0 0 0 0 is not an orientation`, 'no turn is quat 0 0 0 1');
+      bad = true;
+    }
     if (def.name === 'trigger' && !bad) {
       for (const act of (data.action as string).split('+')) {
         if (!/^(none|despawn-self|despawn-other|despawn:#?[A-Za-z_][\w-]*|load:[\w.-]+\.kiln)$/.test(act)) {

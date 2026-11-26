@@ -1,0 +1,57 @@
+# Rotation in 2D. The sails turn (spin, degrees per second), the crates are set at an angle.
+# Turning is drawn but does not change collision: a turned box still blocks as its unturned box.
+world hz=60 gravity=0,0
+
+entity miller
+  pos 1 5
+  box 0.8 0.8
+  vel
+  ctrl 4
+  sprite @ dodgerblue
+
+entity yard
+  pos 0 0
+  tiles
+    ############
+    #..........#
+    #..........#
+    #..........#
+    #..........#
+    #..........#
+    ############
+
+entity sail1
+  pos 3.5 2.75
+  box 5 0.5
+  rot 20 spin=90
+  sprite color=peru
+entity sail2
+  pos 3.5 2.75
+  box 5 0.5
+  rot 110 spin=90
+  sprite color=peru
+entity hub
+  pos 5.6 2.6
+  box 0.8 0.8
+  rot 45 spin=-180
+  sprite color=saddlebrown
+
+entity crate
+  pos 2 4.5
+  box 1 1
+  solid
+  rot 30
+  sprite color=slategray
+entity sack
+  pos 9.2 1.3
+  box 0.9 0.6
+  rot 340
+  sprite color=khaki
+entity door
+  pos 10 5
+  box 0.8 0.8
+  trigger miller home
+  sprite E limegreen
+
+expect event home by 300
+expect at 120 sail1.rot.angle == 200

@@ -386,3 +386,68 @@ test('tiles plane=xz: the floor plan view shows the map, the side view does not'
   assert.match(view(w, 'xz'), /^origin 0,0\n#{11}\n#@/);
   assert.doesNotMatch(view(w, 'xy'), /#@\.\.#/, 'the side view does not draw the floor plan');
 });
+
+test('fx: sin and cos come from integers, and stay within one unit of the true value', async () => {
+  const { isqrt, sinCos, wrapDeg } = await import('../src/fx.ts');
+  assert.deepEqual([0, 90, 180, 270, 360, -90].map((d) => sinCos(fx(d))), [[0, ONE], [ONE, 0], [0, -ONE], [-ONE, 0], [0, ONE], [-ONE, 0]]);
+  assert.deepEqual(sinCos(fx(30)), [32768, 56756]);
+  let worst = 0;
+  for (let a = -fx(400); a < fx(400); a += 7919) {
+    const [s, c] = sinCos(a), r = (a / ONE) * (Math.PI / 180);
+    worst = Math.max(worst, Math.abs(s - Math.sin(r) * ONE), Math.abs(c - Math.cos(r) * ONE));
+  }
+  assert.ok(worst < 1, `worst error ${worst} units`);
+  assert.equal(wrapDeg(fx(-30)), fx(330));
+  assert.deepEqual([0, 1, 15, 16, 17, 2 ** 40, 2 ** 40 - 1].map(isqrt), [0, 1, 3, 4, 4, 2 ** 20, 2 ** 20 - 1]);
+});
+
+test('rot: spin adds up exactly, wraps at a full turn, and is part of the saved state', () => {
+  const scene = 'entity a\n  pos 0 0\n  box 1 1\n  rot 350 spin=45\nentity b\n  pos 2 0\n  box 1 1\n  rot 30 axis=y\n';
+  const w = run(scene, { ticks: 60 }).world;
+  assert.equal(fmtFx(w.get(0, 'rot')!.angle as number), '35');
+  assert.equal(fmtFx(w.get(1, 'rot')!.angle as number), '30');
+  assert.match(serialize(w), /^  rot 35 45$/m);
+  assert.match(serialize(w), /^  rot 30 0 y$/m);
+  assert.equal(hash(parseScene(serialize(w)).world), hash(w));
+  assert.notEqual(hash(w), hash(run(scene, { ticks: 59 }).world));
+  // A spin that does not divide evenly into ticks still lands exactly after each whole second.
+  const odd = run('entity a\n  pos 0 0\n  box 1 1\n  rot spin=100.7\n', { ticks: 180 }).world;
+  assert.equal(odd.get(0, 'rot')!.angle, 3 * fx(100.7));
+  assert.deepEqual(codes(() => parseScene('entity a\n  pos 0 0\n  box 1 1\n  rot 10 axis=w\n')), ['K104']);
+  assert.deepEqual(codes(() => parseScene('entity a\n  pos 0 0\n  box 1 1\n  quat 0 0 0 0\n')), ['K104']);
+});
+
+test('quat: turning stays a unit quaternion, comes back after a full turn, and gives pinned integers', () => {
+  const scene = 'entity a\n  pos 0 0 0\n  box 1 1 1\n  quat sy=90\nentity b\n  pos 3 0 0\n  box 1 1 1\n  quat sx=40 sy=70 sz=15\n';
+  const q = (w: ReturnType<typeof run>['world'], id: number): number[] => ['x', 'y', 'z', 'w'].map((f) => w.get(id, 'quat')![f] as number);
+  // One second at 90 degrees/second about y: (0, sin 45, 0, cos 45).
+  const one = run(scene, { ticks: 60 }).world;
+  for (const [got, want] of [[q(one, 0)[1], Math.SQRT1_2], [q(one, 0)[3], Math.SQRT1_2]]) assert.ok(Math.abs(got / ONE - want) < 0.001, `${got / ONE}`);
+  // Four seconds is a full turn: the quaternion is back at (0, 0, 0, 1), or its negative, which is the same orientation.
+  const four = run(scene, { ticks: 240 }).world;
+  assert.ok(Math.abs(Math.abs(q(four, 0)[3]) - ONE) < 4 && Math.abs(q(four, 0)[1]) < 40, `${q(four, 0)}`);
+  const long = run(scene, { ticks: 6000 }).world;
+  for (const id of [0, 1]) {
+    const len = Math.hypot(...q(long, id)) / ONE;
+    assert.ok(Math.abs(len - 1) < 0.001, `length ${len} after 6000 ticks`);
+  }
+  // The exact integers, so a machine that computes them differently fails here and not only in a hash.
+  assert.deepEqual(q(one, 1), [20974, 36702, 7868, 49458]);
+  assert.equal(hash(parseScene(serialize(long)).world), hash(long));
+});
+
+test('rot and quat: the matrix a renderer draws with turns the box about its centre', async () => {
+  const { boxMatrix } = await import('../web/mesh.ts');
+  const box = { p: [2, 3, 4], s: [4, 2, 6], color: [1, 1, 1] };
+  const plain = new Float32Array(16), same = new Float32Array(16), turned = new Float32Array(16);
+  boxMatrix(plain, 0, box);
+  boxMatrix(same, 0, { ...box, q: [0, 0, 0, 1] });
+  assert.deepEqual(Array.from(same, (v) => v + 0), Array.from(plain, (v) => v + 0), 'no turn is the matrix that was used before rotation existed');
+  // A quarter turn about z. The centre stays put; the cube's corner (0,0,0), which sat at
+  // the box's low corner, swings to the side. y is negated on the way out (the screen's up).
+  boxMatrix(turned, 0, { ...box, q: [0, 0, Math.SQRT1_2, Math.SQRT1_2] });
+  const at = (m: Float32Array, v: number[]): number[] => [0, 1, 2].map((r) => +(m[r] * v[0] + m[4 + r] * v[1] + m[8 + r] * v[2] + m[12 + r]).toFixed(4));
+  assert.deepEqual(at(turned, [0.5, 0.5, 0.5]), [4, -4, 7]);
+  assert.deepEqual(at(turned, [0, 0, 0]), [5, -2, 4]);
+  assert.deepEqual(at(plain, [0, 0, 0]), [2, -3, 4]);
+});

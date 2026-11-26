@@ -84,7 +84,38 @@ export function mul(a: number[], b: number[]): Float32Array {
 }
 
 /** A thing to draw: where its box is, how big, what color, and optionally the name of a mesh to draw inside it. */
-export interface Box3 { p: number[]; s: number[]; color: number[]; mesh?: string }
+export interface Box3 {
+  p: number[]; s: number[]; color: number[]; mesh?: string;
+  /** Orientation as a quaternion (x, y, z, w) in the simulation's axes, turning the box about its centre. */
+  q?: number[];
+}
+
+/**
+ * The 4x4 that takes the unit cube to a box: scaled to its size, turned about its centre,
+ * moved to its place, and then the simulation's downward y turned to point up.
+ */
+export function boxMatrix(out: Float32Array, at: number, b: Box3): void {
+  const [sx, sy, sz] = b.s;
+  out.fill(0, at, at + 16);
+  out[at + 15] = 1;
+  if (!b.q) {
+    out[at] = sx; out[at + 5] = -sy; out[at + 10] = sz;
+    out[at + 12] = b.p[0]; out[at + 13] = -b.p[1]; out[at + 14] = b.p[2];
+    return;
+  }
+  const l = Math.hypot(...b.q) || 1, x = b.q[0] / l, y = b.q[1] / l, z = b.q[2] / l, w = b.q[3] / l;
+  const c = [
+    [(1 - 2 * (y * y + z * z)) * sx, 2 * (x * y + z * w) * sx, 2 * (x * z - y * w) * sx],
+    [2 * (x * y - z * w) * sy, (1 - 2 * (x * x + z * z)) * sy, 2 * (y * z + x * w) * sy],
+    [2 * (x * z + y * w) * sz, 2 * (y * z - x * w) * sz, (1 - 2 * (x * x + y * y)) * sz],
+  ];
+  for (let i = 0; i < 3; i++) {
+    out[at + i * 4] = c[i][0]; out[at + i * 4 + 1] = -c[i][1]; out[at + i * 4 + 2] = c[i][2];
+  }
+  // The cube's centre (0.5, 0.5, 0.5) has to land on the box's centre.
+  const t = [0, 1, 2].map((r) => b.p[r] + b.s[r] / 2 - (c[0][r] + c[1][r] + c[2][r]) / 2);
+  out[at + 12] = t[0]; out[at + 13] = -t[1]; out[at + 14] = t[2];
+}
 export interface Renderer3 {
   /** Which backend draws: 'webgl2' or 'webgpu'. */
   name: string;

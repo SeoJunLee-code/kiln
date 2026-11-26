@@ -198,7 +198,15 @@ try {
     }
     for (const id of world.query('pos', 'box')) {
       const p = world.get(id, 'pos')!, b = world.get(id, 'box')!, sp = world.get(id, 'sprite'), color = (sp?.color as string) ?? 'white';
+      const qt = world.get(id, 'quat'), r = world.get(id, 'rot');
+      let q: number[] | undefined;
+      if (qt) q = [u(qt.x), u(qt.y), u(qt.z), u(qt.w)];
+      else if (r) {
+        const half = (u(r.angle) * Math.PI) / 360, s = Math.sin(half);
+        q = [r.axis === 'x' ? s : 0, r.axis === 'y' ? s : 0, r.axis === 'z' ? s : 0, Math.cos(half)];
+      }
       boxes.push({
+        q,
         p: [u(p.x), u(p.y), u(p.z)], s: [u(b.w), u(b.h), u(b.d)],
         color: rgb(color === 'white' ? (world.has(id, 'solid') ? '#59616e' : '#d7dbe2') : color),
         mesh: sp?.mesh ? wantMesh(sp.mesh as string) : undefined,
@@ -256,15 +264,26 @@ try {
       const color = (sp?.color as string) ?? 'white';
       g.fillStyle = world.has(id, 'solid') && color === 'white' ? '#3a404b' : color === 'white' ? '#d7dbe2' : color;
       const im = sp?.image ? image(sp.image as string) : null;
-      if (im) { g.drawImage(im, x, y, w, h); continue; }
-      g.fillRect(x, y, w, h);
-      if (sp?.glyph) {
-        g.fillStyle = '#14161a';
-        g.font = `600 ${Math.min(w, h) * 0.7}px ui-monospace, Consolas, monospace`;
-        g.textAlign = 'center';
-        g.textBaseline = 'middle';
-        g.fillText(sp.glyph as string, x + w / 2, y + h / 2);
+      // In 2D only a turn about z shows; it goes around the box's centre.
+      const r = world.get(id, 'rot'), turn = r && r.axis === 'z' ? ((r.angle as number) / ONE) * (Math.PI / 180) : 0;
+      if (turn) {
+        g.save();
+        g.translate(x + w / 2, y + h / 2);
+        g.rotate(turn);
+        g.translate(-(x + w / 2), -(y + h / 2));
       }
+      if (im) g.drawImage(im, x, y, w, h);
+      else {
+        g.fillRect(x, y, w, h);
+        if (sp?.glyph) {
+          g.fillStyle = '#14161a';
+          g.font = `600 ${Math.min(w, h) * 0.7}px ui-monospace, Consolas, monospace`;
+          g.textAlign = 'center';
+          g.textBaseline = 'middle';
+          g.fillText(sp.glyph as string, x + w / 2, y + h / 2);
+        }
+      }
+      if (turn) g.restore();
     }
     for (const id of world.query('label', 'pos')) {
       const l = world.get(id, 'label')!, p = world.get(id, 'pos')!, b = world.get(id, 'box');

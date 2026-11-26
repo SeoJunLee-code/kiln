@@ -5,7 +5,7 @@
 //
 // WebGPU's types are not declared here, so its objects are `any`; the engine has no
 // dependency to take them from.
-import { cube, lookAt, mul, norm, ortho01, parseObj, perspective01, sub, SHADOW_SIZE, SKY, SUN } from './mesh.ts';
+import { boxMatrix, cube, lookAt, mul, norm, ortho01, parseObj, perspective01, sub, SHADOW_SIZE, SKY, SUN } from './mesh.ts';
 import type { Box3, Renderer3 } from './mesh.ts';
 
 const SAMPLES = 4;
@@ -175,10 +175,7 @@ export async function makeRendererGpu(canvas: HTMLCanvasElement, offscreen = fal
     }
     let at = 0;
     for (const group of groups.values()) for (const b of group) {
-      // Unit cube -> box, with the simulation's downward y turned to point up.
-      instances.fill(0, at, at + 16);
-      instances[at] = b.s[0]; instances[at + 5] = -b.s[1]; instances[at + 10] = b.s[2];
-      instances[at + 12] = b.p[0]; instances[at + 13] = -b.p[1]; instances[at + 14] = b.p[2]; instances[at + 15] = 1;
+      boxMatrix(instances, at, b);
       instances[at + 16] = b.color[0]; instances[at + 17] = b.color[1]; instances[at + 18] = b.color[2]; instances[at + 19] = 1;
       at += INSTANCE_FLOATS;
     }

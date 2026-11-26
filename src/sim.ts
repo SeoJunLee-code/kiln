@@ -1,4 +1,4 @@
-import { fdiv, tickShare } from './fx.ts';
+import { ONE, fdiv, isqrt, sinCos24, tickShare, wrapDeg } from './fx.ts';
 import { KilnFail, serialize, suggest } from './scene.ts';
 import type { Diag } from './scene.ts';
 import type { Comp, World } from './world.ts';
@@ -149,7 +149,30 @@ function shove(w: World, crate: Block, a: number, want: number, index: SolidInde
   return to - from;
 }
 
-/** Advance one fixed tick. System order is fixed: input, ctrl, pace, scripts (pre), gravity, move, triggers, scripts (post). */
+/**
+ * Turn a quaternion component by the angle vector (tx, ty, tz), in degrees about the world
+ * axes. The small turn is built at 2^24 scale and the product rounded to fixed-point once,
+ * so the error per tick is half a unit and does not lean one way.
+ */
+export function spinQuat(q: Comp, tx: number, ty: number, tz: number): void {
+  const angle = isqrt(tx * tx + ty * ty + tz * tz);
+  if (angle === 0) return;
+  const [s, c] = sinCos24(angle >> 1);
+  const ax = Math.round((tx * s) / angle), ay = Math.round((ty * s) / angle), az = Math.round((tz * s) / angle);
+  const x = q.x as number, y = q.y as number, z = q.z as number, v = q.w as number;
+  // (ax, ay, az, c) * (x, y, z, v): the new turn applied after the old one.
+  const nx = c * x + ax * v + ay * z - az * y;
+  const ny = c * y - ax * z + ay * v + az * x;
+  const nz = c * z + ax * y - ay * x + az * v;
+  const nw = c * v - ax * x - ay * y - az * z;
+  // Back to unit length. The four are at 2^40 scale; 2^-12 brings their squares under 2^53.
+  const px = Math.round(nx / 4096), py = Math.round(ny / 4096), pz = Math.round(nz / 4096), pw = Math.round(nw / 4096);
+  const len = isqrt(px * px + py * py + pz * pz + pw * pw);
+  if (len === 0) return;
+  q.x = Math.round((px * ONE) / len); q.y = Math.round((py * ONE) / len); q.z = Math.round((pz * ONE) / len); q.w = Math.round((pw * ONE) / len);
+}
+
+/** Advance one fixed tick. System order is fixed: input, ctrl, pace, scripts (pre), gravity, move, turn, triggers, scripts (post). */
 export function step(w: World, script?: InputScript): void {
   for (const [action, down] of script?.get(w.tick) ?? []) {
     if (down) w.pressed.add(action);
@@ -244,6 +267,17 @@ export function step(w: World, script?: InputScript): void {
       body.grounded = grounded;
       body.ride = ride >= 0 ? w.names[ride]! : '';
     }
+  }
+
+  // Turning. An angle is added to exactly, like a position. A quaternion is multiplied by
+  // this tick's small turn and then scaled back to unit length, all in fixed-point.
+  for (const id of w.query('rot')) {
+    const r = w.get(id, 'rot')!;
+    if (r.spin) r.angle = wrapDeg((r.angle as number) + tickShare(r.spin as number, k, w.hz));
+  }
+  for (const id of w.query('quat')) {
+    const q = w.get(id, 'quat')!;
+    if (q.sx || q.sy || q.sz) spinQuat(q, tickShare(q.sx as number, k, w.hz), tickShare(q.sy as number, k, w.hz), tickShare(q.sz as number, k, w.hz));
   }
 
   w.tick++;

@@ -16,6 +16,8 @@ const NEEDS: Record<string, string[]> = {
   label: ['pos'],
   camera: ['pos'],
   eye: ['pos'],
+  rot: ['pos', 'box'],
+  quat: ['pos', 'box'],
 };
 
 /**

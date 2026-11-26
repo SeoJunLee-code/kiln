@@ -14,7 +14,7 @@ export function defineComponent(name: string, doc: string, fields: Field[] = [])
 
 const f = (name: string, type: FieldType, def?: number | string): Field => ({ name, type, def });
 
-defineComponent('pos', 'corner with the smallest x, y, z in world units. y grows downward; z is depth and only matters in 3D scenes',
+defineComponent('pos', 'corner with the smallest x, y, z. y grows downward; z is depth, 3D only',
   [f('x', 'fx'), f('y', 'fx'), f('z', 'fx', 0)]);
 defineComponent('vel', 'velocity in units/second', [f('x', 'fx', 0), f('y', 'fx', 0), f('z', 'fx', 0)]);
 defineComponent('box', 'axis-aligned size on x, y and (3D) z; needed for collision and triggers', [f('w', 'fx'), f('h', 'fx'), f('d', 'fx', 65536)]);
@@ -27,13 +27,17 @@ defineComponent('ctrl', 'input-driven. jump=0: 4-way (left/right/up/down). jump>
 defineComponent('pace', 'walks back and forth along axis (x, y or z) between min and max at speed; needs vel',
   [f('axis', 'str'), f('min', 'fx'), f('max', 'fx'), f('speed', 'fx')]);
 defineComponent('tag', 'group label; reference it elsewhere as #name', [f('name', 'str')]);
-defineComponent('trigger', 'emits event when target (entity name or #tag) starts overlapping. action: none, despawn-self, despawn-other, despawn:REF (REF = name or #tag, e.g. a door), load:FILE (emits event load; the player then opens that scene); join several with +',
+defineComponent('trigger', 'emits event when target (entity name or #tag) starts overlapping. action: none, despawn-self, despawn-other, despawn:REF (REF: name or #tag), load:FILE (emits event load; the player then opens that scene); join several with +',
   [f('target', 'str'), f('event', 'str'), f('action', 'str', 'none')]);
-defineComponent('tiles', 'grid of square cells at pos. rows follow the line, each indented 4 spaces, one character per cell. size: cell size. solid: characters that block movers. spawn: CHAR:PREFAB pairs, e.g. o:coin,@:hero, replaced by entities when the scene loads. plane=xz lays the grid flat as a 3D floor plan (rows run along z); depth is then the wall height',
+defineComponent('tiles', 'grid of square cells at pos. rows follow, indented 4 spaces, one character per cell. size: cell size. solid: characters that block movers. spawn: CHAR:PREFAB pairs, e.g. o:coin,@:hero, replaced by entities when the scene loads. plane=xz lays the grid flat as a 3D floor plan (rows run along z); depth is then the wall height',
   [f('size', 'fx', 65536), f('solid', 'str', '#'), f('spawn', 'str', ''), f('depth', 'fx', 65536), f('plane', 'str', 'xy')]);
-defineComponent('sprite', 'appearance. glyph: character for the ASCII view. color: CSS color. image: file next to the scene (svg/png), drawn in 2D. mesh: .obj file next to the scene, drawn in 3D fitted to the box',
+defineComponent('sprite', 'appearance. glyph: character for the ASCII view. color: CSS color. image: svg/png next to the scene, drawn in 2D. mesh: .obj next to the scene, drawn in 3D fitted to the box',
   [f('glyph', 'str', ''), f('color', 'str', 'white'), f('image', 'str', ''), f('mesh', 'str', '')]);
-defineComponent('eye', 'makes the player draw the scene in 3D: a perspective camera at this entity plus the offset, looking at the entity; ignored headless',
+defineComponent('rot', 'turned angle degrees about axis (x, y, z) through the box centre, clockwise in 2D. spin: degrees/second. Collision ignores it',
+  [f('angle', 'fx', 0), f('spin', 'fx', 0), f('axis', 'str', 'z')]);
+defineComponent('quat', '3D orientation as a unit quaternion, instead of rot. sx sy sz: degrees/second about world axes',
+  [f('x', 'fx', 0), f('y', 'fx', 0), f('z', 'fx', 0), f('w', 'fx', 65536), f('sx', 'fx', 0), f('sy', 'fx', 0), f('sz', 'fx', 0)]);
+defineComponent('eye', 'makes the player draw the scene in 3D: a camera at this entity plus the offset, looking at it; ignored headless',
   [f('x', 'fx'), f('y', 'fx'), f('z', 'fx'), f('fov', 'int', 55)]);
 defineComponent('label', 'text drawn above the entity by the 2D player; write _ for a space', [f('text', 'str'), f('color', 'str', 'white')]);
 defineComponent('camera', 'the player view follows this entity and shows w x h world units; ignored headless', [f('w', 'fx'), f('h', 'fx')]);

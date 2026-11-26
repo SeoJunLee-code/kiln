@@ -421,6 +421,7 @@ test('check: warns about parts of a scene that load but silently do nothing', as
   has(/^W K313 scene 'hero' walks on the x\/z plane but nothing has 'eye'/);
   assert.match(lines.at(-1)!, /^ok entities=3 expects=1 scripts=0 warnings=\d+$/);
 
+  assert.match((await command('check', { scene: 'entity a\n  pos 0 0\n  rot 30\n' })).text, /^W K310 scene 'a' has 'rot' but no 'box'/m);
   const none = await command('check', { scene: 'entity a\n  pos 0 0\n' });
   assert.match(none.text, /^W K300 .*no expect lines/m);
   assert.match(none.text, /warnings=1$/m);
