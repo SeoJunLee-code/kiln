@@ -91,7 +91,11 @@ export async function loadBackend(name: string, file = 'scene'): Promise<void> {
 }
 
 /** What ties a world to its backend world: which entity is which kind of body, and which tile maps are in. */
-export interface Link { world: BackendWorld; kinds: Map<number, string>; maps: Set<number> }
+export interface Link {
+  world: BackendWorld; kinds: Map<number, string>; maps: Set<number>;
+  /** What the last step read from the backend for each rigid body, so that the next tick need not ask again. Not saved. */
+  seen: Map<number, Float64Array>;
+}
 export interface SavedLink { bytes: number; state: unknown; kinds: Map<number, string>; maps: Set<number> }
 
 const num = (c: Comp | undefined, f: string): number => ((c?.[f] as number | undefined) ?? 0) / ONE;
@@ -123,7 +127,7 @@ function kindOf(w: World, id: number): BodyDesc['kind'] | null {
   return w.has(id, 'solid') ? 'fixed' : null;
 }
 
-const out = new Float64Array(13);
+const out = new Float64Array(13), scratch = new Float64Array(13);
 
 /**
  * Bring the backend's bodies in line with the scene's entities: called by `step` before the
@@ -134,20 +138,22 @@ export function physicsSync(w: World): void {
   if (!link) {
     const backend = loaded.get(w.physics);
     if (!backend) throw new KilnFail([{ code: 'K130', file: 'scene', line: 0, msg: `physics backend '${w.physics}' is not loaded`, hint: `install it once: npm ci --prefix backends/${w.physics}` }]);
-    w.link = link = { world: backend.create([w.gx / ONE, w.gy / ONE, w.gz / ONE], 1 / w.hz), kinds: new Map(), maps: new Set() };
+    w.link = link = { world: backend.create([w.gx / ONE, w.gy / ONE, w.gz / ONE], 1 / w.hz), kinds: new Map(), maps: new Set(), seen: new Map() };
   }
-  const { world, kinds, maps } = link;
+  const { world, kinds, maps, seen } = link;
 
   // Bodies follow entities: gone or changed ones leave, new ones enter, always in id order.
   for (const [id, kind] of kinds) {
-    if (w.names[id] == null || !w.has(id, 'pos') || !w.has(id, 'box') || kindOf(w, id) !== kind) { world.removeBody(id); kinds.delete(id); }
+    if (w.names[id] == null || !w.has(id, 'pos') || !w.has(id, 'box') || kindOf(w, id) !== kind) { world.removeBody(id); kinds.delete(id); seen.delete(id); }
   }
   // A rigid body's components mirror the backend. Where one no longer says what the backend
   // says, something (a script, usually) wrote to it since the last step, and the body follows:
   // that is how a body is put somewhere or given a speed. Parts nobody wrote keep their exact value.
   for (const [id, kind] of kinds) {
     if (kind !== 'dynamic') continue;
-    world.read(id, out);
+    // Nothing has touched the backend since the last step wrote the mirror, so what it read then still holds.
+    let out = seen.get(id);
+    if (!out) world.read(id, out = scratch);
     const p = w.get(id, 'pos')!, b = w.get(id, 'box')!, q = w.get(id, 'quat'), v = w.get(id, 'vel');
     const hw = (b.w as number) >> 1, hh = (b.h as number) >> 1, hd = (b.d as number) >> 1;
     const at = p.x !== ((toFx(out[0]) - hw) | 0) || p.y !== ((toFx(out[1]) - hh) | 0) || p.z !== ((toFx(out[2]) - hd) | 0)
@@ -229,7 +235,7 @@ export function physicsSweep(w: World, cur: number[], size: number[], a: number,
  * is in its way, and returns how far it went.
  */
 export function physicsStep(w: World, nudge: (id: number, a: number, want: number) => number): void {
-  const { world, kinds } = w.link as Link;
+  const { world, kinds, seen } = w.link as Link;
   for (const [id, kind] of kinds) {
     if (kind !== 'kinematic') continue;
     const p = w.get(id, 'pos')!, b = w.get(id, 'box')!;
@@ -275,6 +281,8 @@ export function physicsStep(w: World, nudge: (id: number, a: number, want: numbe
   // The backend's result, rounded to fixed-point, becomes what the rest of the engine sees.
   for (const [id, kind] of kinds) {
     if (kind !== 'dynamic') continue;
+    let out = seen.get(id);
+    if (!out) seen.set(id, out = new Float64Array(13));
     world.read(id, out);
     const p = w.get(id, 'pos')!, b = w.get(id, 'box')!, q = w.get(id, 'quat')!, v = w.get(id, 'vel')!;
     p.x = (toFx(out[0]) - ((b.w as number) >> 1)) | 0; p.y = (toFx(out[1]) - ((b.h as number) >> 1)) | 0; p.z = (toFx(out[2]) - ((b.d as number) >> 1)) | 0;
@@ -298,7 +306,7 @@ export function saveLink(w: World): SavedLink | null {
 }
 /** Give a world the physics state that was saved from another copy of it (null: not started). */
 export function restoreLink(w: World, saved: SavedLink | null): void {
-  w.link = saved ? { world: loaded.get(w.physics)!.restore(saved.state), kinds: new Map(saved.kinds), maps: new Set(saved.maps) } : undefined;
+  w.link = saved ? { world: loaded.get(w.physics)!.restore(saved.state), kinds: new Map(saved.kinds), maps: new Set(saved.maps), seen: new Map() } : undefined;
 }
 /** Release a world's backend memory. A backend lives outside the garbage collector. */
 export function freeLink(w: World): void {

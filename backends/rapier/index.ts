@@ -28,6 +28,22 @@ function wrap(world: any, handles: Map<number, number>, fresh: Set<number>): Bac
   const body = (key: number): any => world.getRigidBody(handles.get(key)!);
   const keys = new Map<number, number>();
   for (const [key, handle] of handles) keys.set(handle, key);
+  // Bodies have been put somewhere since their colliders were last brought to them.
+  let moved = false;
+  const settle = (): void => {
+    if (moved) world.propagateModifiedBodyPositionsToColliders();
+    moved = false;
+  };
+  // How far a body's shape reaches from its centre, at most.
+  const reach = new Map<number, number>();
+  const reachOf = (key: number): number => {
+    let r = reach.get(key);
+    if (r === undefined) {
+      const s = body(key).collider(0).shape;
+      reach.set(key, r = s.halfExtents ? Math.hypot(s.halfExtents.x, s.halfExtents.y, s.halfExtents.z) : s.radius);
+    }
+    return r!;
+  };
   return {
     addBody(key: number, b: BodyDesc): void {
       const desc = (b.kind === 'dynamic' ? R.RigidBodyDesc.dynamic() : b.kind === 'kinematic' ? R.RigidBodyDesc.kinematicPositionBased() : R.RigidBodyDesc.fixed())
@@ -48,15 +64,29 @@ function wrap(world: any, handles: Map<number, number>, fresh: Set<number>): Bac
       keys.delete(handles.get(key)!);
       handles.delete(key);
       fresh.delete(key);
+      reach.delete(key);
     },
     cast(half: number[], at: number[], dir: number[], max: number): { dist: number; key: number } | null {
+      settle();
       const shape = new R.Cuboid(half[0], half[1], half[2]);
       const from = { x: at[0], y: at[1], z: at[2] }, along = { x: dir[0], y: dir[1], z: dir[2] };
       // Not stopping at a penetration: a box that overlaps a body may still move out of it.
       const hit = world.castShape(from, UNTURNED, along, shape, 0, max, false, R.QueryFilterFlags.ONLY_DYNAMIC);
       let found = hit ? { dist: hit.time_of_impact as number, key: keys.get(hit.collider.parent().handle)! } : null;
+      if (!fresh.size) return found;
+      // The space the box sweeps through. A fresh body too far from it to touch is not asked:
+      // a script that moves every body every tick makes all of them fresh.
+      const lo = [0, 0, 0], hi = [0, 0, 0];
+      for (let i = 0; i < 3; i++) {
+        lo[i] = at[i] - half[i] + Math.min(0, dir[i] * max);
+        hi[i] = at[i] + half[i] + Math.max(0, dir[i] * max);
+      }
       for (const key of fresh) {
-        const b = body(key);
+        const b = body(key), c = b.translation();
+        const dx = Math.max(lo[0] - c.x, 0, c.x - hi[0]), dy = Math.max(lo[1] - c.y, 0, c.y - hi[1]), dz = Math.max(lo[2] - c.z, 0, c.z - hi[2]);
+        // The margin is far above what 32-bit floats lose at these sizes.
+        const r = reachOf(key) + 0.01 + (Math.abs(c.x) + Math.abs(c.y) + Math.abs(c.z)) * 1e-5;
+        if (dx * dx + dy * dy + dz * dz > r * r) continue;
         const h = b.collider(0).castShape(STILL, shape, from, UNTURNED, along, 0, max, false);
         if (h && (!found || h.time_of_impact < found.dist)) found = { dist: h.time_of_impact, key };
       }
@@ -73,8 +103,9 @@ function wrap(world: any, handles: Map<number, number>, fresh: Set<number>): Bac
       if (spin) b.setAngvel({ x: spin[0], y: spin[1], z: spin[2] }, true);
       if (at || rot) {
         // Until the next step the scene queries look for the body where it was. Moving its
-        // collider now and asking it directly (as for a new body) makes a cast see it here.
-        world.propagateModifiedBodyPositionsToColliders();
+        // collider (before the next cast, once for all that moved) and asking it directly,
+        // as for a new body, makes a cast see it here.
+        moved = true;
         fresh.add(key);
       }
     },
@@ -82,7 +113,7 @@ function wrap(world: any, handles: Map<number, number>, fresh: Set<number>): Bac
     moveKinematic(key: number, at: number[]): void {
       body(key).setNextKinematicTranslation({ x: at[0], y: at[1], z: at[2] });
     },
-    step(): void { world.step(); fresh.clear(); },
+    step(): void { world.step(); fresh.clear(); moved = false; },
     touching(key: number): { key: number; j: number[] }[] {
       const mine = body(key).collider(0), others: any[] = [], found: { key: number; j: number[] }[] = [];
       world.contactPairsWith(mine, (other: any) => { if (other.parent()?.isDynamic()) others.push(other); });
@@ -119,6 +150,7 @@ function wrap(world: any, handles: Map<number, number>, fresh: Set<number>): Bac
       return fnv(new Uint8Array(new Float32Array(values).buffer));
     },
     save(): { bytes: number; state: unknown } {
+      settle();
       const snapshot: Uint8Array = world.takeSnapshot();
       return { bytes: snapshot.length, state: { snapshot, handles: new Map(handles), fresh: new Set(fresh) } };
     },

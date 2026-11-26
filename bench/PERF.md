@@ -5,12 +5,17 @@ blocks, so every body runs a collision query every tick. One thread, no renderin
 
 Node v24, one laptop-class machine. One run; expect some noise.
 
+Measured at the machine's sustained speed, after six seconds of full load. A fixed loop of
+integer work took 80 ms when the process started, 260 ms before the first row and 236 ms
+after the last: where the first is much lower, a game's first seconds run that much faster
+than these numbers, and where the last two differ, the rows are not comparable.
+
 | Moving bodies | Solid blocks | ms per tick | ticks per second | fits 60 Hz | final hash |
 |---|---|---|---|---|---|
-| 100 | 100 | 0.090 | 11152 | yes | 0c156764 |
-| 1000 | 100 | 0.435 | 2297 | yes | c7a0fa02 |
-| 1000 | 1000 | 0.738 | 1355 | yes | 77dbacf8 |
-| 5000 | 1000 | 2.690 | 372 | yes | 47b50588 |
-| 10000 | 5000 | 7.048 | 142 | yes | 65239a1b |
+| 100 | 100 | 0.541 | 1848 | yes | 41bfae0a |
+| 1000 | 100 | 2.069 | 483 | yes | 69246b8a |
+| 1000 | 1000 | 3.286 | 304 | yes | 70f8f2b1 |
+| 5000 | 1000 | 11.785 | 85 | yes | a0fc0de2 |
+| 10000 | 5000 | 31.484 | 32 | no | c6d8cc25 |
 
 The hash column is there so that an optimisation which changes results cannot go unnoticed.

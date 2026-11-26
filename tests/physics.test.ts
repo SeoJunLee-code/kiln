@@ -386,3 +386,25 @@ test('build: a physics scene takes its backend along', { skip }, () => {
   assert.match(readFileSync(join(out, 'index.html'), 'utf8'), /"@dimforge\/rapier3d-deterministic-compat": "\.\/engine\/backends\/rapier\/node_modules\//);
 });
 
+
+test('bodies a script writes to every tick still stop a mover, to the same bits', { skip }, () => {
+  // Every body is "fresh" to the backend's casts on every tick here: the case in which a cast
+  // leaves out the ones too far away to touch. The hash was taken before it left any out.
+  let ents = 'entity guard\n  pos -8 -1 0\n  box 0.8 1 0.8\n  vel\n  body\n  pace x -8 7 3\n';
+  for (let i = 0; i < 24; i++) ents += `entity r${i}\n  pos ${-4 + (i % 6) * 1.5} -1.5 ${-3 + Math.floor(i / 6) * 1.5}\n  box 0.8 0.8 0.8\n  rigid ${i % 3 ? 'box' : 'ball'}\n`;
+  const w = parseScene(`world gravity=0,30 physics=rapier\n${FLOOR}${ents}`).world;
+  let least = Infinity;
+  for (let t = 0; t < 180; t++) {
+    for (const id of w.query('rigid', 'pos')) (w.get(id, 'pos')!.x as number) += 1;
+    step(w);
+    // The guard walks into r12 and r13 on its row; it may shove them but never be inside one.
+    for (const name of ['r12', 'r13']) {
+      const gap = Math.max(Math.abs(at(w, name, 'pos', 'x') - at(w, 'guard', 'pos', 'x')) - 0.8, Math.abs(at(w, name, 'pos', 'z') - at(w, 'guard', 'pos', 'z')) - 0.8);
+      least = Math.min(least, gap);
+    }
+  }
+  assert.ok(least > -0.02, `the guard got ${-least} into a body`);
+  assert.ok(at(w, 'r12', 'pos', 'x') > -3.9, 'the guard never shoved the first body in its way');
+  assert.equal(hash(w), '2b87d1e3');
+  freeLink(w);
+});

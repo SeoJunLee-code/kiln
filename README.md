@@ -250,7 +250,9 @@ One measurement so far: the maze example, with its play-through and checks, is 7
 
 ## How fast is it?
 
-On one laptop, single thread, no rendering: 1,000 falling bodies among 1,000 solid blocks take about 0.7 ms per tick, and 10,000 bodies among 5,000 blocks about 7 ms, inside a 60 Hz frame. Collision candidates come from a coarse grid rebuilt each tick. The script and the full table are in [bench/PERF.md](bench/PERF.md); the numbers are one run on one machine.
+On one laptop, single thread, no rendering, at the speed the laptop sustains (its first seconds are about three times faster): 1,000 falling bodies among 1,000 solid blocks take about 3 ms per tick, and 5,000 among 1,000 about 12 ms, inside a 60 Hz frame; 10,000 among 5,000 take about 31 ms, which is not. Collision candidates come from a coarse grid rebuilt each tick. The script and the full table are in [bench/PERF.md](bench/PERF.md).
+
+Rigid bodies (the Rapier backend) on the same laptop: a pile of 500 crates and balls with four characters walking through it takes about 8 ms per tick, 1,000 take about 22 ms. Roughly three quarters of that is the solver. The table, with what a save and a restore cost, is in [bench/PHYSICS.md](bench/PHYSICS.md). All of these are one run on one machine.
 
 ## Roadmap
 
