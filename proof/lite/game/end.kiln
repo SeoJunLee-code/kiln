@@ -1,0 +1,18 @@
+world hz=60 gravity=0,0
+
+entity message
+  pos 4.5 3.5
+  label You_win color=gold
+
+entity frame
+  pos 0 0
+  tiles
+    #########
+    #.......#
+    #.......#
+    #.......#
+    #.......#
+    #.......#
+    #########
+
+expect at 1 message.pos.x == 4.5

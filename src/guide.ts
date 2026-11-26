@@ -52,7 +52,7 @@ function topicIndex(): string {
  */
 export function guideText(): string {
   return `KILN GUIDE
-A scene is a text file. Run it headless; same scene + same input = same result.
+A scene is a text file, NAME.kiln. Run it headless; same scene + same input = same result.
 
 SCENE
 world hz=60 gravity=X,Y[,Z] [seed=N] [physics=rapier]   once, optional

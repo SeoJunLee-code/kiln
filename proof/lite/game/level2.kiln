@@ -1,0 +1,97 @@
+world hz=60 gravity=0,0
+use ./rules.ts
+
+entity map
+  pos 0 0
+  tiles
+    ###########
+    #...#.....#
+    #.#...###.#
+    #####.#####
+    #.........#
+    #####.#####
+    #.........#
+    #.###.###.#
+    #....#.....
+    ###########
+
+entity title
+  pos 5.5 0.5
+  label Level_2
+
+entity exit
+  pos 10 8
+  box 1 1
+  trigger hero exit load:level3.kiln
+  sprite color=transparent
+
+entity door
+  pos 10 8
+  box 1 1
+  solid
+  door
+  sprite color=orange glyph=D
+
+entity gem1
+  pos 9.25 1.25
+  box 0.5 0.5
+  tag gem
+  trigger hero gem despawn-self
+  sprite color=cyan glyph=*
+
+entity gem2
+  pos 1.25 6.25
+  box 0.5 0.5
+  tag gem
+  trigger hero gem despawn-self
+  sprite color=cyan glyph=*
+
+entity gem3
+  pos 9.25 6.25
+  box 0.5 0.5
+  tag gem
+  trigger hero gem despawn-self
+  sprite color=cyan glyph=*
+
+entity gem4
+  pos 1.25 8.25
+  box 0.5 0.5
+  tag gem
+  trigger hero gem despawn-self
+  sprite color=cyan glyph=*
+
+entity hero
+  pos 1.15 1.15
+  vel
+  box 0.7 0.7
+  ctrl 4
+  sprite color=lime glyph=@
+
+# touching a guard reloads this level: everything starts over
+entity guard1
+  pos 1.1 4.1
+  vel
+  box 0.8 0.8
+  pace x 1.1 9.1 3
+  tag guard
+  trigger hero caught despawn:hero+load:level2.kiln
+  sprite color=red glyph=G
+
+entity guard2
+  pos 9.1 6.1
+  vel
+  box 0.8 0.8
+  pace x 2.1 9.1 2.5
+  tag guard
+  trigger hero caught despawn:hero+load:level2.kiln
+  sprite color=red glyph=G
+
+expect gone gem1 by 1500
+expect gone gem3 by 1500
+expect gone gem2 by 1500
+expect gone gem4 by 1500
+expect gone #gem by 1500
+expect event open by 1500
+expect event exit by 1500
+# not caught up to the exit (headless runs on after 'load', so only count until then)
+expect count caught == 0 at 886

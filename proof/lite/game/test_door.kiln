@@ -1,0 +1,67 @@
+# B: level 1 with two of three gems cannot leave. Entities copy level1.kiln; only the expects differ.
+world hz=60 gravity=0,0
+use ./rules.ts
+
+entity map
+  pos 0 0
+  tiles
+    #########
+    #...#...#
+    #.#.#.#.#
+    #.#...#..
+    #.#####.#
+    #.......#
+    #########
+
+entity title
+  pos 4.5 0.5
+  label Level_1
+
+entity exit
+  pos 8 3
+  box 1 1
+  trigger hero exit load:level2.kiln
+  sprite color=transparent
+
+entity door
+  pos 8 3
+  box 1 1
+  solid
+  door
+  sprite color=orange glyph=D
+
+entity gem1
+  pos 7.25 1.25
+  box 0.5 0.5
+  tag gem
+  trigger hero gem despawn-self
+  sprite color=cyan glyph=*
+
+entity gem2
+  pos 1.25 5.25
+  box 0.5 0.5
+  tag gem
+  trigger hero gem despawn-self
+  sprite color=cyan glyph=*
+
+entity gem3
+  pos 7.25 5.25
+  box 0.5 0.5
+  tag gem
+  trigger hero gem despawn-self
+  sprite color=cyan glyph=*
+
+entity hero
+  pos 1.15 1.15
+  vel
+  box 0.7 0.7
+  ctrl 4
+  sprite color=lime glyph=@
+
+# two gems taken, then 90 ticks of walking right into the door
+expect count gem == 2 at 300
+expect count open == 0 at 300
+expect count exit == 0 at 300
+expect never hero exit
+expect at 300 hero.pos.x > 7.2
+expect at 300 hero.pos.x <= 7.3

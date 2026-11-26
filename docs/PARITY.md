@@ -49,8 +49,8 @@ does that thing best. The agent-first rows belong to the core and hold in all th
 | Parallel simulation reaches the serial hash | none | no parallel code yet |
 | `check` reports the edition per axis (drawing, physics, world, network) | **gated** | one line per axis above Lite; nothing sets world or network yet. The scenes drawn only by WebGPU must be exactly those whose drawing is Standard |
 | Budgets per edition: exported bytes, memory, time to first frame | works (bytes only) | bytes are gated in the row above; memory and time to first frame have not been measured |
-| A proof game per edition, built by an agent, at 60 fps on that edition's reference machine | none | |
-| Agent cost per edition: tokens for one spec, failures repaired without a person | none | |
+| A proof game per edition, built by an agent, at 60 fps on that edition's reference machine | works (Lite, built only) | `proof/lite`: spec, game and run record; tests replay it headless and in a browser. Its frame rate is not measured on the PC without WebGPU or on a phone. Standard and Ultra: none |
+| Agent cost per edition: tokens for one spec, failures repaired without a person | works (Lite, one run) | `proof/lite/RUN.md`. The same spec has not been built on the engine that is the bar |
 
 ## Where Unity is the bar
 
@@ -73,10 +73,10 @@ Neither engine was built for this; these rows are why Kiln exists.
 | `solve`: the engine finds the input that wins a level | **gated** | tests, including a level won by pushing a rigid body |
 | `check` warns about parts that silently do nothing | **gated** | tests |
 | One-call guide for an agent, kept small | **gated** | size budget in tests |
-| MCP server | **gated** (protocol) | JSON-RPC test; no real client run yet |
+| MCP server | **gated** (protocol) | JSON-RPC test. One real client has used it (Claude Code, headless): [`proof/lite/RUN.md`](../proof/lite/RUN.md) |
 | `look`: an agent sees what was drawn | **gated** | tests; over MCP the picture comes back in the reply |
-| Real token cost of building a game, measured | none | one size estimate only |
-| A real agent builds a game to the end and repairs its own failures | none | no real client has connected; count the failures fixed without a person |
+| Real token cost of building a game, measured | works | one run, one model: 37,711 tokens written, 794,808 read (725,800 of them from cache), 7 m 4 s. `scripts/agentcost.ts` reads it from the run log (tested). No second run, no other engine yet |
+| A real agent builds a game to the end and repairs its own failures | works | once: the Lite proof game, 7 failures repaired without a person, 4 kinds of them Kiln's fault (listed in `proof/lite/RUN.md`). The game is kept working by `tests/proof.test.ts`; the run itself is not repeated by CI |
 | The first tick where two runs differ is reported | none | |
 
 ## 2D (Godot 2D is the bar)

@@ -1,0 +1,63 @@
+world hz=60 gravity=0,0
+use ./rules.ts
+
+entity map
+  pos 0 0
+  tiles
+    #########
+    #...#...#
+    #.#.#.#.#
+    #.#...#..
+    #.#####.#
+    #.......#
+    #########
+
+entity title
+  pos 4.5 0.5
+  label Level_1
+
+entity door
+  pos 8 3
+  box 1 1
+  solid
+  door
+  sprite color=orange glyph=D
+
+# the open doorway, same cell as the door
+entity exit
+  pos 8 3
+  box 1 1
+  trigger hero exit load:level2.kiln
+  sprite color=transparent
+
+entity gem1
+  pos 7.25 1.25
+  box 0.5 0.5
+  tag gem
+  trigger hero gem despawn-self
+  sprite color=cyan glyph=*
+
+entity gem2
+  pos 1.25 5.25
+  box 0.5 0.5
+  tag gem
+  trigger hero gem despawn-self
+  sprite color=cyan glyph=*
+
+entity gem3
+  pos 7.25 5.25
+  box 0.5 0.5
+  tag gem
+  trigger hero gem despawn-self
+  sprite color=cyan glyph=*
+
+entity hero
+  pos 1.15 1.15
+  vel
+  box 0.7 0.7
+  ctrl 4
+  sprite color=lime glyph=@
+
+expect gone #gem by 900
+expect event open by 900
+expect event exit by 900

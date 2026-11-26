@@ -269,7 +269,7 @@ scene format and the same agent tools in all three. Each edition is done when an
 agent has built its proof game and the cost of doing so is on record. So far
 `check` says which edition a game needs and why (`--edition lite` makes more an
 error), and `build` ships only the parts a game uses, within a byte budget
-(a 2D game carries about 90 KB of engine). The proof games are not built. See [docs/EDITIONS.md](docs/EDITIONS.md).
+(a 2D game carries about 90 KB of engine). The Lite proof game has been built once by an agent with no person helping (7 minutes, 37,711 tokens written, 7 failures it repaired itself: [proof/lite/RUN.md](proof/lite/RUN.md)); its frame rate on the reference machines is not measured, and the other two proof games are not built. See [docs/EDITIONS.md](docs/EDITIONS.md).
 
 Next:
 

@@ -1,0 +1,121 @@
+# D: level 3, the player gets to the vault without pushing a crate and cannot get in.
+# Entities copy level3.kiln, plus 'mark', an inert spot beside the vault wall.
+world hz=60 gravity=0,0
+use ./rules.ts
+
+entity map
+  pos 0 0
+  tiles
+    #############
+    #.....#.....#
+    #...........#
+    #.....#.....#
+    ###.#####.###
+    #...........#
+    #####.###.###
+    #...........#
+    #...#........
+    #############
+
+entity title
+  pos 6.5 0.5
+  label Level_3
+
+entity exit
+  pos 12 8
+  box 1 1
+  trigger hero exit load:end.kiln
+  sprite color=transparent
+
+entity door
+  pos 12 8
+  box 1 1
+  solid
+  door
+  sprite color=orange glyph=D
+
+entity gem1
+  pos 3.25 3.25
+  box 0.5 0.5
+  tag gem
+  trigger hero gem despawn-self
+  sprite color=cyan glyph=*
+
+entity gem2
+  pos 11.25 1.25
+  box 0.5 0.5
+  tag gem
+  trigger hero gem despawn-self
+  sprite color=cyan glyph=*
+
+entity gem3
+  pos 11.25 7.25
+  box 0.5 0.5
+  tag gem
+  trigger hero gem despawn-self
+  sprite color=cyan glyph=*
+
+entity vaultgem
+  pos 1.25 8.25
+  box 0.5 0.5
+  tag gem
+  trigger hero gem despawn-self
+  sprite color=cyan glyph=*
+
+entity vaultcrate
+  pos 4 7
+  vel
+  box 1 1
+  solid
+  push
+  tag crate
+  sprite color=peru glyph=C
+
+entity crate2
+  pos 6 2
+  vel
+  box 1 1
+  solid
+  push
+  tag crate
+  sprite color=peru glyph=C
+
+entity hero
+  pos 1.15 1.15
+  vel
+  box 0.7 0.7
+  ctrl 4
+  sprite color=lime glyph=@
+
+entity guard1
+  pos 1.1 5.1
+  vel
+  box 0.8 0.8
+  pace x 1.1 11.1 3
+  tag guard
+  trigger hero caught load:level3.kiln
+  sprite color=red glyph=G
+
+entity guard2
+  pos 10.1 3.1
+  vel
+  box 0.8 0.8
+  pace y 1.1 3.1 2
+  tag guard
+  trigger hero caught load:level3.kiln
+  sprite color=red glyph=G
+
+entity mark
+  pos 5.2 8.2
+  box 0.5 0.5
+
+expect reach hero mark by 300
+# then 90 ticks of walking left toward the vault gem: stopped by the wall at x=5
+expect at 300 hero.pos.x == 5
+expect at 300 hero.pos.y > 8
+expect never hero vaultgem
+expect at 300 vaultcrate.pos.x == 4
+expect at 300 vaultcrate.pos.y == 7
+expect at 300 crate2.pos.x == 6
+expect at 300 crate2.pos.y == 2
+expect count caught == 0 at 300

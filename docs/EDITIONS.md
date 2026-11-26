@@ -73,7 +73,7 @@ Four things, the same four for each edition. A feature list alone does not close
 
    | Edition | Reference machine | Proof game |
    |---|---|---|
-   | Lite | The reference PC with WebGPU turned off; one real phone | To be chosen: a 2D game of several levels |
+   | Lite | The reference PC with WebGPU turned off; one real phone | Gem Vault, a top-down game of three levels: [`proof/lite`](../proof/lite). Built once by an agent; frame rate not measured |
    | Standard | The reference PC (integrated GPU) | To be chosen: a third-person 3D game with physics |
    | Ultra | A machine with a discrete GPU. **None is available yet** | To be chosen |
 
@@ -142,7 +142,7 @@ The last column is the present state, not the hope.
 ## Order of work
 
 1. **Draw the line in code.** Each component and scene feature names its axis and edition; `check` reports per axis and why; `--edition` ceiling; the byte budget in CI; every example replayed under each edition to one hash.
-2. **Prove the core with a real agent.** Write the Lite proof game's spec, connect an agent over MCP, build it to the end, record the agent cost. Every edition rests on this and it has never been run.
+2. **Prove the core with a real agent.** Write the Lite proof game's spec, connect an agent over MCP, build it to the end, record the agent cost. Every edition rests on this. Run once (2026-11-26, [`proof/lite/RUN.md`](../proof/lite/RUN.md)): finished without a person. Still open: the same spec on Godot, a second run, and what the run showed `solve` cannot do.
 3. **Close the Lite gate**: sprite animation, per-tile art, audio, UI, gamepad, state between levels; the remaining budgets; a run on a phone.
 4. **Close the Standard gate**: glTF from other tools, animation and skins, lights, shapes and joints, navigation, networking, a hundred thousand entities, a desktop executable; its proof game and agent cost.
 5. **Ultra**, starting with the runtime spike and the study of other engines' architecture.
