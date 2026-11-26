@@ -1,0 +1,35 @@
+# First of two levels. The stairs load the next scene (`load:level2.kiln`).
+world hz=60
+
+prefab hero
+  box 0.8 0.8
+  vel
+  ctrl 4
+  sprite @
+prefab coin
+  box 0.5 0.5
+  tag coin
+  trigger hero coin despawn-self
+  sprite o gold
+prefab stairs
+  box 0.8 0.8
+  trigger hero stairs load:level2.kiln
+  sprite > limegreen
+  label next_level limegreen
+
+entity map
+  pos 0 0
+  tiles spawn=@:hero,o:coin,>:stairs
+    #########
+    #@..o...#
+    #.###.#.#
+    #...o.#>#
+    #########
+
+entity title
+  pos 4.5 0.9
+  label Level_1
+
+expect gone #coin by 600
+expect event load by 600
+expect count coin == 2 at 600

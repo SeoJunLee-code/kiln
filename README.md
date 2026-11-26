@@ -26,11 +26,12 @@ Kiln is a few days old. The long-term aim is an engine that agents can take from
 
 | Works today | Not yet |
 |---|---|
-| Text scenes, 14 built-in components, levels drawn as character grids with prefabs | Textures, materials, skeletal animation, shaders |
+| Text scenes, 15 built-in components, levels drawn as character grids with prefabs | Textures, materials, skeletal animation, shaders |
 | Fixed-point simulation on x, y and z; swept box collision; triggers that emit events and remove things (keys, doors, pickups); pacing guards; pushable crates; moving platforms that carry what stands on them | Rotation, non-box shapes, joints |
-| `expect` checks with explanations on failure | Audio, animation, UI |
+| `expect` checks with explanations on failure | Animation, UI widgets |
 | TypeScript scripts with a determinism check | Asset pipeline beyond single images |
 | Browser player: Canvas 2D, and lit, shadowed boxes and OBJ meshes in WebGL2 for 3D scenes | WebGPU renderer, images in 3D |
+| Several levels (a trigger loads the next scene), text labels, a tone per event | Music, sound files, menus |
 | `solve`: automatic search for a winning input |  |
 | `build`: export to a static web folder |  |
 | MCP server, CLI | Networking, desktop and mobile export |
@@ -157,7 +158,7 @@ origin 0,0
 fail tick=20 states=94
 ```
 
-Eleven of the twelve examples solve in under a second on one laptop, and the largest ([examples/quest.kiln](examples/quest.kiln): a key, a door and a guard sweeping the corridor) in a little over one. They include the 3D one, a crate-pushing puzzle ([examples/sokoban.kiln](examples/sokoban.kiln)), a gap that can only be crossed by riding a lift ([examples/lift.kiln](examples/lift.kiln)), a key-and-door puzzle ([examples/vault.kiln](examples/vault.kiln)) and a corridor of pacing guards where the crossing has to be timed ([examples/gauntlet.kiln](examples/gauntlet.kiln)). The search tries inputs that get nearer to a goal first; it has only been tried with one controllable character in small levels, and it gives up (and says so) when it runs out of states. `at` expectations are not searched for.
+Thirteen of the fourteen examples solve in under a second on one laptop, and the largest ([examples/quest.kiln](examples/quest.kiln): a key, a door and a guard sweeping the corridor) in a little over one. They include the 3D one, a crate-pushing puzzle ([examples/sokoban.kiln](examples/sokoban.kiln)), a gap that can only be crossed by riding a lift ([examples/lift.kiln](examples/lift.kiln)), a key-and-door puzzle ([examples/vault.kiln](examples/vault.kiln)) and a corridor of pacing guards where the crossing has to be timed ([examples/gauntlet.kiln](examples/gauntlet.kiln)). The search tries inputs that get nearer to a goal first; it has only been tried with one controllable character in small levels, and it gives up (and says so) when it runs out of states. `at` expectations are not searched for.
 
 ## 3D
 
@@ -223,7 +224,7 @@ Scripts must stay deterministic. `Math.random`, `Date`, timers and similar are r
 { "mcpServers": { "kiln": { "command": "node", "args": ["/path/to/kiln/src/cli.ts", "mcp"] } } }
 ```
 
-The server exposes one tool, `kiln`, with a `cmd` argument (`check`, `run`, `test`, `solve`, `schema`, `guide`). `guide` returns the whole manual in one call (about 4,500 characters; a test keeps it under 6,000), so an agent does not have to read this README or the source. One tool instead of many keeps the definition an agent carries in context small.
+The server exposes one tool, `kiln`, with a `cmd` argument (`check`, `run`, `test`, `solve`, `schema`, `guide`). `guide` returns the whole manual in one call (about 5,500 characters; a test keeps it under 6,000), so an agent does not have to read this README or the source. One tool instead of many keeps the definition an agent carries in context small.
 
 ## Is it actually smaller?
 

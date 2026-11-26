@@ -263,6 +263,8 @@ export function step(w: World, script?: InputScript): void {
         if (act === 'despawn-self') doomed.push(t);
         else if (act === 'despawn-other') doomed.push(o);
         else if (act.startsWith('despawn:')) doomed.push(...w.match(act.slice(8)));
+        // Headless this is only an event; the player reacts to it by opening the scene.
+        else if (act.startsWith('load:')) w.events.push({ tick: w.tick, name: 'load', a: act.slice(5), b: w.names[o]! });
       }
     }
   }

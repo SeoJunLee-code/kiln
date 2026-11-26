@@ -1,0 +1,34 @@
+# Second level, reached from level1.kiln. A guard paces the middle row.
+world hz=60
+
+prefab hero
+  box 0.8 0.8
+  vel
+  ctrl 4
+  sprite @
+prefab foe
+  box 0.8 0.8
+  vel
+  pace x 1.1 7.1 3
+  trigger hero hit despawn-other
+  sprite v crimson
+prefab exit
+  box 0.8 0.8
+  trigger hero win
+  sprite E limegreen
+  label exit limegreen
+
+entity map
+  pos 0 0
+  tiles spawn=@:hero,v:foe,E:exit
+    #########
+    #@......#
+    #...v...#
+    #......E#
+    #########
+
+entity title
+  pos 4.5 0.9
+  label Level_2
+
+expect event win by 600

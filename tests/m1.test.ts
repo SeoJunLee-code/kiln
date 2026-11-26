@@ -389,3 +389,17 @@ test('crypt3d example: a 3D level drawn as a floor plan, solved by the engine', 
   const input = solved.text.trim().split('\n').slice(0, -1).join('\n') + '\n';
   assert.equal((await command('test', { file: ex('crypt3d.kiln'), input })).code, 0);
 });
+
+test('levels: load:FILE is an event headless, and both levels are solvable', { timeout: 90000 }, async () => {
+  for (const [file, goal] of [['level1.kiln', 'load'], ['level2.kiln', 'win']]) {
+    const solved = await command('solve', { file: ex(file) });
+    assert.equal(solved.code, 0, solved.text);
+    const input = solved.text.trim().split('\n').slice(0, -1).join('\n') + '\n';
+    const replay = await command('test', { file: ex(file), input, events: true, ticks: 600 });
+    assert.match(replay.text, new RegExp(`^event \\d+ ${goal} `, 'm'));
+  }
+  const r = await command('test', { file: ex('level1.kiln'), inputFile: ex('level1.input'), events: true });
+  assert.equal(r.code, 0, r.text);
+  assert.match(r.text, /^event \d+ load level2\.kiln hero$/m);
+  assert.match((await command('check', { scene: 'entity a\n  pos 0 0\n  box 1 1\n  trigger a x load:../secret.txt\n' })).text, /^E K104 .*unknown trigger action/);
+});

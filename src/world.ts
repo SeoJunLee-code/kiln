@@ -27,7 +27,7 @@ defineComponent('ctrl', 'input-driven. jump=0: 4-way (left/right/up/down). jump>
 defineComponent('pace', 'walks back and forth along axis (x, y or z) between min and max at speed; needs vel',
   [f('axis', 'str'), f('min', 'fx'), f('max', 'fx'), f('speed', 'fx')]);
 defineComponent('tag', 'group label; reference it elsewhere as #name', [f('name', 'str')]);
-defineComponent('trigger', 'emits event when target (entity name or #tag) starts overlapping. action: none, despawn-self, despawn-other, despawn:REF (REF = name or #tag, e.g. a door); join several with +',
+defineComponent('trigger', 'emits event when target (entity name or #tag) starts overlapping. action: none, despawn-self, despawn-other, despawn:REF (REF = name or #tag, e.g. a door), load:FILE (emits event load; the player then opens that scene); join several with +',
   [f('target', 'str'), f('event', 'str'), f('action', 'str', 'none')]);
 defineComponent('tiles', 'grid of square cells at pos. rows follow the line, each indented 4 spaces, one character per cell. size: cell size. solid: characters that block movers. spawn: CHAR:PREFAB pairs, e.g. o:coin,@:hero, replaced by entities when the scene loads. plane=xz lays the grid flat as a 3D floor plan (rows run along z); depth is then the wall height',
   [f('size', 'fx', 65536), f('solid', 'str', '#'), f('spawn', 'str', ''), f('depth', 'fx', 65536), f('plane', 'str', 'xy')]);
@@ -35,6 +35,7 @@ defineComponent('sprite', 'appearance. glyph: character for the ASCII view. colo
   [f('glyph', 'str', ''), f('color', 'str', 'white'), f('image', 'str', ''), f('mesh', 'str', '')]);
 defineComponent('eye', 'makes the player draw the scene in 3D: a perspective camera at this entity plus the offset, looking at the entity; ignored headless',
   [f('x', 'fx'), f('y', 'fx'), f('z', 'fx'), f('fov', 'int', 55)]);
+defineComponent('label', 'text drawn above the entity by the 2D player; write _ for a space', [f('text', 'str'), f('color', 'str', 'white')]);
 defineComponent('camera', 'the player view follows this entity and shows w x h world units; ignored headless', [f('w', 'fx'), f('h', 'fx')]);
 
 export class World {

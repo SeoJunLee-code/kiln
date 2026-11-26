@@ -18,7 +18,7 @@ AI 에이전트가 1급 사용자인 오픈소스 게임 엔진. 사용자의 �
 | 파일 | 역할 |
 |---|---|
 | `src/fx.ts` | 고정소수점 연산, 텍스트 왕복 |
-| `src/world.ts` | ECS, 컴포넌트 레지스트리 14종(`camera`, `tiles`, `eye`, `pace`, `push` 포함). `pos`·`vel`·`box`는 선택적 z/d 값을 갖는다 |
+| `src/world.ts` | ECS, 컴포넌트 레지스트리 15종(`camera`, `tiles`, `eye`, `pace`, `push`, `label` 포함). `pos`·`vel`·`box`는 선택적 z/d 값을 갖는다 |
 | `src/scene.ts` | 씬 파서·직렬화(`state` 줄, `prefab` 블록, 타일 `spawn` 전개), 진단 |
 | `src/sim.ts` | 틱 진행(입력→ctrl→스크립트 pre→중력→이동·스윕 충돌→트리거→스크립트 post), 상태 해시. 이동·충돌·트리거는 x·y·z 3축 |
 | `src/expect.ts` | `expect` 5종 평가, 실패 시 관측값 설명 |
@@ -42,7 +42,8 @@ AI 에이전트가 1급 사용자인 오픈소스 게임 엔진. 사용자의 �
 
 검증 (2026-11-26):
 
-- `npm test` → 63개 통과.
+- `npm test` → 64개 통과.
+- 브라우저(프리뷰 `kiln`, `?scene=level1.kiln`): 라벨이 그려지고, 이벤트마다 효과음 호출이 세어지고(코인 2회), `load:level2.kiln` 트리거 뒤 페이지가 `?scene=level2.kiln`으로 넘어가는 것을 확인. 소리가 실제로 나는지는 듣지 못했다(호출 횟수만 확인).
 - 브라우저(프리뷰 `kiln`, `?scene=crypt3d.kiln`): 평면도(`tiles plane=xz`)로 그린 미로가 3D로 그려지는 것을 스크린샷으로 확인(`docs/crypt3d.jpg`). `solve` 0.46초·2,543상태.
 - `node src/cli.ts test examples` → 예제 11개 전부 통과(폴더 단위 테스트).
 - 통합 예제 `quest.kiln`(열쇠·문·복도를 쓸고 다니는 적): `solve` 1.26초·12,308상태, 열쇠 194틱 → 출구 372틱, 접촉 없음.
@@ -52,7 +53,7 @@ AI 에이전트가 1급 사용자인 오픈소스 게임 엔진. 사용자의 �
 - 라이브 데모(https://seojunlee-code.github.io/kiln/)를 브라우저로 열어 확인: 3D 장면이 뜨고, 장면 메뉴에 예제가 나열되고, 초기 상태 해시가 헤드리스와 같았다(2d32ac16).
 - `solve` 측정(Windows 노트북 1대, 1회, 프로세스 시작 포함): cave 0.26초·908상태, maze 0.20초·133상태, patrol 0.20초·195상태, platformer 0.54초·2,365상태, dungeon 0.29초·767상태, arena3d 0.82초·4,497상태. 여섯 개 모두 답이 재생 검증을 통과했다. 우선순위 탐색 이전(너비 우선)에는 patrol 6.6초·119,454상태, platformer 6.8초·69,214상태였고 arena3d는 20만 상태 한도에서 실패했다.
 - 브라우저(프리뷰 `kiln`, `?scene=arena3d.kiln`): WebGL2로 바닥·벽·발판·주인공·보석·출구가 조명과 함께 그려지는 것을 스크린샷으로 확인. 2D 캔버스는 숨겨진다.
-- `node scripts/hashes.ts --check` → 예제 12개(arena3d, cave, crypt3d, dungeon, gauntlet, lift, maze, patrol, platformer, quest, sokoban, vault) 해시가 `examples/HASHES`와 일치.
+- `node scripts/hashes.ts --check` → 예제 14개(arena3d, cave, crypt3d, dungeon, gauntlet, level1, level2, lift, maze, patrol, platformer, quest, sokoban, vault) 해시가 `examples/HASHES`와 일치.
 - GitHub Actions에서 ubuntu·macos·windows 세 작업 모두 성공. 세 OS에서 예제 해시가 같다.
 - 브라우저(프리뷰 `kiln`): platformer를 합성 키 이벤트로 플레이해 300틱 해시가 헤드리스와 같은 a265b330. 카메라 추적과 SVG 스프라이트가 그려지는 것을 스크린샷으로 확인.
 - `node bench/size.ts` → maze 기준 Kiln 729자, Godot 4,937자(6.8배). Godot 파일은 Godot에서 실행해 보지 않았고 토큰은 문자 수/4 추정이다.
@@ -64,6 +65,7 @@ AI 에이전트가 1급 사용자인 오픈소스 게임 엔진. 사용자의 �
 - 상자 밀기(`push`)는 한 번에 하나만 밀고(연쇄 밀기 없음), 상자는 중력을 받지 않으며, y에 중력이 있는 장면에서는 y 방향으로 밀리지 않는다. 소코반 예제는 상자 1개짜리만 확인했다.
 - 2c600d7 커밋의 `bench/PERF.md`에 측정한 PC의 CPU 모델명이 들어갔다. 다음 커밋에서 뺐지만 git 이력에는 남아 있다.
 - `use` 스크립트는 임의 코드다. 샌드박스가 없으므로 남이 만든 씬을 실행하는 것은 프로그램을 실행하는 것과 같다(README Safety 절).
+- `load:FILE`은 대상 씬 파일이 있는지 검사하지 않는다. 헤드리스에서는 이벤트일 뿐이고 레벨 사이에 상태(점수 등)를 넘기지 않는다. 라벨과 효과음은 2D 플레이어 전용 표시이고 3D 화면에는 라벨이 없다.
 - 사람이 실제 키보드로 플레이한 확인이 없다. 브라우저 확인은 전부 합성 키 이벤트였다.
 - MCP 서버는 테스트에서 JSON-RPC로만 확인했다. 실제 Claude Code 클라이언트에 연결해 본 적이 없다.
 - 렌더러는 Canvas 2D이고 사각형·글리프·단일 이미지·타일 격자만 그린다. 애니메이션, 오디오, UI, 3D가 없다.

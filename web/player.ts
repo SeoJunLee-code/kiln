@@ -69,6 +69,25 @@ const image = (path: string): HTMLImageElement | null => {
   return im.complete && im.naturalWidth > 0 ? im : null;
 };
 let paused = false;
+// Events already reacted to (sound, scene change).
+let heard = 0, leaving = false, muted = false, beeps = 0;
+let audio: AudioContext | null = null;
+
+/** A short tone per event; the pitch comes from the event name, so each kind sounds the same every time. */
+const beep = (name: string): void => {
+  beeps++;
+  if (muted || !audio) return;
+  let h = 0;
+  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const osc = audio.createOscillator(), gain = audio.createGain(), t = audio.currentTime;
+  osc.type = 'triangle';
+  osc.frequency.value = 330 * 2 ** ((h % 13) / 12);
+  gain.gain.setValueAtTime(0.12, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+  osc.connect(gain).connect(audio.destination);
+  osc.start(t);
+  osc.stop(t + 0.2);
+};
 let bounds = { x: 0, y: 0, w: 1, h: 1 };
 
 try {
@@ -96,6 +115,7 @@ try {
     script = replay === null ? new Map() : parseInput(replay, 'input');
     log = [];
     held.clear();
+    heard = 0;
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const id of world.query('pos', 'box')) {
       const p = world.get(id, 'pos')!, b = world.get(id, 'box')!;
@@ -115,6 +135,15 @@ try {
   const tick = (): void => {
     step(world, script);
     evalTick(world, expects);
+    for (; heard < world.events.length; heard++) {
+      const ev = world.events[heard];
+      beep(ev.name);
+      // A trigger with load:FILE asks for the next scene; give the player a moment to see why.
+      if (ev.name === 'load' && !leaving) {
+        leaving = true;
+        setTimeout(() => { location.search = `?scene=${encodeURIComponent(ev.a)}`; }, 600);
+      }
+    }
   };
 
   const press = (action: string, down: boolean): void => {
@@ -213,6 +242,14 @@ try {
         g.fillText(sp.glyph as string, x + w / 2, y + h / 2);
       }
     }
+    for (const id of world.query('label', 'pos')) {
+      const l = world.get(id, 'label')!, p = world.get(id, 'pos')!, b = world.get(id, 'box');
+      g.fillStyle = l.color === 'white' ? '#d7dbe2' : (l.color as string);
+      g.font = `600 ${Math.max(11, scale * 0.42)}px ui-monospace, Consolas, monospace`;
+      g.textAlign = 'center';
+      g.textBaseline = 'bottom';
+      g.fillText((l.text as string).replace(/_/g, ' '), (((p.x as number) + ((b?.w as number) ?? 0) / 2) / ONE) * scale + ox, ((p.y as number) / ONE) * scale + oy - 3);
+    }
   };
 
   const hud = (): void => {
@@ -239,6 +276,9 @@ try {
   addEventListener('keydown', (e) => {
     if (e.key === 'r' || e.key === 'R') return reset();
     if (e.key === 'p' || e.key === 'P') return void (paused = !paused);
+    if (e.key === 'm' || e.key === 'M') return void (muted = !muted);
+    // Browsers only allow sound after a key or click.
+    audio ??= new AudioContext();
     const a = KEYS[e.key];
     if (a) { e.preventDefault(); press(a, true); }
   });
@@ -269,6 +309,7 @@ try {
       /** Step synchronously until the given tick (ignores pause). */
       runTo: (t: number) => { paused = true; while (world.tick < t) tick(); draw(); hud(); return hash(world); },
       inputLog: () => log.join('\n'),
+      beeps: () => beeps,
       expects: () => expects.map((e) => `${e.ok === undefined ? 'open' : e.ok ? 'pass' : 'FAIL'} ${e.text}`),
     },
   });

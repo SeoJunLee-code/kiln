@@ -26,7 +26,7 @@
 |---|---|
 | 텍스트 씬, 글자 격자로 그리는 레벨, 프리팹 | 텍스처, 머티리얼, 스켈레탈 애니메이션, 셰이더 |
 | x·y·z 고정소수점 시뮬레이션, 스윕 충돌, 트리거, 순찰하는 적, 밀 수 있는 상자 | 회전, 상자 외 충돌 모양, 관절 |
-| 실패 이유를 설명하는 `expect` 검사 | 오디오, 애니메이션, UI |
+| 실패 이유를 설명하는 `expect` 검사, 레벨 이동, 글자 라벨, 이벤트 효과음 | 음악, 애니메이션, UI |
 | 결정론 검사가 붙은 TypeScript 스크립트 | 에셋 파이프라인 |
 | 브라우저 플레이어(2D, 그림자 있는 3D, OBJ 메시) | WebGPU 렌더러 |
 | `solve`, `build`, `new`, MCP 서버 | 네트워킹, 데스크톱·모바일 내보내기 |
@@ -51,7 +51,7 @@ node src/cli.ts play examples/platformer.kiln
 node src/cli.ts new ../mygame
 ```
 
-시작 씬, 에이전트용 작업 안내(`AGENTS.md`, `CLAUDE.md`), 엔진을 MCP 도구로 연결하는 `.mcp.json`이 만들어집니다. 그 폴더를 Claude Code로 열고 게임을 만들어 달라고 하면 됩니다. 엔진 전체 설명서는 `node src/cli.ts guide` 한 번으로 나옵니다(약 4,500자).
+시작 씬, 에이전트용 작업 안내(`AGENTS.md`, `CLAUDE.md`), 엔진을 MCP 도구로 연결하는 `.mcp.json`이 만들어집니다. 그 폴더를 Claude Code로 열고 게임을 만들어 달라고 하면 됩니다. 엔진 전체 설명서는 `node src/cli.ts guide` 한 번으로 나옵니다(약 5,500자).
 
 ## 씬 예시
 

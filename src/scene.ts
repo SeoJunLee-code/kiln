@@ -176,8 +176,8 @@ export function parseScene(text: string, file = 'scene'): Scene {
     }
     if (def.name === 'trigger' && !bad) {
       for (const act of (data.action as string).split('+')) {
-        if (!/^(none|despawn-self|despawn-other|despawn:#?[A-Za-z_][\w-]*)$/.test(act)) {
-          err('K104', line, `unknown trigger action '${act}'`, suggest(act, ['none', 'despawn-self', 'despawn-other']) ?? 'valid: none, despawn-self, despawn-other, despawn:NAME, despawn:#tag; join with +');
+        if (!/^(none|despawn-self|despawn-other|despawn:#?[A-Za-z_][\w-]*|load:[\w.-]+\.kiln)$/.test(act)) {
+          err('K104', line, `unknown trigger action '${act}'`, suggest(act, ['none', 'despawn-self', 'despawn-other']) ?? 'valid: none, despawn-self, despawn-other, despawn:NAME, despawn:#tag, load:FILE.kiln; join with +');
           bad = true;
         }
       }
