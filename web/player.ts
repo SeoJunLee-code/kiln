@@ -26,10 +26,13 @@ let gl3: Renderer3 | null | undefined;
 // Mesh files asked for so far. Each is fetched once and handed to the renderer when it arrives;
 // until then (or if it fails) the entity is drawn as its box.
 const meshAsked = new Set<string>();
+// Assets still on their way. A picture taken for a check waits for these, so it never
+// shows the fallback box of a mesh or image that simply had not arrived yet.
+const loading: Promise<unknown>[] = [];
 const wantMesh = (path: string): string => {
   if (!meshAsked.has(path)) {
     meshAsked.add(path);
-    fetch(new URL(path, GAME)).then((r) => (r.ok ? r.text() : '')).then((t) => { if (t) gl3?.addMesh(path, t); }).catch(() => {});
+    loading.push(fetch(new URL(path, GAME)).then((r) => (r.ok ? r.text() : '')).then((t) => { if (t) gl3?.addMesh(path, t); }).catch(() => {}));
   }
   return path;
 };
@@ -62,13 +65,15 @@ const images = new Map<string, HTMLImageElement>();
 const image = (path: string): HTMLImageElement | null => {
   let im = images.get(path);
   if (!im) {
-    im = new Image();
+    const made = (im = new Image());
+    loading.push(new Promise<void>((done) => { made.onload = made.onerror = () => done(); }));
     im.src = new URL(path, GAME).href;
     images.set(path, im);
   }
   return im.complete && im.naturalWidth > 0 ? im : null;
 };
-let paused = false;
+// ?paused starts stopped at tick 0, so a check can step to an exact tick itself.
+let paused = new URLSearchParams(location.search).has('paused');
 // Events already reacted to (sound, scene change).
 let heard = 0, leaving = false, muted = false, beeps = 0;
 let audio: AudioContext | null = null;
@@ -325,6 +330,14 @@ try {
       runTo: (t: number) => { paused = true; while (world.tick < t) tick(); draw(); hud(); return hash(world); },
       inputLog: () => log.join('\n'),
       beeps: () => beeps,
+      /** The game view as a PNG data URL, once every asset the frame asks for has arrived. */
+      shot: async () => {
+        draw();
+        // Arriving assets can ask for more, so wait until a draw adds nothing new.
+        for (let seen = -1; seen !== loading.length;) { seen = loading.length; await Promise.all(loading); draw(); }
+        const use3 = !canvas3.hidden;
+        return { renderer: use3 ? gl3!.name : '2d', png: (use3 ? canvas3 : canvas).toDataURL('image/png') };
+      },
       expects: () => expects.map((e) => `${e.ok === undefined ? 'open' : e.ok ? 'pass' : 'FAIL'} ${e.text}`),
     },
   });

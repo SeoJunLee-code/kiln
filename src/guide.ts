@@ -48,6 +48,8 @@ test     run, evaluate expects; --input FILE; exit 1 if any fails. Given a folde
 run      run without judging; --ticks N
 solve    search for an input that meets reach/gone/event expects; --out FILE saves it
 schema   component list only
+look     draw the scene in a headless browser and return a picture of the game view
+         with what is in it; --tick N --input FILE --out FILE.png (needs Chrome or Edge)
 play     open in a browser (CLI only); what you press is recorded as an input script
 Add to test/run: --view (ASCII picture), --top (3D floor plan), --observe (entity
 positions), --events.

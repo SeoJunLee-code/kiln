@@ -5,6 +5,8 @@
 /** A thing to draw: where its box is, how big, what color, and optionally the name of a mesh to draw inside it. */
 export interface Box3 { p: number[]; s: number[]; color: number[]; mesh?: string }
 export interface Renderer3 {
+  /** Which backend draws: 'webgl2' or 'webgpu'. */
+  name: string;
   draw(boxes: Box3[], eye: number[], target: number[], fovDeg: number): void;
   /** Register OBJ text under a name; boxes that ask for it are drawn as that mesh, fitted to their box. */
   addMesh(name: string, obj: string): void;
@@ -212,6 +214,7 @@ export function makeRenderer3(canvas: HTMLCanvasElement): Renderer3 | null {
   };
 
   return {
+    name: 'webgl2',
     addMesh(name, obj) {
       const data = parseObj(obj);
       if (data.length) meshes.set(name, upload(data));

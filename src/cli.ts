@@ -12,6 +12,8 @@ const HELP = `kiln <command> [scene] [options]
   guide                  print the whole manual, sized for an agent to read in one call
   mcp                    serve these commands as one MCP tool over stdio
   play SCENE             open the scene in a browser (--port N, default 5207; --input FILE replays it)
+  look SCENE             draw the scene in a headless browser and save a picture of the game view
+                         (--tick N, --input FILE, --out FILE.png, --size WxH; needs Chrome or Edge)
   new DIR                start a game: starter scene, agent instructions, MCP config
   build SCENE --out DIR  write a folder any static web host can serve (player, engine, the scene's folder)
 options:
@@ -23,6 +25,11 @@ options:
   --events               print emitted events
   --out FILE             write the final state as a scene file
 `;
+
+// Node announces each experimental API once on stderr. An agent pays for every line it reads,
+// so that notice is dropped; any other warning is still printed.
+process.removeAllListeners('warning');
+process.on('warning', (w) => { if (w.name !== 'ExperimentalWarning') console.error(`${w.name}: ${w.message}`); });
 
 const [cmd, ...rest] = process.argv.slice(2);
 if (cmd === 'mcp') {
@@ -47,6 +54,16 @@ if (cmd === 'mcp') {
     console.log(`E K001 build failed: ${(e as Error).message}`);
     process.exitCode = 2;
   }
+} else if (cmd === 'look' && rest[0] && !rest[0].startsWith('--')) {
+  const flag = (name: string): string | undefined => (rest.includes(name) ? rest[rest.indexOf(name) + 1] : undefined);
+  const size = /^(\d+)x(\d+)$/.exec(flag('--size') ?? '960x600');
+  const tick = flag('--tick') ?? '0';
+  if (!size || !/^\d+$/.test(tick)) { console.log('E K002 look takes --tick N and --size WxH'); process.exit(2); }
+  const { lookCommand } = await import('./look.ts');
+  const r = await lookCommand(rest[0], flag('--out'), { tick: +tick, inputFile: flag('--input'), width: +size[1], height: +size[2] });
+  process.stdout.write(r.text);
+  // The headless browser can keep the event loop alive for a moment after it closes.
+  process.exit(r.code);
 } else if (cmd === 'play' && rest[0] && !rest[0].startsWith('--')) {
   const flag = (name: string): string | undefined => (rest.includes(name) ? rest[rest.indexOf(name) + 1] : undefined);
   const { serve } = await import('./serve.ts');

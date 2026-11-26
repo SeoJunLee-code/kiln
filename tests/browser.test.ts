@@ -1,0 +1,143 @@
+// What the player does in a real browser. These ran by hand before; here a headless
+// Chrome does them on every push. Without a browser on the machine they are skipped.
+import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { after, before, test } from 'node:test';
+import { fileURLToPath } from 'node:url';
+import { findChrome, launch } from '../src/chrome.ts';
+import type { Browser } from '../src/chrome.ts';
+import { GPU_SWITCHES, look, openPlayer } from '../src/look.ts';
+import { compare, decodePng, encodePng, summarize } from '../src/png.ts';
+
+const ex = (name: string): string => fileURLToPath(new URL(`../examples/${name}`, import.meta.url));
+const skip = findChrome() ? false : 'no Chrome or Edge on this machine';
+let browser: Browser;
+before(async () => { if (!skip) browser = await launch({ args: GPU_SWITCHES }); });
+after(async () => { if (!skip) await browser.close(); });
+
+test('png: a picture survives encode and decode, and compare counts what changed', () => {
+  const rgba = new Uint8Array(4 * 3 * 4);
+  for (let i = 0; i < rgba.length; i++) rgba[i] = (i * 37) & 255;
+  const a = { width: 4, height: 3, rgba };
+  const b = decodePng(encodePng(a));
+  assert.deepEqual([b.width, b.height, Array.from(b.rgba)], [4, 3, Array.from(rgba)]);
+  assert.deepEqual(compare(a, b), { sameSize: true, changed: 0, worst: 0 });
+
+  const moved = { width: 4, height: 3, rgba: rgba.slice() };
+  moved.rgba[0] += 5;   // inside the tolerance
+  moved.rgba[4] += 40;  // outside it
+  assert.deepEqual(compare(a, moved), { sameSize: true, changed: 1 / 12, worst: 40 });
+  assert.equal(compare(a, { width: 3, height: 4, rgba }).sameSize, false);
+
+  const flat = { width: 2, height: 2, rgba: new Uint8Array(16).fill(20) };
+  assert.equal(summarize(flat).box, null);
+});
+
+test('browser: every example replays to the same hash as headless', { skip }, async () => {
+  for (const line of readFileSync(ex('HASHES'), 'utf8').trim().split('\n')) {
+    const [, scene, tick, hash] = /^(\S+) tick=(\d+) hash=(\w+)/.exec(line)!;
+    const player = await openPlayer(ex(scene), { inputFile: ex(scene.replace(/\.kiln$/, '.input')), browser });
+    try {
+      assert.equal(await player.page.eval(`kiln.runTo(${tick})`), hash, scene);
+      assert.deepEqual(player.page.errors(), [], scene);
+    } finally { await player.close(); }
+  }
+});
+
+test('browser: a 2D scene is drawn, and look reports what is in the frame', { skip }, async () => {
+  const seen = await look(ex('maze.kiln'), { browser });
+  const s = summarize(seen.picture);
+  assert.equal(seen.renderer, '2d');
+  assert.ok(s.drawn > 0.1 && s.drawn < 0.9, `drawn ${s.drawn}`);
+  assert.ok(s.colors >= 4, `colors ${s.colors}`);
+  assert.deepEqual(seen.errors, []);
+});
+
+test('browser: a 3D scene is drawn by the GPU renderer, with its meshes', { skip }, async () => {
+  const seen = await look(ex('arena3d.kiln'), { browser });
+  assert.match(seen.renderer, /^web(gl2|gpu)$/);
+  assert.ok(summarize(seen.picture).drawn > 0.1);
+  assert.deepEqual(seen.errors, []);
+
+  // A mesh that fails to draw falls back to its box. The gem and the spire are meshes and
+  // are in view by tick 120 of the recorded run, so the frame has to change without them.
+  const player = await openPlayer(ex('arena3d.kiln'), { inputFile: ex('arena3d.input'), browser });
+  try {
+    const shots = await player.page.eval<{ mesh: string; box: string }>(`(async () => {
+      kiln.runTo(120);
+      const mesh = (await kiln.shot()).png;
+      for (const id of kiln.world.query('sprite')) kiln.world.get(id, 'sprite').mesh = '';
+      return { mesh, box: (await kiln.shot()).png };
+    })()`);
+    const png = (url: string) => decodePng(Buffer.from(url.slice(url.indexOf(',') + 1), 'base64'));
+    assert.ok(compare(png(shots.mesh), png(shots.box)).changed > 0.001, 'meshes made no difference to the frame');
+  } finally { await player.close(); }
+});
+
+test('browser: labels are drawn', { skip }, async () => {
+  const player = await openPlayer(ex('level1.kiln'), { browser });
+  try {
+    const shots = await player.page.eval<{ on: string; off: string }>(`(async () => {
+      const on = (await kiln.shot()).png;
+      for (const id of kiln.world.query('label')) kiln.world.get(id, 'label').text = '';
+      return { on, off: (await kiln.shot()).png };
+    })()`);
+    const png = (url: string) => decodePng(Buffer.from(url.slice(url.indexOf(',') + 1), 'base64'));
+    assert.ok(compare(png(shots.on), png(shots.off)).changed > 0.001, 'labels made no difference to the frame');
+  } finally { await player.close(); }
+});
+
+test('browser: touch buttons become input, and each event asks for a tone', { skip }, async () => {
+  const player = await openPlayer(ex('maze.kiln'), { browser, query: 'pad' });
+  try {
+    const log = await player.page.eval<string>(`(() => {
+      const button = document.querySelector('#pad button[data-action="right"]');
+      if (document.getElementById('pad').hidden || !button) return 'pad is hidden';
+      button.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      kiln.runTo(5);
+      button.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+      return kiln.inputLog();
+    })()`);
+    assert.equal(log, '0 right down\n5 right up');
+  } finally { await player.close(); }
+
+  const replay = await openPlayer(ex('level1.kiln'), { inputFile: ex('level1.input'), browser });
+  try {
+    const counts = await replay.page.eval<{ beeps: number; events: number }>(`(() => { kiln.runTo(600); return { beeps: kiln.beeps(), events: kiln.world.events.length }; })()`);
+    assert.ok(counts.events > 0, 'the replay raised no events');
+    assert.equal(counts.beeps, counts.events);
+  } finally { await replay.close(); }
+});
+
+test('mcp: look answers with a line of text and the picture itself', { skip }, async () => {
+  const child = spawn(process.execPath, [fileURLToPath(new URL('../src/cli.ts', import.meta.url)), 'mcp'], { stdio: ['pipe', 'pipe', 'inherit'] });
+  try {
+    const reply = new Promise<any>((done) => {
+      let seen = '';
+      child.stdout.on('data', (chunk) => {
+        seen += chunk;
+        const end = seen.indexOf('\n');
+        if (end >= 0) done(JSON.parse(seen.slice(0, end)));
+      });
+    });
+    child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'kiln', arguments: { cmd: 'look', file: ex('maze.kiln'), ticks: 10 } } }) + '\n');
+    const { result } = await reply;
+    assert.match(result.content[0].text, /^ok look maze\.kiln tick=10 hash=\w+ renderer=2d size=\d+x\d+\ndrawn /);
+    assert.equal(result.content[1].mimeType, 'image/png');
+    assert.ok(decodePng(Buffer.from(result.content[1].data, 'base64')).width > 100);
+  } finally { child.kill(); }
+});
+
+test('browser: a load trigger opens the next level', { skip }, async () => {
+  const player = await openPlayer(ex('level1.kiln'), { inputFile: ex('level1.input'), browser });
+  try {
+    await player.page.eval('kiln.runTo(600)');
+    let where = '';
+    for (let i = 0; i < 50 && !where.includes('level2.kiln'); i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      try { where = await player.page.eval<string>('location.search'); } catch { /* the page is navigating */ }
+    }
+    assert.match(where, /scene=level2\.kiln/);
+  } finally { await player.close(); }
+});

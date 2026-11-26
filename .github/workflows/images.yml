@@ -1,0 +1,29 @@
+name: images
+
+# What the examples look like, compared with their reference pictures. This runs on
+# one environment only (Linux, software rendering): pixels are not the same across
+# GPUs and drivers, so comparing anywhere else would fail for no reason.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node scripts/images.ts
+      # The pictures as drawn, to look at when a comparison fails or to adopt as new references.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: images
+          path: out/images

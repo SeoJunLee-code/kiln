@@ -8,12 +8,12 @@ const TOOL = {
   description:
     'Kiln game engine. Call cmd=guide first: it returns the whole manual. cmd: check (validate a scene), run (simulate headless, returns state hash), ' +
     'test (run and evaluate the scene\'s expect lines), solve (search for an input script that meets the expects), ' +
-    'schema (component reference), guide (manual). ' +
+    'schema (component reference), guide (manual), look (draw the scene in a headless browser and return the picture; ticks = tick to stop at). ' +
     'Output is compact text; errors are lines starting with "E CODE file:line".',
   inputSchema: {
     type: 'object',
     properties: {
-      cmd: { type: 'string', enum: COMMANDS },
+      cmd: { type: 'string', enum: [...COMMANDS, 'look'] },
       file: { type: 'string', description: 'scene file path' },
       scene: { type: 'string', description: 'scene text, instead of file' },
       input: { type: 'string', description: 'input script text: "TICK ACTION down|up" lines' },
@@ -47,6 +47,17 @@ async function handle(msg: Msg): Promise<unknown> {
     case 'tools/call': {
       if (msg.params?.name !== 'kiln') throw { code: -32602, message: `unknown tool '${msg.params?.name}'` };
       const a = (msg.params.arguments ?? {}) as Record<string, unknown>;
+      // look answers with the picture itself, so the agent sees the frame without a second call.
+      if (a.cmd === 'look') {
+        if (typeof a.file !== 'string') return { content: [{ type: 'text', text: 'E K002 look needs file\n' }], isError: true };
+        const { look, describe } = await import('./look.ts');
+        try {
+          const seen = await look(a.file, { tick: a.ticks as number | undefined, inputFile: a.input_file as string | undefined });
+          return { content: [{ type: 'text', text: describe(a.file, seen) }, { type: 'image', data: seen.png.toString('base64'), mimeType: 'image/png' }] };
+        } catch (e) {
+          return { content: [{ type: 'text', text: `E K400 look failed: ${(e as Error).message.split('\n')[0]}\n` }], isError: true };
+        }
+      }
       const r = await command(String(a.cmd), {
         file: a.file as string | undefined,
         scene: a.scene as string | undefined,
