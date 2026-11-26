@@ -29,6 +29,14 @@ Decisions:
   `--use-angle=swiftshader` also returned no adapter). Image checks therefore run on
   the reference environment only; other machines only smoke-test that drawing works.
 
+Found later, when the real renderer first ran there: on ubuntu-latest with SwiftShader,
+**presenting a WebGPU canvas loses the device** (the frame is blank; reading a buffer then
+fails with "a valid external Instance reference no longer exists"). Drawing into a
+texture and copying it out works, and matches the WebGL2 picture in all but 0.17% to
+0.23% of pixels. The probe above did not catch this because it never used a canvas.
+So pictures for checks are always drawn offscreen, and the canvas path has its own
+test on Windows and macOS.
+
 Not tested: Firefox, Safari, any discrete GPU, the speed of SwiftShader on a real scene.
 
 ## Existing physics engine: yes, with one constraint

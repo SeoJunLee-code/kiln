@@ -30,7 +30,8 @@ Kiln is a few days old. The long-term aim is an engine that agents can take from
 | Fixed-point simulation on x, y and z; swept box collision; triggers that emit events and remove things (keys, doors, pickups); pacing guards; pushable crates; moving platforms that carry what stands on them | Rotation, non-box shapes, joints |
 | `expect` checks with explanations on failure | Animation, UI widgets |
 | TypeScript scripts with a determinism check | Asset pipeline beyond single images |
-| Browser player: Canvas 2D, and lit, shadowed boxes and OBJ meshes in WebGL2 for 3D scenes | WebGPU renderer, images in 3D |
+| Browser player: Canvas 2D, and lit, shadowed boxes and OBJ meshes for 3D scenes, drawn with WebGPU (WebGL2 where the browser has none) | Images in 3D |
+| `look`: the scene drawn in a headless browser, returned to the agent as a picture | |
 | Several levels (a trigger loads the next scene), text labels, a tone per event | Music, sound files, menus |
 | `solve`: automatic search for a winning input |  |
 | `build`: export to a static web folder |  |
@@ -236,10 +237,18 @@ On one laptop, single thread, no rendering: 1,000 falling bodies among 1,000 sol
 
 ## Roadmap
 
-1. Connect a real agent over MCP and build a complete small game with it; fix what hurts.
-2. Animation, audio, a WebGPU renderer.
-3. Rotation and more collision shapes.
-4. 3D: PBR materials and textures, more lights, rotation, collision beyond boxes.
+The aim is Godot's feature set first, then Unreal's, kept in a form an agent can
+write and check. [docs/PARITY.md](docs/PARITY.md) is the scoreboard: every feature
+against both engines, and one rule — a feature counts only when a check in CI fails
+if it breaks. Comparisons of speed follow [bench/PROTOCOL.md](bench/PROTOCOL.md):
+same scene, same settings, same machine; average FPS, 1% low and GPU frame time.
+
+Next:
+
+1. Rotation, glTF import, PBR materials and textures on the WebGPU renderer.
+2. Rigid bodies through an existing deterministic physics engine, behind a backend interface.
+3. Sprite animation, per-tile art, audio, UI.
+4. Connect a real agent over MCP and build a complete small game with it; measure the tokens.
 5. Export targets and networking built on the deterministic core (rollback, replays).
 
 ## Safety

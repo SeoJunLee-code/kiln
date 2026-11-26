@@ -37,19 +37,19 @@ Neither engine was built for this; these rows are why Kiln exists.
 |---|---|---|
 | Scene as plain text, round-trips exactly | **gated** | tests |
 | Every error at once, with codes and hints | **gated** | tests |
-| Headless run with the same result as the browser | works | hash compared by hand in the browser |
+| Headless run with the same result as the browser | **gated** | all 14 examples replay in a browser to the headless hash, on 3 OSes |
 | `solve`: the engine finds the input that wins a level | **gated** | tests on 14 examples |
 | `check` warns about parts that silently do nothing | **gated** | tests |
 | One-call guide for an agent, kept small | **gated** | size budget in tests |
 | MCP server | **gated** (protocol) | JSON-RPC test; no real client run yet |
-| `look`: an agent sees what was drawn | none | |
+| `look`: an agent sees what was drawn | **gated** | tests; over MCP the picture comes back in the reply |
 | Real token cost of building a game, measured | none | one size estimate only |
 
 ## 2D (Godot 2D is the bar)
 
 | Feature | Godot | Kiln | Check |
 |---|---|---|---|
-| Sprites, tile maps, camera | yes | works | drawn in browser by hand |
+| Sprites, tile maps, camera | yes | **gated** | reference images of 7 scenes |
 | Box collision, swept movement | yes | **gated** | tests, hashes |
 | Rotation | yes | none | |
 | Circle and polygon collision | yes | none | |
@@ -57,18 +57,18 @@ Neither engine was built for this; these rows are why Kiln exists.
 | Sprite animation | yes | none | |
 | Per-tile color and image | yes | none | |
 | Particles | yes | none | |
-| Audio (samples, music, mixing) | yes | works (event tones only) | call count by hand |
-| UI (text, buttons, layout) | yes | works (labels only) | by hand |
+| Audio (samples, music, mixing) | yes | **gated** (event tones only) | test counts tone requests; nobody has listened |
+| UI (text, buttons, layout) | yes | **gated** (labels only) | test |
 | Gamepad | yes | none | |
-| Touch | yes | works | synthetic events by hand |
+| Touch | yes | **gated** | test with synthetic pointer events; not tried on a phone |
 | State carried between levels | yes | none | |
 
 ## 3D rendering
 
 | Feature | Godot | Unreal | Kiln | Check |
 |---|---|---|---|---|
-| Boxes and OBJ meshes, one shadowed sun | yes | yes | works (WebGL2) | screenshots by hand |
-| WebGPU renderer | — | — | none | feasibility: `spikes/webgpu` |
+| Boxes and OBJ meshes, one shadowed sun | yes | yes | **gated** | reference images, both renderers |
+| WebGPU renderer | — | — | **gated** | held to the WebGL2 reference images; canvas output tested on Windows and macOS |
 | Rotation and full transforms | yes | yes | none | |
 | glTF import | yes | yes | none | |
 | PBR materials, textures | yes | yes | none | |
