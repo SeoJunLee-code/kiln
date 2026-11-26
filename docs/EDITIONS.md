@@ -37,7 +37,7 @@ Inside the engine a game is measured on four axes, and its edition is the highes
 | World | Levels; thousands of entities | Navigation; a hundred thousand entities | Streaming |
 | Network | None | Sessions built on replay and rollback | 64 players |
 
-`check` reports each axis and the lines that set it ("physics: standard — `physics=rapier`, level2.kiln line 1"). The axes are why the three names are presets and not walls: a game that is Lite in drawing and Standard in physics ships the Lite renderer and the physics backend, nothing else.
+`check` reports each axis and the lines that set it (`physics standard: physics=rapier (line 1)`, one line per axis above Lite). The axes are why the three names are presets and not walls: a game that is Lite in drawing and Standard in physics ships the Lite renderer and the physics backend, nothing else.
 
 **Built (2026-11-26):** `check` does this for one scene or a folder, and `--edition` is the ceiling (error K140). A component names its axis and edition where it is defined (`defineComponent` in `src/world.ts`); features of a value or of a combination are listed in `src/edition.ts`. What sets an axis today: `physics=rapier`, `rigid`, `impulse`, `force` (physics); a glTF mesh, `quat`, and `rot` in a scene drawn in 3D (drawing, because the WebGL2 renderer does not turn boxes). Nothing sets the world or network axis yet. `build` ships parts by what the game folder holds (the renderers if anything has `eye`, the glTF reader if there is a model file, a backend if a scene names it), and the engine bytes of a built game are held to a budget in `tests/edition.test.ts`.
 

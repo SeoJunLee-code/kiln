@@ -82,6 +82,7 @@ AI 에이전트가 1급 사용자인 오픈소스 게임 엔진. 방향은 **"AI
 - 엔진 바이트 실측과 예산(`tests/edition.test.ts`의 `BUDGET`): 2D Lite 90,703(예산 94,000), 3D Lite 128,480(133,000), 전부 든 Standard 4,537,594(4,680,000). 타입만 지운 소스 그대로이고 압축·최소화 전 값이다.
 - 브라우저 테스트(이 PC의 Chrome): 부품 없이 빌드한 2D 게임과 3D Lite 게임이 헤드리스와 같은 해시에 닿는다(2장면, 90틱, 입력 없음). 렌더러가 없는 빌드에서 3D 장면을 열면 상태는 그대로 맞고 2D로 그려지며 페이지가 `engine part missing from this build` 오류를 낸다.
 - `npm test` → 122개 통과(이 PC, 건너뜀 0. 늘어난 11개: `tests/edition.test.ts` 10개 + 브라우저 1개). `node scripts/hashes.ts --check` → 18개 일치(시뮬레이션 코드는 건드리지 않았다). `node scripts/images.ts` → 0 failed(이 PC는 참고 출력).
+- CI: 커밋 ca7d2f6에서 `ci`(Linux·macOS·Windows), `images`, `demo` 모두 초록. 그 앞 커밋 6b6fd9e의 `demo`는 배포 단계가 "github-pages 아티팩트 없음"으로 실패했는데(빌드 단계는 통과, GitHub 쪽 오류 문구), 다음 실행에서 같은 워크플로가 통과했다.
 - 가이드는 5,496자다(예산 5,600). 다음에 가이드에 글을 더하려면 무엇을 주제로 옮길지 먼저 정해야 한다.
 - 같은 날 다른 세션이 에디션 이름을 Lite·Standard·Ultra로 바꾸는 문서 커밋(8752660)을 중간에 올렸고, 이 작업은 그 이름과 축 정의에 맞췄다.
 
