@@ -11,7 +11,9 @@ specs.
 | [`GEMVAULT-CHECKS.md`](GEMVAULT-CHECKS.md) | Screen pass checks of the development spec |
 | `SPREAD.md` | The development spec run several times on each engine. Being run; not written yet |
 | [`GODOT-TOOLS.md`](GODOT-TOOLS.md) | Agent tooling for Godot: the candidates, the one chosen, and its trial runs |
-| [`H2.md`](H2.md), [`H3.md`](H3.md) | Held-out specs two and three. Not run |
+| [`H1.md`](H1.md), [`H2.md`](H2.md), [`H3.md`](H3.md) | The three held-out specs. Not run |
+| [`h1-sounds/`](h1-sounds) | The five sound files both engines are given for H1 (`node scripts/h1sounds.ts` makes them) |
+| [`h2-start/`](h2-start), [`H2-PLANTED.md`](H2-PLANTED.md) | The two starting games of H2 with the three defects in them, and where the defects are. No agent is given the second |
 
 ## Isolation: what the trial runs found (2026-11-27)
 
@@ -83,6 +85,14 @@ wrapped in `timeout SECONDS`, the clock ceiling. Per setup:
   renderer, and no errors or warnings when the project is loaded headless. "The engine's
   test command" means one `godot --headless` command line that exits 0 only when every
   check passes.`
+- What a run folder holds at the start, per spec. H1: `SPEC.md` (the text between the two
+  lines of `H1.md`) and `game/sounds/` with the five files. H3: `SPEC.md` and an empty
+  `game/`. H2: `TASK.md` (the text between the two lines of `H2.md`), `SPEC.md` (Gem
+  Vault's) and `game/` holding the starting game of that engine. The H2 prompt, Kiln:
+  `Read TASK.md and do what it asks with the Kiln engine through the `kiln` tool. The game
+  is in ./game and every file stays there. Nobody will answer questions; keep going until
+  everything under "What done means" holds.` Godot: the same change of words as above, with
+  the lines about editions, since Gem Vault's spec is read.
 
 ## Reading a log
 

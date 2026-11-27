@@ -1,0 +1,16 @@
+world hz=60 gravity=0,0
+
+entity frame
+  pos 0 0
+  tiles
+    #########
+    #.......#
+    #.......#
+    #.......#
+    #########
+
+entity banner
+  pos 4.5 2.5
+  label You_win color=gold
+
+expect at 60 banner.pos.x == 4.5

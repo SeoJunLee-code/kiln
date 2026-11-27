@@ -1,0 +1,14 @@
+# C: take gem1, then stand in guard2's path. The guard sends the player back:
+# level2 is loaded again from its beginning.
+0 down down
+20 down up
+20 right down
+30 right up
+30 down down
+50 down up
+
+expect count gem == 1 at 40
+expect reach hero guard2 by 300
+expect event caught by 300
+expect event load by 300
+expect count exit == 0 at 300
