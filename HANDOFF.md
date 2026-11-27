@@ -97,6 +97,7 @@ C의 (3)이다. 문법·구성요소 이름·경고 번호는 **내가 정했다
 - 2D Lite 엔진 바이트: 62,183 → **63,997 / 72,000**.
 - **한계**: 두 장면에 같은 이름의 엔티티와 같은 `keep`이 있어야 한다(타일에서 여러 개 찍혀 번호가 붙은 엔티티는 번호까지 같아야 한다). 값은 주소에 실려 가므로 플레이어가 고칠 수 있고(검증 없음) 탭을 닫으면 사라진다(디스크·localStorage 저장 없음). `tally`는 이벤트 이름만 본다(누가 냈는지 모름). 한계값이 없어 목숨이 0 아래로 내려가고, 0이 됐을 때 하는 동작도 없다(스크립트나 `expect`로 본다). `solve`는 넘겨받은 값을 모른다. 3D 장면에서는 `label`이 그려지는지 확인하지 않았다(`%`도 마찬가지). CLI에 넘길 값을 직접 주는 옵션은 없다(`--follow`로만).
 - `npm test` → 161개 통과(이 PC, 건너뜀 0). `node scripts/hashes.ts --check` → 일치. `node scripts/images.ts` → 0 failed(이 PC는 참고 출력).
+- CI: 커밋 `26e3199`에서 `ci`(3 OS), `images`, `demo` 모두 초록. (`98c5c61`의 `images` 실패 하나는 기준 이미지를 받으려고 임시 브랜치에서 일부러 돌린 것이다.)
 - 알아 둘 것: (1) 이 환경의 Bash heredoc은 역슬래시 두 개를 하나로 바꾼다. 역슬래시가 든 코드는 Write/Edit로만 쓴다(이번에 두 번 깨져서 Edit로 고쳤다). (2) 기준 이미지를 받을 때 임시 브랜치로 **전환하지 않아도 된다**: main에 로컬 커밋 → `git push origin HEAD:refs/heads/tmp-NAME` → `gh workflow run images --ref tmp-NAME` → 아티팩트를 받아 넣고 `git commit --amend` → main push → `git push origin :tmp-NAME`. 기준과 "다르다"로 실패해도 아티팩트는 올라온다.
 
 ## 검증 (2026-11-27 16차: 빌드 바이트 줄이기, 스프라이트 애니메이션)
