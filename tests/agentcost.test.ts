@@ -70,3 +70,27 @@ test('agent cost: a shell call is named by its program, and a Godot run fails on
   assert.deepEqual(c.byTool, { 'shell godot': 3, 'shell Get-ChildItem': 1 });
   assert.deepEqual(c.failedBy, { 'shell godot': 2 });
 });
+
+test('agent cost: time is split into waiting for the model and inside tools, side-by-side calls counted once', () => {
+  const at = (s: number): string => new Date(Date.UTC(2026, 0, 1, 0, 0, s)).toISOString();
+  const uses = (s: number, ...ids: string[]): string => line({ type: 'assistant', timestamp: at(s),
+    message: { content: ids.map((id) => ({ type: 'tool_use', id, name: 'PowerShell', input: { command: id === 'c' ? 'Get-ChildItem' : 'godot --headless' } })) } });
+  const answer = (s: number, id: string): string => line({ type: 'user', timestamp: at(s),
+    message: { content: [{ type: 'tool_result', tool_use_id: id, content: 'ok' }] } });
+  const c = cost([
+    uses(0, 'a', 'b'), answer(40, 'a'), answer(60, 'b'),
+    uses(100, 'c'), answer(103, 'c'),
+    line({ type: 'result', subtype: 'error_max_budget_usd', duration_ms: 200000, duration_api_ms: 90000 }),
+  ].join('\n'));
+  assert.deepEqual(c.calls.map((k) => k.ms), [40000, 60000, 3000]);
+  assert.equal(c.toolSeconds, 63);
+  assert.equal(c.modelSeconds, 90);
+  assert.deepEqual(c.secondsBy, { 'shell godot': 100, 'shell Get-ChildItem': 3 });
+  assert.equal(c.finished, false);
+  const r = report(c);
+  assert.match(r, /ended by itself +no \(error_max_budget_usd\)/);
+  assert.match(r, /for the model +1m 30s/);
+  assert.match(r, /inside tools +1m 3s: shell godot 1m 40s, shell Get-ChildItem 0m 3s/);
+  // A log without times still counts calls; their time is unknown, not zero.
+  assert.equal(cost(use('1', 'Write', {})).calls[0].ms, -1);
+});
