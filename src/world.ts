@@ -59,6 +59,8 @@ defineComponent('tally', 'a number that counts: n changes by `by` each time the 
   [f('event', 'str'), f('n', 'int', 0), f('by', 'int', 1)], 'levels');
 defineComponent('keep', 'what: component names joined by commas. When a load: opens this scene, this entity takes them from the entity of the same name in the scene that was left, if that one keeps them too',
   [f('what', 'str')], 'levels');
+defineComponent('sound', 'on: EVENT:FILE pairs, the file plays when the event is emitted. music loops. vol, mvol: 0..1. Browser only, never state the game reads',
+  [f('on', 'str', ''), f('music', 'str', ''), f('vol', 'fx', 65536), f('mvol', 'fx', 32768)], 'audio');
 defineComponent('camera', '2D view: follows this entity, shows w x h units; ignored headless', [f('w', 'fx'), f('h', 'fx')], 'view');
 
 export class World {

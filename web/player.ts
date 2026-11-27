@@ -1,5 +1,6 @@
 // Browser player. It runs the same simulation modules as the headless CLI and only
 // adds drawing and keyboard input. Floats appear here for drawing, never in the simulation.
+import type { Sounds } from './audio.ts';
 import type { Model } from './gltf.ts';
 import type { Box3, Renderer3 } from './mesh.ts';
 import { makeApi } from '../src/api.ts';
@@ -130,11 +131,13 @@ let paused = new URLSearchParams(location.search).has('paused');
 // Events already reacted to (sound, scene change).
 let heard = 0, leaving = false, muted = false, beeps = 0;
 let audio: AudioContext | null = null;
+// Samples and music, for a scene with a `sound` component: it then has no tones.
+let sounds: Sounds | null | undefined, tuned = false;
 
 /** A short tone per event; the pitch comes from the event name, so each kind sounds the same every time. */
 const beep = (name: string): void => {
   beeps++;
-  if (muted || !audio) return;
+  if (muted || !audio || tuned) return void sounds?.play(name);
   let h = 0;
   for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   const osc = audio.createOscillator(), gain = audio.createGain(), t = audio.currentTime;
@@ -179,6 +182,7 @@ try {
     script = replay === null ? new Map() : parseInput(replay, 'input');
     log = [];
     held.clear();
+    tuned = world.query('sound').length > 0;
     padWas = {};
     heard = 0;
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
@@ -213,6 +217,14 @@ try {
     }
   };
 
+  // Browsers only allow sound after a key or click, so that is when it starts.
+  const wake = (): void => {
+    if (audio) return;
+    audio = new AudioContext();
+    const id = world.query('sound')[0];
+    if (id !== undefined) loading.push(part(import('./audio.ts')).then((m) => { sounds = m?.makeSounds(audio!, GAME, world.get(id, 'sound')!); return sounds?.ready; }));
+  };
+
   const press = (action: string, down: boolean): void => {
     if (replay !== null || held.has(action) === down) return;
     if (down) held.add(action);
@@ -238,7 +250,7 @@ try {
     }
     for (const k of ['left', 'right', 'up', 'down', 'a', 'b']) {
       if (!now[k] === !padWas[k]) continue;
-      if ((padWas[k] = !!now[k])) audio ??= new AudioContext();
+      if ((padWas[k] = !!now[k])) wake();
       press(k, padWas[k]);
     }
   };
@@ -400,9 +412,8 @@ try {
   addEventListener('keydown', (e) => {
     if (e.key === 'r' || e.key === 'R') return reset();
     if (e.key === 'p' || e.key === 'P') return void (paused = !paused);
-    if (e.key === 'm' || e.key === 'M') return void (muted = !muted);
-    // Browsers only allow sound after a key or click.
-    audio ??= new AudioContext();
+    if (e.key === 'm' || e.key === 'M') return void sounds?.mute((muted = !muted));
+    wake();
     const a = KEYS[e.key];
     if (a) { e.preventDefault(); press(a, true); }
   });
@@ -414,7 +425,7 @@ try {
     const action = b.dataset.action!;
     const set = (down: boolean) => (e: Event): void => {
       e.preventDefault();
-      if (down) audio ??= new AudioContext();
+      if (down) wake();
       b.classList.toggle('on', down);
       press(action, down);
     };
@@ -450,6 +461,8 @@ try {
       runTo: (t: number) => { paused = true; pads(); while (world.tick < t) tick(); draw(); hud(); return hash(world); },
       inputLog: () => log.join('\n'),
       beeps: () => beeps,
+      /** Sound files started so far, once they have all arrived. */
+      sounds: async () => { await Promise.all(loading); return sounds?.played ?? []; },
       /** The game view as a PNG data URL, once every asset the frame asks for has arrived. */
       shot: async () => {
         draw();

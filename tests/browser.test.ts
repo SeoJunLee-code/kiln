@@ -217,6 +217,58 @@ test('browser: a gamepad becomes input: d-pad, stick past half way, buttons a an
   } finally { await player.close(); }
 });
 
+test('browser: a scene with sound plays its samples on their events and loops its music', { skip }, async () => {
+  const player = await openPlayer(ex('level1.kiln'), { inputFile: ex('level1.input'), browser });
+  try {
+    // Nothing sounds before a key; the key starts the music, and events start their samples.
+    const heard = await player.page.eval<{ before: string[]; woke: string[]; after: string[]; events: string[] }>(`(async () => {
+      const before = await kiln.sounds();
+      dispatchEvent(new KeyboardEvent('keydown', { key: 'q' }));
+      const woke = [...await kiln.sounds()];
+      kiln.runTo(200);
+      return { before, woke, after: await kiln.sounds(), events: kiln.world.events.map((e) => e.name) };
+    })()`);
+    assert.deepEqual(heard.before, []);
+    assert.deepEqual(heard.woke, ['tune.wav']);
+    assert.deepEqual(heard.events, ['coin', 'coin', 'stairs', 'load']);
+    assert.deepEqual(heard.after, ['tune.wav', 'coin.wav', 'coin.wav', 'door.wav']);
+    assert.deepEqual(player.page.errors(), []);
+
+    // What comes out, rendered to a buffer instead of a speaker: the peak of each stretch of time.
+    const mix = (c: string, act = ''): Promise<number[]> => player.page.eval<number[]>(`(async () => {
+      const { makeSounds } = await import('/engine/web/audio.ts');
+      const ctx = new OfflineAudioContext(1, 24000, 8000);
+      const s = makeSounds(ctx, new URL('game/', location.href), ${c});
+      await s.ready;
+      s.play('coin');
+      s.play('nothing');
+      ${act}
+      const data = (await ctx.startRendering()).getChannelData(0);
+      const peak = (from, to) => Math.round(100 * data.slice(from * 8000, to * 8000).reduce((m, v) => Math.max(m, Math.abs(v)), 0));
+      return [peak(0, 0.2), peak(0.25, 1), peak(2.05, 2.5)];
+    })()`);
+    // coin.wav peaks near 90/128 and lasts 0.2 s; tune.wav peaks near 50/128, lasts 2 s and loops.
+    const [sample, tail, later] = await mix(`{ on: 'coin:coin.wav', music: '', vol: 65536, mvol: 65536 }`);
+    assert.ok(sample > 55 && sample <= 71, `sample peak ${sample}`);
+    assert.deepEqual([tail, later], [0, 0]);
+    const half = await mix(`{ on: 'coin:coin.wav', music: '', vol: 32768, mvol: 65536 }`);
+    assert.ok(Math.abs(half[0] * 2 - sample) <= 2, `vol=0.5 gives ${half[0]} against ${sample}`);
+    const tune = await mix(`{ on: '', music: 'tune.wav', vol: 65536, mvol: 65536 }`);
+    assert.ok(tune[1] > 25 && tune[1] <= 40 && tune[2] > 25, `music peaks ${tune}, the last one after its first pass`);
+    assert.deepEqual(await mix(`{ on: 'coin:coin.wav', music: 'tune.wav', vol: 65536, mvol: 0 }`), [sample, 0, 0]);
+    assert.deepEqual(await mix(`{ on: 'coin:coin.wav', music: 'tune.wav', vol: 65536, mvol: 65536 }`, 's.mute(true);'), [0, 0, 0]);
+    // A file that is not there is reported and silent; the rest plays.
+    assert.deepEqual(await mix(`{ on: 'coin:coin.wav,nothing:nope.wav', music: '', vol: 65536, mvol: 65536 }`), [sample, 0, 0]);
+    assert.match(player.page.errors().join('\n'), /sound nope\.wav: 404/);
+  } finally { await player.close(); }
+
+  // A scene without sound keeps the tones and never asks for the part.
+  const plain = await openPlayer(ex('maze.kiln'), { browser });
+  try {
+    assert.deepEqual(await plain.page.eval<string[]>(`(async () => { dispatchEvent(new KeyboardEvent('keydown', { key: 'q' })); return [...await kiln.sounds(), ...performance.getEntriesByType('resource').map((r) => r.name).filter((n) => n.includes('audio'))]; })()`), []);
+  } finally { await plain.close(); }
+});
+
 test('mcp: look answers with a line of text and the picture itself', { skip }, async () => {
   const child = spawn(process.execPath, [fileURLToPath(new URL('../src/cli.ts', import.meta.url)), 'mcp'], { stdio: ['pipe', 'pipe', 'inherit'] });
   try {

@@ -69,6 +69,22 @@ export function lint(scene: Scene, file: string, exists?: (name: string) => bool
     for (const k of String(w.get(id, 'keep')?.what ?? '').split(',').filter(Boolean)) {
       if (!w.has(id, k) || k === 'tiles') warn('K324', `'${name}' keeps '${k}', ${k === 'tiles' ? 'which cannot be carried to another scene' : registry.has(k) ? `but has no '${k}'` : 'which is not a component'}, so nothing is carried`, k === 'tiles' ? undefined : registry.has(k) ? `add ${k} to '${name}'` : suggest(k, registry.keys()));
     }
+    const so = w.get(id, 'sound');
+    if (so) {
+      if (id !== w.query('sound')[0]) warn('K327', `'${name}' has 'sound', but '${w.names[w.query('sound')[0]]}' has one already and only the first is used`, 'put every EVENT:FILE pair on one sound line');
+      const emitted = new Set(['load', ...w.query('trigger').map((t) => w.get(t, 'trigger')!.event as string)]);
+      const files = (so.on as string).split(',').filter(Boolean).map((pair) => {
+        const [event, file, more] = pair.split(':');
+        if (!event || !file || more !== undefined) return void warn('K325', `sound on '${name}' has '${pair}', which is not EVENT:FILE, so it plays nothing`, 'e.g. sound coin:coin.wav,hit:hit.wav');
+        if (!scene.uses.length && !emitted.has(event)) warn('K326', `sound on '${name}' plays '${file}' on '${event}', which no trigger here emits`, suggest(event, emitted));
+        return file;
+      });
+      for (const file of [...files, so.music as string]) {
+        if (!file) continue;
+        if (!/\.(wav|mp3|ogg)$/i.test(file)) warn('K325', `sound on '${name}' uses '${file}', which is not a .wav, .mp3 or .ogg file`);
+        else if (exists && !exists(file)) warn('K312', `sound on '${name}' uses '${file}', which is not next to the scene`);
+      }
+    }
     const tl = w.get(id, 'tiles');
     if (tl?.paint) for (const [ch, [, image]] of paintOf(tl.paint as string)) {
       if (!(tl.rows as string).includes(ch)) warn('K317', `tiles on '${name}' paints '${ch}', which is in none of its rows`);

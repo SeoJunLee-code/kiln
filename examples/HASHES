@@ -5,8 +5,8 @@ dungeon.kiln tick=600 hash=a5dec40f expects=pass
 gallery3d.kiln tick=600 hash=7f159021 expects=pass
 garden.kiln tick=600 hash=9aaa8ebf expects=pass
 gauntlet.kiln tick=900 hash=b6a4fd98 expects=pass
-level1.kiln tick=187 hash=7107911b expects=pass
-level2.kiln tick=600 hash=ca572315 expects=pass
+level1.kiln tick=187 hash=3104e5da expects=pass
+level2.kiln tick=600 hash=af2c6fcc expects=pass
 lift.kiln tick=900 hash=c818a260 expects=pass
 maze.kiln tick=240 hash=3015b961 expects=pass
 orrery3d.kiln tick=600 hash=de1c9785 expects=pass

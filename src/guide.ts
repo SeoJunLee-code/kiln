@@ -45,6 +45,20 @@ with what its own file says. keep takes any components, a script's own too: keep
 A scene run by itself starts from its file. test --follow carries values as the player
 does, and both reach the same hash. Check a value with: expect at N score.tally.n == 2`,
   },
+  audio: {
+    about: 'samples on events, music',
+    text: `Without sound the browser player plays a short tone for every event. With it, only
+what you list is heard:
+entity audio
+  sound coin:coin.wav,hit:hit.wav music=tune.ogg vol=0.8 mvol=0.4
+EVENT:FILE plays the file each time that event is emitted (a trigger's event, a script's
+w.emit, load). music loops. vol and mvol, 0..1, are the loudness of samples and of music.
+Files are .wav, .mp3 or .ogg beside the scene. One sound line per scene; put it in every
+scene that should sound (the music starts again in each).
+A browser gives no sound before the first key, tap or pad button, so the music starts
+there. M mutes. Nothing in the game can read sound: headless runs and solve skip it, and
+no expect can hear it. check warns about a missing file and an event no trigger emits.`,
+  },
 };
 
 /** One part of the manual. Its component list is generated from the registry. */
@@ -75,11 +89,11 @@ A scene is a text file, NAME.kiln. Run it headless; same scene + same input = sa
 
 SCENE
 world hz=60 gravity=X,Y[,Z] [seed=N] [physics=rapier]   once, optional
-entity NAME                              then components, indented 2 spaces
-  COMPONENT value value name=value       positional or by name; [x=..] below marks optional
-prefab NAME                              a component list without pos, used by tiles spawn
-use ./file.ts                            load a script (see SCRIPTS)
-expect ...                               a check (see EXPECT)
+entity NAME                         then components, indented 2 spaces
+  COMPONENT value value name=value  positional or by name; [x=..] below marks optional
+prefab NAME                         a component list without pos, used by tiles spawn
+use ./file.ts                       load a script (see SCRIPTS)
+expect ...                          a check (see EXPECT)
 # comment
 Units: 1 = one cell. y grows DOWN (above the floor = smaller y). z is depth, 3D only.
 
@@ -126,10 +140,10 @@ Add to test/run: --view (ASCII picture), --top (3D floor plan), --observe
 (positions), --events.
 
 OUTPUT
-ok ... / fail ...                        last line of every command
+ok ... / fail ...        last line of every command
 pass|FAIL file:line EXPECT -- what happened
-E CODE file:line message (hint: ...)     all errors at once; fix all, rerun
-W CODE file message (hint: ...)          check only: runs, but part of it does nothing
+E CODE file:line message (hint: ...)   all errors at once; fix all, rerun
+W CODE file message (hint: ...)   check only: runs, but part of it does nothing
 
 WORKFLOW
 1. Write the scene with expects that say what "working" means.

@@ -25,10 +25,11 @@ const toJs = (code: string): string => stripTypeScriptTypes(code).replace(IMPORT
  * part only if it uses it (docs/EDITIONS.md, rule 4):
  *   3d    the two renderers: some scene or script has `eye`
  *   gltf  the glTF reader: a model file is in the game folder
+ *   audio samples and music: some scene or script has `sound`
  * Scripts can add components while the game runs, so the test is on what the folder
  * holds, not on what one scene says at tick 0.
  */
-const PARTS: Record<string, string> = { 'web/gpu.ts': '3d', 'web/gl.ts': '3d', 'web/gltf.ts': 'gltf' };
+const PARTS: Record<string, string> = { 'web/gpu.ts': '3d', 'web/gl.ts': '3d', 'web/gltf.ts': 'gltf', 'web/audio.ts': 'audio' };
 
 /**
  * Write a folder that any static web host can serve: the player, the engine modules it
@@ -58,6 +59,7 @@ export function build(sceneFile: string, outDir: string): { written: string[]; s
     if (/\.(gltf|glb)$/i.test(f)) parts.add('gltf');
     // `eye` as a component line in a scene, or as a quoted name in a script.
     if (/\.(kiln|ts)$/.test(f) && (f.endsWith('.ts') ? /['"`]eye['"`]/ : /^\s+eye(\s|$)/m).test(readFileSync(path, 'utf8'))) parts.add('3d');
+    if (/\.(kiln|ts)$/.test(f) && (f.endsWith('.ts') ? /['"`]sound['"`]/ : /^\s+sound(\s|$)/m).test(readFileSync(path, 'utf8'))) parts.add('audio');
     if (f.endsWith('.kiln')) scenes.push(f);
     if (f.endsWith('.ts')) put(`game/${f.replace(/\.ts$/, '.js')}`, toJs(readFileSync(path, 'utf8')));
     else { mkdirSync(join(outDir, 'game'), { recursive: true }); copyFileSync(path, join(outDir, 'game', f)); written.push(`game/${f}`); }

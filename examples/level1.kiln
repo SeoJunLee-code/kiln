@@ -33,6 +33,10 @@ entity score
   tally coin
   keep tally
 
+# Sounds for the player in a browser; a headless run ignores them (guide audio).
+entity audio
+  sound coin:coin.wav,load:door.wav music=tune.wav mvol=0.4
+
 entity title
   pos 4.5 0.9
   label Level_1

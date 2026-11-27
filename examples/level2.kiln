@@ -34,6 +34,9 @@ entity score
   tally coin
   keep tally
 
+entity audio
+  sound win:door.wav music=tune.wav mvol=0.4
+
 entity title
   pos 4.5 0.9
   label Level_2

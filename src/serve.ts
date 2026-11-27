@@ -9,6 +9,7 @@ const TYPES: Record<string, string> = {
   html: 'text/html', js: 'text/javascript', mjs: 'text/javascript', json: 'application/json', svg: 'image/svg+xml',
   gltf: 'model/gltf+json', glb: 'model/gltf-binary', bin: 'application/octet-stream',
   png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif',
+  wav: 'audio/wav', mp3: 'audio/mpeg', ogg: 'audio/ogg',
 };
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -26,7 +27,7 @@ export function serve(sceneFile: string, inputFile: string | undefined, port: nu
   const config = JSON.stringify({ scene: basename(sceneFile), input: !!inputFile, scenes });
 
   const send = (res: import('node:http').ServerResponse, status: number, type: string, body: string | Buffer): void => {
-    res.writeHead(status, { 'content-type': /^(image\/(png|jpeg|webp|gif)|model\/gltf-binary|application\/octet-stream)$/.test(type) ? type : `${type}; charset=utf-8`, 'cache-control': 'no-store' });
+    res.writeHead(status, { 'content-type': /^(image\/(png|jpeg|webp|gif)|audio\/\w+|model\/gltf-binary|application\/octet-stream)$/.test(type) ? type : `${type}; charset=utf-8`, 'cache-control': 'no-store' });
     res.end(body);
   };
   const file = (res: import('node:http').ServerResponse, base: string, rel: string): void => {

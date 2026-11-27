@@ -191,11 +191,17 @@ test('edition: a built game carries only the parts it uses, within the byte budg
   assert.ok(flat.engineBytes <= BUDGET.lite2d, `2D Lite engine is ${flat.engineBytes} bytes, budget ${BUDGET.lite2d}`);
   // The player asks for its parts by the names a static host will have.
   const player = readFileSync(join(flat.out, 'engine/web/player.js'), 'utf8');
-  assert.deepEqual([...player.matchAll(/import\('(\.[^']+)'\)/g)].map((m) => m[1]).sort(), ['./gl.js', './gltf.js', './gpu.js']);
+  assert.deepEqual([...player.matchAll(/import\('(\.[^']+)'\)/g)].map((m) => m[1]).sort(), ['./audio.js', './gl.js', './gltf.js', './gpu.js']);
 
   const solid = built(game(['arena3d.kiln', 'gem.obj']), 'arena3d.kiln');
   assert.deepEqual([solid.parts, solid.web], [['3d'], ['gl.js', 'gpu.js', 'mesh.js', 'player.js']]);
   assert.ok(solid.engineBytes <= BUDGET.lite3d, `3D Lite engine is ${solid.engineBytes} bytes, budget ${BUDGET.lite3d}`);
+
+  // Samples and music are a part too: a scene with `sound` brings it, and its files go along.
+  const loud = built(game(['level1.kiln', 'level2.kiln', 'coin.wav', 'door.wav', 'tune.wav']), 'level1.kiln');
+  assert.deepEqual([loud.parts, loud.web], [['audio'], ['audio.js', 'player.js']]);
+  assert.ok(loud.written.includes('game/tune.wav'));
+  assert.ok(loud.engineBytes - flat.engineBytes < 1500, `the audio part is ${loud.engineBytes - flat.engineBytes} bytes`);
 
   // A script can add `eye` while the game runs, so naming it in a script is enough; a model file is enough for the reader.
   const scripted = built(game(['maze.kiln', 'crate.glb'], { 'cam.ts': `export default (k) => k.system('post', (w) => w.add(0, 'eye', { x: 0, y: 0, z: 0, fov: 55 }));\n` }), 'maze.kiln');
@@ -204,6 +210,6 @@ test('edition: a built game carries only the parts it uses, within the byte budg
 
   if (!existsSync(root('backends/rapier/node_modules'))) return; // the optional backend is not installed
   const all = built(root('examples'), 'tumble3d.kiln');
-  assert.deepEqual(all.parts, ['3d', 'gltf', 'rapier']);
+  assert.deepEqual(all.parts, ['3d', 'audio', 'gltf', 'rapier']);
   assert.ok(all.engineBytes <= BUDGET.standard, `Standard engine is ${all.engineBytes} bytes, budget ${BUDGET.standard}`);
 });

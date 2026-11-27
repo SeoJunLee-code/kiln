@@ -235,7 +235,7 @@ test('guide: the core and its topics cover every component and command, and each
   }
   const bad = await command('guide', { topic: 'nope' });
   assert.equal(bad.code, 2);
-  assert.match(bad.text, /^E K003 unknown guide topic 'nope' \(hint: valid: physics view levels\)/);
+  assert.match(bad.text, /^E K003 unknown guide topic 'nope' \(hint: valid: physics view levels audio\)/);
   // Room for the next few core components: adding one must not be what breaks this test.
   assert.ok(g.length < 5600, `core guide is ${g.length} characters`);
   for (const c of COMMANDS.filter((x) => x !== 'guide')) assert.match(g, new RegExp(`^${c} `, 'm'), `command ${c}`);
@@ -575,4 +575,27 @@ test('levels: a tally counts events, and keep hands it to the scene a load opens
   assert.match(await check('entity m\n  pos 0 0\n  keep tiles\n  tiles\n    #\n'), /^W K324 scene 'm' keeps 'tiles', which cannot be carried/m);
   assert.doesNotMatch(await check('entity hud\n  tally hit 3 -1\n  keep tally\n'), /K324/);
   assert.match((await command('check', { file: ex('level1.kiln') })).text, /edition=lite warnings=0/);
+});
+
+test('sound: check says what will not be heard, and a run does not depend on it', async () => {
+  const scene = (sound: string): string => `entity hero\n  pos 0 0\n  box 1 1\n  vel 1 0\nentity coin\n  pos 2 0\n  box 1 1\n  trigger hero coin despawn-self\n${sound}expect event coin by 120\n`;
+  const check = async (text: string): Promise<string> => (await command('check', { scene: text })).text;
+  assert.doesNotMatch(await check(scene('entity audio\n  sound coin:coin.wav music=tune.ogg vol=0.5\n')), /K32\d/);
+  const bad = await check(scene('entity audio\n  sound coin,cion:a.wav,coin:b.txt music=song.flac\nentity more\n  sound coin:c.wav\n'));
+  assert.match(bad, /^W K325 scene sound on 'audio' has 'coin', which is not EVENT:FILE, so it plays nothing/m);
+  assert.match(bad, /^W K326 scene sound on 'audio' plays 'a.wav' on 'cion', which no trigger here emits \(hint: did you mean 'coin'\?\)$/m);
+  assert.match(bad, /^W K325 scene sound on 'audio' uses 'b.txt', which is not a .wav, .mp3 or .ogg file$/m);
+  assert.match(bad, /^W K325 scene sound on 'audio' uses 'song.flac'/m);
+  assert.match(bad, /^W K327 scene 'more' has 'sound', but 'audio' has one already and only the first is used/m);
+  // A script may emit anything, so with one the event is not doubted.
+  assert.doesNotMatch(await check(`use ./x.ts\n${scene('entity audio\n  sound boom:a.wav\n')}`), /K326/);
+  // A file that is not next to the scene is the warning images get.
+  const dir = mkdtempSync(join(tmpdir(), 'kiln-sound-'));
+  writeFileSync(join(dir, 's.kiln'), scene('entity audio\n  sound coin:nope.wav\n'));
+  assert.match((await command('check', { file: join(dir, 's.kiln') })).text, /^W K312 \S+ sound on 'audio' uses 'nope.wav', which is not next to the scene$/m);
+  // Headless, the same things happen with the sound line and without it.
+  const { run } = await import('../src/run.ts');
+  const quiet = run(scene('')), loud = run(scene('entity audio\n  sound coin:coin.wav\n'));
+  assert.ok(quiet.ok && loud.ok);
+  assert.deepEqual(loud.world.events, quiet.world.events);
 });
