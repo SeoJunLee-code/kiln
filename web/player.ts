@@ -226,12 +226,30 @@ try {
   };
 
   const press = (action: string, down: boolean): void => {
-    if (replay !== null || held.has(action) === down) return;
-    if (down) held.add(action);
-    else held.delete(action);
+    // A tap on a button (tap:NAME) is not held: every one counts.
+    const tap = action[3] === ':';
+    if (replay !== null || (!tap && held.has(action) === down)) return;
+    if (tap) log.push(`${world.tick} ${action.slice(4)} tap`);
+    else {
+      if (down) held.add(action);
+      else held.delete(action);
+      log.push(`${world.tick} ${action} ${down ? 'down' : 'up'}`);
+    }
     if (!script.has(world.tick)) script.set(world.tick, []);
     script.get(world.tick)!.push([action, down]);
-    log.push(`${world.tick} ${action} ${down ? 'down' : 'up'}`);
+  };
+
+  // The 2D view as last drawn: its size, the pixels of one unit, and where the world's origin is.
+  let cw = 1, ch = 1, scale = 1, ox = 0, oy = 0;
+  /** Where an entity is on the screen: left, top, width, height, and the pixels of one of its units. */
+  const rect = (id: number): number[] => {
+    const n = (c: string, f: string): number => ((world.get(id, c)?.[f] as number) ?? 0) / ONE;
+    const where = world.get(id, 'pin')?.where as string | undefined;
+    if (where === undefined) return [n('pos', 'x') * scale + ox, n('pos', 'y') * scale + oy, n('box', 'w') * scale, n('box', 'h') * scale, scale];
+    // A pinned entity is placed against the edges of the view, in units the camera does not change.
+    const u = Math.min(cw, ch) / 12, w = n('box', 'w') * u, h = n('box', 'h') * u;
+    const side = (lo: string, hi: string): number => (where.includes(lo) ? 0 : where.includes(hi) ? 1 : 0.5);
+    return [(cw - w) * side('left', 'right') + n('pin', 'dx') * u, (ch - h) * side('top', 'bottom') + n('pin', 'dy') * u, w, h, u];
   };
 
   // Gamepads in the standard layout: the d-pad or the left stick past half way, button 0 is a
@@ -303,7 +321,8 @@ try {
     canvas.hidden = use3;
     if (use3) return draw3(eyeId);
     const dpr = window.devicePixelRatio || 1;
-    const cw = canvas.clientWidth, ch = canvas.clientHeight;
+    cw = canvas.clientWidth;
+    ch = canvas.clientHeight;
     if (canvas.width !== Math.round(cw * dpr) || canvas.height !== Math.round(ch * dpr)) {
       canvas.width = Math.round(cw * dpr);
       canvas.height = Math.round(ch * dpr);
@@ -320,8 +339,9 @@ try {
       vx = ((cp.x as number) + ((cb?.w as number) ?? 0) / 2) / ONE - vw / 2;
       vy = ((cp.y as number) + ((cb?.h as number) ?? 0) / 2) / ONE - vh / 2;
     }
-    const scale = Math.min(cw / vw, ch / vh);
-    const ox = (cw - vw * scale) / 2 - vx * scale, oy = (ch - vh * scale) / 2 - vy * scale;
+    scale = Math.min(cw / vw, ch / vh);
+    ox = (cw - vw * scale) / 2 - vx * scale;
+    oy = (ch - vh * scale) / 2 - vy * scale;
     for (const m of world.query('tiles', 'pos').filter((i) => world.get(i, 'tiles')!.plane === 'xy')) {
       const t = world.get(m, 'tiles')!, p = world.get(m, 'pos')!;
       const size = ((t.size as number) / ONE) * scale;
@@ -339,13 +359,13 @@ try {
         }
       });
     }
-    const layer = (id: number): number => (world.has(id, 'solid') ? 0 : world.has(id, 'vel') ? 2 : 1);
-    for (const id of world.query('pos', 'box').sort((a, b) => layer(a) - layer(b) || a - b)) {
-      const p = world.get(id, 'pos')!, b = world.get(id, 'box')!, sp = world.get(id, 'sprite');
-      const x = ((p.x as number) / ONE) * scale + ox, y = ((p.y as number) / ONE) * scale + oy;
-      const w = ((b.w as number) / ONE) * scale, h = ((b.h as number) / ONE) * scale;
+    // Pinned entities are the screen's own layer, over the world.
+    const placed = (id: number): boolean => world.has(id, 'pos') || world.has(id, 'pin');
+    const layer = (id: number): number => (world.has(id, 'pin') ? 3 : world.has(id, 'solid') ? 0 : world.has(id, 'vel') ? 2 : 1);
+    for (const id of world.query('box').filter(placed).sort((a, b) => layer(a) - layer(b) || a - b)) {
+      const sp = world.get(id, 'sprite'), [x, y, w, h] = rect(id);
       const color = (sp?.color as string) ?? 'white';
-      g.fillStyle = world.has(id, 'solid') && color === 'white' ? '#3a404b' : color === 'white' ? '#d7dbe2' : color;
+      g.fillStyle = (world.has(id, 'solid') || world.has(id, 'button')) && color === 'white' ? '#3a404b' : color === 'white' ? '#d7dbe2' : color;
       const im = sp?.image ? image(sp.image as string) : null;
       // In 2D only a turn about z shows; it goes around the box's centre.
       const r = world.get(id, 'rot'), turn = r && r.axis === 'z' ? ((r.angle as number) / ONE) * (Math.PI / 180) : 0;
@@ -378,13 +398,15 @@ try {
       }
       if (turn || an) g.restore();
     }
-    for (const id of world.query('label', 'pos')) {
-      const l = world.get(id, 'label')!, p = world.get(id, 'pos')!, b = world.get(id, 'box');
+    for (const id of world.query('label').filter(placed)) {
+      const l = world.get(id, 'label')!, [x, y, w, h, u] = rect(id);
+      // Above the box; inside it on a button; and a pinned label with no box sits at its place on the screen.
+      const where = world.has(id, 'box') ? '' : (world.get(id, 'pin')?.where as string) ?? '', mid = where || world.has(id, 'button');
       g.fillStyle = l.color === 'white' ? '#d7dbe2' : (l.color as string);
-      g.font = `600 ${Math.max(11, scale * 0.42)}px ui-monospace, Consolas, monospace`;
-      g.textAlign = 'center';
-      g.textBaseline = 'bottom';
-      g.fillText((l.text as string).replace(/_/g, ' ').replace('%', `${world.get(id, 'tally')?.n ?? '%'}`),(((p.x as number) + ((b?.w as number) ?? 0) / 2) / ONE) * scale + ox, ((p.y as number) / ONE) * scale + oy - 3);
+      g.font = `600 ${Math.max(11, u * 0.42)}px ui-monospace, Consolas, monospace`;
+      g.textAlign = where.includes('left') ? 'left' : where.includes('right') ? 'right' : 'center';
+      g.textBaseline = !mid ? 'bottom' : where.includes('top') ? 'top' : where.includes('bottom') ? 'bottom' : 'middle';
+      g.fillText((l.text as string).replace(/_/g, ' ').replace('%', `${world.get(id, 'tally')?.n ?? '%'}`), x + w / 2, mid ? y + h / 2 : y - 3);
     }
   };
 
@@ -418,6 +440,13 @@ try {
     if (a) { e.preventDefault(); press(a, true); }
   });
   addEventListener('keyup', (e) => { const a = KEYS[e.key]; if (a) press(a, false); });
+  // A click or tap on a button's box, as drawn, is input like a key: recorded and replayed.
+  canvas.addEventListener('pointerdown', (e) => {
+    for (const id of world.query('button', 'box')) {
+      const [x, y, w, h] = rect(id);
+      if (e.offsetX >= x && e.offsetX < x + w && e.offsetY >= y && e.offsetY < y + h) { wake(); press(`tap:${world.names[id]}`, true); }
+    }
+  });
   // Touch controls: shown where the main pointer is a finger (or with ?pad=1 to try them).
   const pad = $('pad');
   pad.hidden = !(matchMedia('(pointer: coarse)').matches || new URLSearchParams(location.search).has('pad'));

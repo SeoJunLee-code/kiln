@@ -269,6 +269,97 @@ test('browser: a scene with sound plays its samples on their events and loops it
   } finally { await plain.close(); }
 });
 
+test('browser: pinned entities keep their place on the screen, and a click on a button is input', { skip }, async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { run } = await import('../src/run.ts');
+  const dir = mkdtempSync(join(tmpdir(), 'kiln-ui-'));
+  // A hero the camera follows, a button in the world next to it, and three pinned boxes.
+  const scene = `world hz=60
+entity hero
+  pos 0 0
+  box 1 1
+  vel 3 0
+  sprite color=#ffffff
+  camera 10 6
+entity sign
+  pos 2 -2
+  box 2 1
+  sprite color=#ffff00
+  button sign
+entity tl
+  pin top-left 0.5 0.5
+  box 2 1
+  sprite color=#ff0000
+entity br
+  pin bottom-right -0.5 -0.5
+  box 2 1
+  sprite color=#0000ff
+entity go
+  pin center 0 3
+  box 4 1.2
+  sprite color=#00ff00
+  button go despawn:tl
+`;
+  writeFileSync(join(dir, 's.kiln'), scene);
+  // In the page: the color in the middle of a rectangle given in pinned units from a corner of the view.
+  const probe = `
+    const view = document.getElementById('view'), cw = view.clientWidth, ch = view.clientHeight, u = Math.min(cw, ch) / 12;
+    const dpr = devicePixelRatio || 1, g = view.getContext('2d');
+    const color = (x, y) => [...g.getImageData(Math.round(x * dpr), Math.round(y * dpr), 1, 1).data].slice(0, 3).join();
+    const places = { tl: [0.5 * u + u, 0.5 * u + u / 2], br: [cw - 0.5 * u - u, ch - 0.5 * u - u / 2], go: [cw / 2, ch / 2 + 3 * u] };
+    const click = (x, y) => view.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: view.getBoundingClientRect().left + x, clientY: view.getBoundingClientRect().top + y }));
+    const seen = () => Object.fromEntries(Object.entries(places).map(([k, [x, y]]) => [k, color(x, y)]));`;
+  const all = { tl: '255,0,0', br: '0,0,255', go: '0,255,0' };
+  for (const [width, height] of [[960, 600], [420, 800]]) {
+    const player = await openPlayer(join(dir, 's.kiln'), { browser, width, height });
+    try {
+      const r = await player.page.eval<{ size: number[]; at0: object; at40: object; edge: string; log: string; after: object; hash: string }>(`(() => {${probe}
+        kiln.runTo(0);
+        const at0 = seen();
+        // The camera goes with the hero; the pinned boxes stay.
+        kiln.runTo(40);
+        const at40 = seen(), edge = color(places.go[0] - 2 * u - 4, places.go[1]);
+        // Beside the button: nothing. On it: a tap. On the one in the world, which the camera shows left of the middle now: a tap too.
+        click(places.go[0] - 2 * u - 4, places.go[1]);
+        click(...places.go);
+        const s = Math.min(cw / 10, ch / 6);
+        click(cw / 2 + 0.5 * s, ch / 2 - 2 * s);
+        kiln.runTo(42);
+        return { size: [cw, ch], at0, at40, edge, log: kiln.inputLog(), after: seen(), hash: kiln.hash() };
+      })()`);
+      const where = `${width}x${height} (view ${r.size})`;
+      assert.deepEqual(r.at0, all, where);
+      assert.deepEqual(r.at40, all, where);
+      assert.notEqual(r.edge, all.go, where);
+      assert.equal(r.log, '40 go tap\n40 sign tap', where);
+      // The button's action took the red box away; the recorded taps replay headless to the same hash.
+      assert.deepEqual(r.after, { ...all, tl: '20,22,26' }, where);
+      const replay = run(scene, { input: `${r.log}\n`, ticks: 42 });
+      assert.equal(r.hash, replay.hash, where);
+      assert.deepEqual(replay.world.events.map((e) => `${e.tick} ${e.name}`), ['41 sign', '41 go']);
+    } finally { await player.close(); }
+  }
+
+  // The title screen: its label is inside the button, and the key the button names presses it.
+  const title = await openPlayer(ex('title.kiln'), { browser });
+  try {
+    const t = await title.page.eval<{ teal: number; ink: number; events: string[] }>(`(() => {${probe}
+      kiln.runTo(0);
+      // Inside the button's box: mostly its color, and some pixels of the label's.
+      const box = g.getImageData(Math.round((cw / 2 - 2 * u) * dpr), Math.round((ch / 2 - 0.6 * u) * dpr), Math.round(4 * u * dpr), Math.round(1.2 * u * dpr)).data;
+      let teal = 0, ink = 0;
+      for (let i = 0; i < box.length; i += 4) { if (box[i] === 0 && box[i + 1] === 128 && box[i + 2] === 128) teal++; else if (box[i] > 180 && box[i + 1] > 180 && box[i + 2] > 180) ink++; }
+      dispatchEvent(new KeyboardEvent('keydown', { key: 'z' }));
+      kiln.runTo(1);
+      return { teal: teal / (box.length / 4), ink, events: kiln.world.events.map((e) => e.name + ' ' + e.a) };
+    })()`);
+    assert.ok(t.teal > 0.8 && t.ink > 20, `button: ${t.teal} of it is its color, ${t.ink} label pixels`);
+    assert.deepEqual(t.events, ['start start', 'load level1.kiln']);
+  } finally { await title.close(); }
+});
+
 test('mcp: look answers with a line of text and the picture itself', { skip }, async () => {
   const child = spawn(process.execPath, [fileURLToPath(new URL('../src/cli.ts', import.meta.url)), 'mcp'], { stdio: ['pipe', 'pipe', 'inherit'] });
   try {

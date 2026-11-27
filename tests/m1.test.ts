@@ -235,7 +235,7 @@ test('guide: the core and its topics cover every component and command, and each
   }
   const bad = await command('guide', { topic: 'nope' });
   assert.equal(bad.code, 2);
-  assert.match(bad.text, /^E K003 unknown guide topic 'nope' \(hint: valid: physics view levels audio\)/);
+  assert.match(bad.text, /^E K003 unknown guide topic 'nope' \(hint: valid: physics view levels ui audio\)/);
   // Room for the next few core components: adding one must not be what breaks this test.
   assert.ok(g.length < 5600, `core guide is ${g.length} characters`);
   for (const c of COMMANDS.filter((x) => x !== 'guide')) assert.match(g, new RegExp(`^${c} `, 'm'), `command ${c}`);
@@ -577,13 +577,58 @@ test('levels: a tally counts events, and keep hands it to the scene a load opens
   assert.match((await command('check', { file: ex('level1.kiln') })).text, /edition=lite warnings=0/);
 });
 
+test('ui: a tap or its key presses a button, as recorded input that replays', async () => {
+  const { run } = await import('../src/run.ts');
+  const scene = `entity go\n  pin center\n  box 4 1\n  label Go\n  button go despawn:#gate+load:next.kiln key=a\nentity once\n  pin top\n  box 1 1\n  button once despawn-self\nentity gate\n  pos 0 0\n  box 1 1\n  tag gate\nentity n\n  tally once\n`;
+  const at = (input: string, ticks = 30) => run(scene, { input, ticks });
+  const names = (r: ReturnType<typeof at>): string[] => r.world.events.map((e) => `${e.tick} ${e.name} ${e.a}`);
+
+  // Nothing happens by itself; a tap at tick 5 is an event in the next tick, with the button's actions.
+  assert.deepEqual(names(at('')), []);
+  const tapped = at('5 go tap\n');
+  assert.deepEqual(names(tapped), ['6 go go', '6 load next.kiln']);
+  assert.equal(tapped.load, 'next.kiln');
+  assert.equal(tapped.world.ids.has('gate'), false);
+  // The key does the same, once per press however long it is held; another key does nothing.
+  assert.deepEqual(names(at('3 a down\n')), ['4 go go', '4 load next.kiln']);
+  assert.deepEqual(names(at('3 b down\n3 left down\n9 a up\n')), []);
+  // Every tap counts, until the button is gone; then a tap finds nothing.
+  const twice = at('2 once tap\n2 once tap\n8 once tap\n');
+  assert.deepEqual(names(twice), ['3 once once']);
+  assert.equal(twice.world.get(twice.world.ids.get('n')!, 'tally')!.n, 1);
+  // The same input gives the same hash, and a different one does not.
+  assert.equal(at('5 once tap\n').hash, at('5 once tap\n').hash);
+  assert.notEqual(at('5 once tap\n').hash, at('').hash);
+
+  // A tap on what is not a button is an error, not silence.
+  assert.throws(() => at('5 og tap\n'), /E K201 input:0 input taps 'og', which is not an entity with 'button' \(hint: did you mean 'go'\?\)/);
+  assert.throws(() => at('5 gate tap\n'), /K201 .*'gate'.*\(hint: buttons: go once\)/);
+  assert.throws(() => at('5 go tapp\n'), /K200/);
+
+  const check = async (text: string): Promise<string> => (await command('check', { scene: text })).text;
+  assert.doesNotMatch(await check(`${scene}expect event go by 30\n`), /^W /m);
+  const bad = await check('entity a\n  pin middle\n  pos 1 1\n  box 1 1\n  button x despawn:nobody key=z\nentity b\n  button y\nentity c\n  pin top\nexpect event x by 9\n');
+  assert.match(bad, /^W K311 scene button on 'a' refers to 'nobody', which matches no entity/m);
+  assert.match(bad, /^W K328 scene button on 'a' has key=z, which is not an input action, so no key presses it \(hint: did you mean 'a'\?\)$/m);
+  assert.match(bad, /^W K329 scene pin on 'a' has where=middle, which is not a place on the screen, so it is drawn in the centre/m);
+  assert.match(bad, /^W K330 scene 'a' has 'pin' and 'pos'/m);
+  assert.match(bad, /^W K310 scene 'b' has 'button' but no 'box', so it does nothing/m);
+  assert.match(bad, /^W K310 scene 'b' has 'button' but no 'pos' or 'pin', so it is nowhere to click/m);
+  assert.match(bad, /^W K310 scene 'c' has 'pin' but no 'box' or 'label', so there is nothing to draw/m);
+  assert.match(await check('entity a\n  pin top\n  label hi\nentity cam\n  pos 0 0\n  eye 0 -8 9\n'), /^W K331 scene 'a' has 'pin', but the scene is drawn in 3D/m);
+
+  // The example: the title's button opens the first level, and the run goes on to the end.
+  const followed = await command('test', { file: ex('title.kiln'), inputFile: ex('title.input'), follow: true });
+  assert.match(followed.text, /^ok .* path=title\.kiln>level1\.kiln>level2\.kiln$/m);
+});
+
 test('sound: check says what will not be heard, and a run does not depend on it', async () => {
   const scene = (sound: string): string => `entity hero\n  pos 0 0\n  box 1 1\n  vel 1 0\nentity coin\n  pos 2 0\n  box 1 1\n  trigger hero coin despawn-self\n${sound}expect event coin by 120\n`;
   const check = async (text: string): Promise<string> => (await command('check', { scene: text })).text;
   assert.doesNotMatch(await check(scene('entity audio\n  sound coin:coin.wav music=tune.ogg vol=0.5\n')), /K32\d/);
   const bad = await check(scene('entity audio\n  sound coin,cion:a.wav,coin:b.txt music=song.flac\nentity more\n  sound coin:c.wav\n'));
   assert.match(bad, /^W K325 scene sound on 'audio' has 'coin', which is not EVENT:FILE, so it plays nothing/m);
-  assert.match(bad, /^W K326 scene sound on 'audio' plays 'a.wav' on 'cion', which no trigger here emits \(hint: did you mean 'coin'\?\)$/m);
+  assert.match(bad, /^W K326 scene sound on 'audio' plays 'a.wav' on 'cion', which no trigger or button here emits \(hint: did you mean 'coin'\?\)$/m);
   assert.match(bad, /^W K325 scene sound on 'audio' uses 'b.txt', which is not a .wav, .mp3 or .ogg file$/m);
   assert.match(bad, /^W K325 scene sound on 'audio' uses 'song.flac'/m);
   assert.match(bad, /^W K327 scene 'more' has 'sound', but 'audio' has one already and only the first is used/m);

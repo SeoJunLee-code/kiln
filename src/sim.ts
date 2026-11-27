@@ -16,8 +16,10 @@ export function parseInput(text: string, file = 'input'): InputScript {
     // An input may carry expect lines of its own (run.ts reads them); they press no keys.
     if (!tok[0] || tok[0] === 'expect') return;
     const err = (msg: string, hint?: string) => diags.push({ code: 'K200', file, line: i + 1, msg, hint });
-    if (tok.length !== 3 || !/^\d+$/.test(tok[0])) return err(`expected 'TICK ACTION down|up'`);
-    if (!ACTIONS.includes(tok[1])) return err(`unknown action '${tok[1]}'`, suggest(tok[1], ACTIONS) ?? `valid: ${ACTIONS.join(' ')}`);
+    if (tok.length !== 3 || !/^\d+$/.test(tok[0])) return err(`expected 'TICK ACTION down|up' or 'TICK BUTTON tap'`);
+    // A click or tap on a button is input too, written with the button's entity name.
+    if (tok[2] === 'tap') tok.splice(1, 2, `tap:${tok[1]}`, 'down');
+    else if (!ACTIONS.includes(tok[1])) return err(`unknown action '${tok[1]}'`, suggest(tok[1], ACTIONS) ?? `valid: ${ACTIONS.join(' ')}`);
     if (tok[2] !== 'down' && tok[2] !== 'up') return err(`state must be 'down' or 'up', got '${tok[2]}'`);
     const t = +tok[0];
     if (!script.has(t)) script.set(t, []);
@@ -180,7 +182,11 @@ export function spinQuat(q: Comp, tx: number, ty: number, tz: number): void {
 
 /** Advance one fixed tick. System order is fixed: input, ctrl, pace, scripts (pre), gravity, move, physics, turn, triggers, scripts (post). */
 export function step(w: World, script?: InputScript): void {
+  // What was tapped or newly pressed this tick: buttons answer to these further down.
+  const fresh: string[] = [];
   for (const [action, down] of script?.get(w.tick) ?? []) {
+    if (down) fresh.push(action);
+    if (action[3] === ':') continue;
     if (down) w.pressed.add(action);
     else w.pressed.delete(action);
   }
@@ -331,6 +337,21 @@ export function step(w: World, script?: InputScript): void {
   w.met = [];
   const tagOf = (id: number): string => (w.get(id, 'tag')?.name as string | undefined) ?? '';
   const doomed: number[] = [];
+  const act = (action: string, self: number, other: number | undefined, who: string): void => {
+    for (const a of action.split('+')) {
+      if (a === 'despawn-self') doomed.push(self);
+      else if (a === 'despawn-other' && other !== undefined) doomed.push(other);
+      else if (a.startsWith('despawn:')) doomed.push(...w.match(a.slice(8)));
+      // Headless this is only an event; the player reacts to it by opening the scene.
+      else if (a.startsWith('load:')) w.events.push({ tick: w.tick, name: 'load', a: a.slice(5), b: who });
+    }
+  };
+  for (const id of fresh.length ? w.query('button') : []) {
+    const b = w.get(id, 'button')!, name = w.names[id]!;
+    if (!fresh.includes(`tap:${name}`) && !fresh.includes(b.key as string)) continue;
+    w.events.push({ tick: w.tick, name: b.event as string, a: name, b: '' });
+    act(b.action as string, id, undefined, name);
+  }
   for (const t of w.query('trigger', 'pos', 'box')) {
     const tr = w.get(t, 'trigger')!, tp = w.get(t, 'pos')!, tb = w.get(t, 'box')!;
     for (const o of w.match(tr.target as string)) {
@@ -342,13 +363,7 @@ export function step(w: World, script?: InputScript): void {
       w.overlaps.add(key);
       w.met.push({ a: w.names[t]!, at: tagOf(t), b: w.names[o]!, bt: tagOf(o) });
       w.events.push({ tick: w.tick, name: tr.event as string, a: w.names[t]!, b: w.names[o]! });
-      for (const act of (tr.action as string).split('+')) {
-        if (act === 'despawn-self') doomed.push(t);
-        else if (act === 'despawn-other') doomed.push(o);
-        else if (act.startsWith('despawn:')) doomed.push(...w.match(act.slice(8)));
-        // Headless this is only an event; the player reacts to it by opening the scene.
-        else if (act.startsWith('load:')) w.events.push({ tick: w.tick, name: 'load', a: act.slice(5), b: w.names[o]! });
-      }
+      act(tr.action as string, t, o, w.names[o]!);
     }
   }
   for (const id of doomed) w.despawn(id);

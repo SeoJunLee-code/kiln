@@ -1,6 +1,9 @@
 import type { Diag, Scene } from './scene.ts';
 import { paintOf, suggest } from './scene.ts';
+import { ACTIONS } from './sim.ts';
 import { registry } from './world.ts';
+
+const PLACES = ['top-left', 'top', 'top-right', 'left', 'center', 'right', 'bottom-left', 'bottom', 'bottom-right'];
 
 // A component that does nothing unless these are on the same entity.
 const NEEDS: Record<string, string[]> = {
@@ -21,6 +24,7 @@ const NEEDS: Record<string, string[]> = {
   rot: ['pos', 'box'],
   quat: ['pos', 'box'],
   rigid: ['pos', 'box'],
+  button: ['box'],
   impulse: ['rigid'],
   force: ['rigid'],
 };
@@ -39,7 +43,8 @@ export function lint(scene: Scene, file: string, exists?: (name: string) => bool
     if (name == null) return;
     for (const [comp, needs] of Object.entries(NEEDS)) {
       if (!w.has(id, comp)) continue;
-      const missing = needs.filter((n) => !w.has(id, n));
+      // A pinned entity has its place on the screen instead of pos.
+      const missing = needs.filter((n) => !w.has(id, n) && !(n === 'pos' && w.has(id, 'pin')));
       if (missing.length) warn('K310', `'${name}' has '${comp}' but no ${missing.map((m) => `'${m}'`).join(' or ')}, so it does nothing`, `add ${missing.join(', ')} to '${name}'`);
     }
     const tr = w.get(id, 'trigger');
@@ -69,14 +74,29 @@ export function lint(scene: Scene, file: string, exists?: (name: string) => bool
     for (const k of String(w.get(id, 'keep')?.what ?? '').split(',').filter(Boolean)) {
       if (!w.has(id, k) || k === 'tiles') warn('K324', `'${name}' keeps '${k}', ${k === 'tiles' ? 'which cannot be carried to another scene' : registry.has(k) ? `but has no '${k}'` : 'which is not a component'}, so nothing is carried`, k === 'tiles' ? undefined : registry.has(k) ? `add ${k} to '${name}'` : suggest(k, registry.keys()));
     }
+    const bt = w.get(id, 'button'), pn = w.get(id, 'pin');
+    if (bt) {
+      for (const a of (bt.action as string).split('+')) {
+        if (a.startsWith('despawn:') && !w.match(a.slice(8)).length) warn('K311', `button on '${name}' refers to '${a.slice(8)}', which matches no entity`, a[8] === '#' ? 'no entity has that tag' : suggest(a.slice(8), w.ids.keys()));
+        if (a.startsWith('load:') && exists && !exists(a.slice(5))) warn('K312', `button on '${name}' loads '${a.slice(5)}', which is not next to the scene`);
+      }
+      if (bt.key && !ACTIONS.includes(bt.key as string)) warn('K328', `button on '${name}' has key=${bt.key}, which is not an input action, so no key presses it`, suggest(bt.key as string, ACTIONS) ?? `valid: ${ACTIONS.join(' ')}`);
+      if (!pn && !w.has(id, 'pos')) warn('K310', `'${name}' has 'button' but no 'pos' or 'pin', so it is nowhere to click`, `add pin center to '${name}'`);
+    }
+    if (pn) {
+      if (!PLACES.includes(pn.where as string)) warn('K329', `pin on '${name}' has where=${pn.where}, which is not a place on the screen, so it is drawn in the centre`, suggest(pn.where as string, PLACES) ?? `valid: ${PLACES.join(' ')}`);
+      if (w.has(id, 'pos')) warn('K330', `'${name}' has 'pin' and 'pos': it is drawn where pin says, while collisions and triggers still use pos`, `drop pos from '${name}', or drop pin`);
+      if (!w.has(id, 'box') && !w.has(id, 'label')) warn('K310', `'${name}' has 'pin' but no 'box' or 'label', so there is nothing to draw`);
+    }
+    if ((bt || pn) && w.query('eye').length) warn('K331', `'${name}' has '${bt ? 'button' : 'pin'}', but the scene is drawn in 3D, where buttons and pinned entities are not drawn`);
     const so = w.get(id, 'sound');
     if (so) {
       if (id !== w.query('sound')[0]) warn('K327', `'${name}' has 'sound', but '${w.names[w.query('sound')[0]]}' has one already and only the first is used`, 'put every EVENT:FILE pair on one sound line');
-      const emitted = new Set(['load', ...w.query('trigger').map((t) => w.get(t, 'trigger')!.event as string)]);
+      const emitted = new Set(['load', ...w.query('trigger').map((t) => w.get(t, 'trigger')!.event as string), ...w.query('button').map((t) => w.get(t, 'button')!.event as string)]);
       const files = (so.on as string).split(',').filter(Boolean).map((pair) => {
         const [event, file, more] = pair.split(':');
         if (!event || !file || more !== undefined) return void warn('K325', `sound on '${name}' has '${pair}', which is not EVENT:FILE, so it plays nothing`, 'e.g. sound coin:coin.wav,hit:hit.wav');
-        if (!scene.uses.length && !emitted.has(event)) warn('K326', `sound on '${name}' plays '${file}' on '${event}', which no trigger here emits`, suggest(event, emitted));
+        if (!scene.uses.length && !emitted.has(event)) warn('K326', `sound on '${name}' plays '${file}' on '${event}', which no trigger or button here emits`, suggest(event, emitted));
         return file;
       });
       for (const file of [...files, so.music as string]) {
@@ -105,7 +125,7 @@ export function lint(scene: Scene, file: string, exists?: (name: string) => bool
       warn('K319', `line ${i + 1}: '#' after '${m![1]}' starts a comment, so ${first.name} is empty`, `for the character '#' write ${first.name}=#; put a comment on its own line`);
     }
   });
-  if (!w.query('ctrl').length && scene.expects.some((e) => /^(reach|gone|event)\b/.test(e.text))) {
+  if (!w.query('ctrl').length && !w.query('button').length && scene.expects.some((e) => /^(reach|gone|event)\b/.test(e.text))) {
     warn('K314', `nothing has 'ctrl', so input cannot affect the scene and solve has nothing to steer`);
   }
   if (!scene.expects.length) warn('K300', `no expect lines: nothing says what "working" means`, 'add e.g. expect reach hero exit by 600');

@@ -1,7 +1,7 @@
 import { ONE, fmtFx } from './fx.ts';
 import { evalTick, finish, lastTick, parseExpects } from './expect.ts';
 import type { Expect } from './expect.ts';
-import { kept, parseScene, take } from './scene.ts';
+import { KilnFail, kept, parseScene, suggest, take } from './scene.ts';
 import type { RawExpect } from './scene.ts';
 import { hash, parseInput, step, tileAt, tileRows } from './sim.ts';
 import type { System, World } from './world.ts';
@@ -44,6 +44,14 @@ export function run(sceneText: string, opts: { input?: string; ticks?: number; f
   const from = own?.expects.length ? opts.inputFile ?? 'input' : opts.file ?? 'scene';
   const expects = parseExpects(own?.expects.length ? own.expects : raw, world, from);
   const script = own && parseInput(own.input, opts.inputFile);
+  // A tap on something that is not a button would do nothing, silently.
+  for (const [action] of [...script?.values() ?? []].flat()) {
+    const name = action[3] === ':' ? action.slice(4) : '';
+    if (name && world.match(name).every((id) => !world.has(id, 'button'))) {
+      const buttons = world.query('button').map((id) => world.names[id]!);
+      throw new KilnFail([{ code: 'K201', file: opts.inputFile ?? 'input', line: 0, msg: `input taps '${name}', which is not an entity with 'button'`, hint: suggest(name, buttons) ?? (buttons.length ? `buttons: ${buttons.join(' ')}` : 'the scene has no button') }]);
+    }
+  }
   const end = world.tick + (opts.ticks ?? Math.max(lastTick(expects) - world.tick, 0));
   evalTick(world, expects);
   let load: string | undefined;

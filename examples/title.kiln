@@ -1,0 +1,23 @@
+# A title screen. Nothing here is in the world: every entity is pinned to the screen.
+# The button, or the a key (Z, Space, a pad's A), opens the first level.
+entity name
+  pin top 0 2.5
+  label Coin_Run gold
+
+entity start
+  pin center
+  box 4 1.2
+  sprite color=teal
+  label Start
+  button start load:level1.kiln key=a
+
+entity hint
+  pin bottom 0 -1
+  label click,_tap_or_press_Z
+
+entity corner
+  pin top-right -0.3 0.3
+  label two_levels
+
+expect event start by 60
+expect event load by 60

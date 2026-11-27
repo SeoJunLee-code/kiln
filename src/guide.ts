@@ -45,6 +45,27 @@ with what its own file says. keep takes any components, a script's own too: keep
 A scene run by itself starts from its file. test --follow carries values as the player
 does, and both reach the same hash. Check a value with: expect at N score.tally.n == 2`,
   },
+  ui: {
+    about: 'buttons, screen layout',
+    text: `pin puts an entity at a place on the screen instead of in the world; it needs no pos and
+the camera does not move it. Its box and offsets are in screen units: 1 = a twelfth of the
+shorter side of the view, so it fits a phone and a wide window alike.
+entity start
+  pin center              or top-left top top-right left right bottom-left bottom bottom-right
+  box 4 1.2
+  sprite color=teal
+  label Start             drawn inside the box, because this is a button
+  button start load:level1.kiln key=a
+entity score
+  pin top-right -0.3 0.3  no box: the text itself sits in the corner, 0.3 units in
+  label Coins:_%
+  tally coin
+A click or tap on a button's box emits its event and does its action; key=a lets the a
+key (Z, Space, a pad's A) press it too. A button with pos instead of pin is in the world.
+A press is input, so it is recorded and replays headless. In an input file:
+12 start tap              the button's entity name; the event comes in the next tick
+solve never taps: give test an input with the taps. 2D only. Check the picture with look.`,
+  },
   audio: {
     about: 'samples on events, music',
     text: `Without sound the browser player plays a short tone for every event. With it, only
@@ -57,7 +78,7 @@ Files are .wav, .mp3 or .ogg beside the scene. One sound line per scene; put it 
 scene that should sound (the music starts again in each).
 A browser gives no sound before the first key, tap or pad button, so the music starts
 there. M mutes. Nothing in the game can read sound: headless runs and solve skip it, and
-no expect can hear it. check warns about a missing file and an event no trigger emits.`,
+no expect can hear it. check warns about a missing file and an event nothing emits.`,
   },
 };
 
@@ -114,28 +135,27 @@ A spawned prefab used once keeps its name (hero); used several times it is numbe
 (coin1, coin2). Tag those and refer to them as #tag.
 
 EXPECT  A and B are entity names or #tags; N is a tick
-expect reach A B by N        A overlaps B at some tick <= N
-expect never A B             A never overlaps B
-expect gone A by N           A (or all with that #tag) was despawned
-expect event NAME by N       a trigger emitted NAME
-expect count NAME OP VALUE at N       NAME events emitted by tick N
-expect at N A.comp.field OP VALUE     OP: < <= > >= == !=
+expect reach A B by N    A overlaps B at some tick <= N
+expect never A B         A never overlaps B
+expect gone A by N       A (or all with that #tag) was despawned
+expect event NAME by N   a trigger emitted NAME
+expect count NAME OP VALUE at N   NAME events emitted by tick N
+expect at N A.comp.field OP VALUE  OP: < <= > >= == !=
 
-INPUT  one per line: TICK ACTION down|up     actions: left right up down a b
+INPUT  one per line: TICK ACTION down|up   actions: left right up down a b   (ui: TICK NAME tap)
 
 COMMANDS  (CLI: node src/cli.ts CMD SCENE [options]; MCP: tool kiln, argument cmd)
-check    parse and validate (a folder: every scene). Says the edition the game needs: lite runs
-         anywhere; [standard] parts need WebGPU (drawing) or megabytes more (physics). --edition lite: more is an error
-test     run, evaluate expects; --input FILE; exit 1 if any fails. A folder: every scene
-         with its NAME.input, then once per NAME.CASE.input. expect lines in an input
-         replace the scene's. --follow: go on into
-         the scene a load: opened, with its NAME.input
-run      run without judging; --ticks N
-solve    find an input meeting reach/gone/event, keeping never and count X == 0; --out FILE saves it
-schema   components only
-look     picture of the game view from a headless browser, with what is in it;
-         --tick N --input FILE --out FILE.png (needs Chrome/Edge)
-play     open in a browser (CLI only); what you press is recorded as an input script
+check  parse and validate (a folder: every scene). Says the edition needed: lite runs
+       anywhere; [standard] parts need WebGPU (drawing) or megabytes more (physics). --edition lite: more is an error
+test   run, evaluate expects; --input FILE; exit 1 if any fails. A folder: every scene
+       with its NAME.input, then once per NAME.CASE.input. expect lines in an input
+       replace the scene's. --follow: go on into the scene a load: opened, with its NAME.input
+run    run without judging; --ticks N
+solve  find an input meeting reach/gone/event, keeping never and count X == 0; --out FILE saves it
+schema components only
+look   picture of the game view from a headless browser, with what is in it;
+       --tick N --input FILE --out FILE.png (needs Chrome/Edge)
+play   open in a browser (CLI only); what you press is recorded as an input script
 Add to test/run: --view (ASCII picture), --top (3D floor plan), --observe
 (positions), --events.
 

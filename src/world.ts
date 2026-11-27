@@ -61,6 +61,10 @@ defineComponent('keep', 'what: component names joined by commas. When a load: op
   [f('what', 'str')], 'levels');
 defineComponent('sound', 'on: EVENT:FILE pairs, the file plays when the event is emitted. music loops. vol, mvol: 0..1. Browser only, never state the game reads',
   [f('on', 'str', ''), f('music', 'str', ''), f('vol', 'fx', 65536), f('mvol', 'fx', 32768)], 'audio');
+defineComponent('button', '2D: a click or tap on its box, or pressing the action `key`, emits event and does action (as trigger: despawn-self, despawn:REF, load:FILE). Its label is drawn inside the box',
+  [f('event', 'str'), f('action', 'str', 'none'), f('key', 'str', '')], 'ui');
+defineComponent('pin', '2D: drawn at a place on the screen instead of at pos. where: top-left top top-right left center right bottom-left bottom bottom-right. dx dy: offset; 1 = a twelfth of the shorter side of the view',
+  [f('where', 'str', 'center'), f('dx', 'fx', 0), f('dy', 'fx', 0)], 'ui');
 defineComponent('camera', '2D view: follows this entity, shows w x h units; ignored headless', [f('w', 'fx'), f('h', 'fx')], 'view');
 
 export class World {
