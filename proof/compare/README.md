@@ -10,7 +10,7 @@ specs.
 | this file | The isolated run command and the trial runs that settled it |
 | [`GEMVAULT-CHECKS.md`](GEMVAULT-CHECKS.md) | Screen pass checks of the development spec |
 | `SPREAD.md` | The development spec run several times on each engine. Being run; not written yet |
-| [`GODOT-TOOLS.md`](GODOT-TOOLS.md) | Agent tooling for Godot: the candidates and the one chosen |
+| [`GODOT-TOOLS.md`](GODOT-TOOLS.md) | Agent tooling for Godot: the candidates, the one chosen, and its trial runs |
 | [`H2.md`](H2.md), [`H3.md`](H3.md) | Held-out specs two and three. Not run |
 
 ## Isolation: what the trial runs found (2026-11-27)
@@ -64,8 +64,11 @@ wrapped in `timeout SECONDS`, the clock ceiling. Per setup:
 |---|---|---|---|
 | Kiln | `{"mcpServers":{"kiln":{"command":"node","args":["ENGINE/src/cli.ts","mcp"]}}}` | `Read,Write,Edit,Glob` | `mcp__kiln__kiln` |
 | Godot, file tools | `{"mcpServers":{}}` | `Read,Write,Edit,Glob,PowerShell` | `PowerShell(godot:*)` |
-| Godot, agent tools | see [`GODOT-TOOLS.md`](GODOT-TOOLS.md) | the same | the same, and the server's tools |
+| Godot, agent tools | `{"mcpServers":{"godot":{"command":"node","args":["GMR/node_modules/godot-mcp-runtime/dist/index.js"],"env":{"GODOT_PATH":"GODOT.exe","GODOT_MCP_DISABLE_ELICITATION":"true"}}}}` | `Read,Write,Edit,Glob,PowerShell` | `PowerShell(godot:*),mcp__godot` |
 
+- `GMR` is a folder outside the run folders where `godot-mcp-runtime` 4.0.1 was installed
+  once; `GODOT.exe` is the windowed 4.7.2 executable. Tried on 2026-11-27, see
+  [`GODOT-TOOLS.md`](GODOT-TOOLS.md).
 - `ENGINE` is a copy of the repository at the pinned commit (`git archive COMMIT | tar -x`),
   not the working tree, so work on the engine during a series cannot reach a run.
 - For Godot a folder with a one-line `godot.cmd` that calls the official 4.7.2 console
