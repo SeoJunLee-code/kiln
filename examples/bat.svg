@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 12">
+  <!-- Two frames of 20x12, looking right: wings up, wings down. -->
+  <g id="f0">
+    <polygon points="1,1 8,5 8,8" fill="#8e6bd6"/>
+    <polygon points="19,1 12,5 12,8" fill="#8e6bd6"/>
+    <rect x="7" y="4" width="6" height="6" rx="2" fill="#5b3fa8"/>
+    <rect x="11" y="5" width="1" height="2" fill="#f2f2f2"/>
+  </g>
+  <g id="f1" transform="translate(20 0)">
+    <polygon points="1,11 8,5 8,8" fill="#8e6bd6"/>
+    <polygon points="19,11 12,5 12,8" fill="#8e6bd6"/>
+    <rect x="7" y="3" width="6" height="6" rx="2" fill="#5b3fa8"/>
+    <rect x="11" y="4" width="1" height="2" fill="#f2f2f2"/>
+  </g>
+</svg>

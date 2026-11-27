@@ -9,7 +9,7 @@ import { ONE } from '../src/fx.ts';
 import { freeLink, loadBackend, physicsOf } from '../src/physics.ts';
 import type { Mods } from '../src/run.ts';
 import { paintOf, parseScene } from '../src/scene.ts';
-import { hash, parseInput, step, tileRows } from '../src/sim.ts';
+import { frameOf, hash, parseInput, step, tileRows } from '../src/sim.ts';
 import type { InputScript } from '../src/sim.ts';
 import type { World } from '../src/world.ts';
 
@@ -308,13 +308,23 @@ try {
       const im = sp?.image ? image(sp.image as string) : null;
       // In 2D only a turn about z shows; it goes around the box's centre.
       const r = world.get(id, 'rot'), turn = r && r.axis === 'z' ? ((r.angle as number) / ONE) * (Math.PI / 180) : 0;
-      if (turn) {
+      // A sheet of frames shows one of them, mirrored when the entity looks left.
+      const an = im && world.get(id, 'anim'), flip = an && an.face === -1;
+      if (turn || an) {
         g.save();
         g.translate(x + w / 2, y + h / 2);
         g.rotate(turn);
+        if (flip) g.scale(-1, 1);
         g.translate(-(x + w / 2), -(y + h / 2));
       }
-      if (im) g.drawImage(im, x, y, w, h);
+      if (an) {
+        // The whole sheet is drawn behind a window one frame wide. (A source rectangle
+        // would be shorter, but an SVG without its own size does not take one reliably.)
+        g.beginPath();
+        g.rect(x, y, w, h);
+        g.clip();
+        g.drawImage(im!, x - frameOf(world, id) * w, y, Math.max(1, an.frames as number) * w, h);
+      } else if (im) g.drawImage(im, x, y, w, h);
       else {
         g.fillRect(x, y, w, h);
         if (sp?.glyph) {
@@ -325,7 +335,7 @@ try {
           g.fillText(sp.glyph as string, x + w / 2, y + h / 2);
         }
       }
-      if (turn) g.restore();
+      if (turn || an) g.restore();
     }
     for (const id of world.query('label', 'pos')) {
       const l = world.get(id, 'label')!, p = world.get(id, 'pos')!, b = world.get(id, 'box');

@@ -498,3 +498,37 @@ test("'#' as a value: named it is kept, bare it is a comment and check says so",
   assert.doesNotMatch((await command('check', { scene: one('sprite @ # red') })).text, /K319/);
   assert.doesNotMatch((await command('check', { scene: one('sprite glyph=#') })).text, /K319/);
 });
+
+test('anim: the frame comes from the tick and the state, and the facing is saved', async () => {
+  const { frameOf, hash, parseInput, step } = await import('../src/sim.ts');
+  const scene = (anim: string, more = '  vel\n  ctrl 4\n'): string => `world hz=60\nentity hero\n  pos 0 0\n  box 1 1\n${more}  sprite @ white sheet.png\n  ${anim}\n`;
+  const w = parseScene(scene('anim 4 fps=10 idle=1')).world;
+  const input = parseInput('0 right down\n30 right up\n30 left down\n60 left up\n');
+  const seen: Record<number, [frame: number, face: number]> = {};
+  for (let t = 0; t <= 70; t++) {
+    if ([0, 6, 12, 18, 24, 36, 70].includes(t)) seen[t] = [frameOf(w, 0), w.get(0, 'anim')!.face as number];
+    step(w, input);
+  }
+  // Standing: frame 0. Moving: frames 1..3 in turn, one every 6 ticks. After the turn at
+  // tick 30 it looks left, and still does when it stops.
+  assert.deepEqual(seen, { 0: [0, 1], 6: [2, 1], 12: [3, 1], 18: [1, 1], 24: [2, 1], 36: [1, -1], 70: [0, -1] });
+  assert.match(serialize(w), /^  anim 4 10 1 -1$/m);
+  const again = parseScene(serialize(w)).world;
+  assert.equal(hash(again), hash(w));
+  again.get(0, 'anim')!.face = 1;
+  assert.notEqual(hash(again), hash(w), 'the facing is part of the state');
+
+  // Without idle frames the whole sheet loops, moving or not; a frame count below 1 does not divide by zero.
+  const loop = parseScene(scene('anim 3 fps=60')).world;
+  assert.deepEqual([0, 1, 2, 3].map(() => { const f = frameOf(loop, 0); step(loop); return f; }), [0, 1, 2, 0]);
+  assert.equal(frameOf(parseScene(scene('anim 0')).world, 0), 0);
+
+  const check = async (text: string): Promise<string> => (await command('check', { scene: text })).text;
+  assert.match(await check(scene('anim 4 idle=4')), /^W K320 scene anim on 'hero' has frames=4 fps=8 idle=4/m);
+  assert.match(await check(scene('anim 0')), /^W K320 /m);
+  assert.match(await check(scene('anim 4').replace(' sheet.png', '')), /^W K321 scene 'hero' has 'anim' but its sprite has no image/m);
+  assert.match(await check(scene('anim 4 idle=1', '')), /^W K322 scene anim on 'hero' has idle=1 but 'hero' has no 'vel'/m);
+  assert.match(await check(scene('anim 4') + 'entity cam\n  pos 0 0\n  eye 0 -8 9\n'), /^W K323 scene 'hero' has 'anim', but the scene is drawn in 3D/m);
+  assert.match(await check('entity a\n  pos 0 0\n  box 1 1\n  anim 2\n'), /^W K310 scene 'a' has 'anim' but no 'sprite'/m);
+  assert.doesNotMatch(await check(scene('anim 4 idle=1')), /^W K32/m);
+});

@@ -1,0 +1,36 @@
+# Animated sprites: the image is a row of frames and `anim` says how many.
+# The hero stands on frame 0 and loops frames 1..3 while it moves (idle=1); walking
+# left mirrors the picture. The bat has no idle frames, so it flaps all the time.
+world hz=60
+
+entity hero
+  pos 1 3
+  box 0.8 1
+  vel
+  ctrl 4
+  sprite @ white walker.svg
+  anim 4 idle=1
+entity bat
+  pos 2 1.2
+  box 1 0.6
+  vel
+  pace x 2 8 3
+  sprite b white bat.svg
+  anim 2 fps=6
+entity flag
+  pos 9 3.2
+  box 0.4 0.8
+  tag flag
+  trigger hero touch despawn-self
+  sprite F crimson
+
+entity map
+  pos 0 0
+  tiles
+    ############
+    #..........#
+    #..........#
+    #..........#
+    ############
+
+expect gone #flag by 240

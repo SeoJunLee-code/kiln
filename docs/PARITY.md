@@ -85,12 +85,12 @@ Neither engine was built for this; these rows are why Kiln exists.
 
 | Feature | Godot | Unity | Kiln | Check |
 |---|---|---|---|---|
-| Sprites, tile maps, camera | yes | yes | **gated** | reference images of 9 scenes |
+| Sprites, tile maps, camera | yes | yes | **gated** | reference images of 10 scenes |
 | Box collision, swept movement | yes | yes | **gated** | tests, hashes |
 | Rotation | yes | yes | **gated** (drawn only) | angle is hashed state on 3 OSes; reference image (`windmill`). Collision ignores it |
 | Circle and polygon collision | yes | yes | none | |
 | Rigid bodies, joints | yes | yes | none in 2D (3D backend only); no joints | |
-| Sprite animation | yes | yes | none | |
+| Sprite animation | yes | yes | **gated** (one row of frames) | `anim FRAMES [fps] [idle]` on a sprite whose image is a row of frames: the frame is a function of the tick and the state (headless test), a browser test reads the frame color at six ticks and sees the mirror when the entity looks left; the facing is hashed state; reference image (`stroll`). No named clips, no atlas with rows, no per-frame timing, no events on a frame |
 | Per-tile color and image | yes | yes | **gated** | `tiles paint=CHAR:COLOR,CHAR:IMAGE`: reference image (`garden`); browser test counts each painted color's cells in 2D and sees painted walls in both 3D renderers (colors only there); `check` rejects a malformed entry and warns about a character in no row, a missing image, an image in a 3D scene (K317, K312, K318). One image per character: no atlas, no auto-tiling, no animated tiles |
 | Particles | yes | yes | none | |
 | Audio (samples, music, mixing) | yes | yes | **gated** (event tones only) | test counts tone requests; nobody has listened |

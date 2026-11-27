@@ -348,3 +348,51 @@ test('browser: Lite games built without the parts they do not use reach the same
     assert.ok(missing.page.errors().some((e) => e.includes('engine part missing from this build')), `errors: ${missing.page.errors().join(' | ')}`);
   } finally { bare.close(); full.close(); }
 });
+
+test('browser: an animated sprite shows the frame of its tick, mirrored when it looks left', { skip }, async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = mkdtempSync(join(tmpdir(), 'kiln-anim-'));
+  // Four frames of one color each, except frame 1: green on its left half, blue on its right.
+  writeFileSync(join(dir, 'sheet.svg'), `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 10">
+<rect x="0" width="10" height="10" fill="#ff0000"/><rect x="10" width="5" height="10" fill="#00ff00"/><rect x="15" width="5" height="10" fill="#0000ff"/>
+<rect x="20" width="10" height="10" fill="#ffff00"/><rect x="30" width="10" height="10" fill="#ff00ff"/></svg>`);
+  writeFileSync(join(dir, 's.kiln'), 'world hz=60\nentity hero\n  pos 5 0\n  box 2 2\n  vel\n  ctrl 2\n  sprite @ white sheet.svg\n  anim 4 fps=10 idle=1\nentity floor\n  pos 0 2\n  box 12 1\n  solid\n');
+  writeFileSync(join(dir, 's.input'), '0 right down\n30 right up\n30 left down\n60 left up\n');
+  const player = await openPlayer(join(dir, 's.kiln'), { inputFile: join(dir, 's.input'), browser, query: 'paused' });
+  try {
+    const ticks = [0, 6, 12, 18, 36, 70];
+    const shots = await player.page.eval<string[]>(`(async () => {
+      const out = [];
+      for (const t of ${JSON.stringify(ticks)}) { kiln.runTo(t); out.push((await kiln.shot()).png); }
+      return out;
+    })()`);
+    const COLORS: Record<string, number[]> = { red: [255, 0, 0], green: [0, 255, 0], blue: [0, 0, 255], yellow: [255, 255, 0], magenta: [255, 0, 255] };
+    // For each frame color: how many pixels have it, and where their middle is from left to right.
+    const read = (url: string): Record<string, { n: number; x: number }> => {
+      const p = decodePng(Buffer.from(url.slice(url.indexOf(',') + 1), 'base64'));
+      const out: Record<string, { n: number; x: number }> = {};
+      for (const [name, [r, g, b]] of Object.entries(COLORS)) {
+        let n = 0, sum = 0;
+        for (let i = 0; i < p.rgba.length; i += 4) if (Math.abs(p.rgba[i] - r) < 8 && Math.abs(p.rgba[i + 1] - g) < 8 && Math.abs(p.rgba[i + 2] - b) < 8) { n++; sum += (i / 4) % p.width; }
+        out[name] = { n, x: n ? sum / n : 0 };
+      }
+      return out;
+    };
+    const got = shots.map(read);
+    const only = (i: number, ...names: string[]): void => {
+      for (const name of Object.keys(COLORS)) assert.equal(got[i][name].n > 100, names.includes(name), `tick ${ticks[i]}: ${name} covers ${got[i][name].n} pixels`);
+    };
+    only(0, 'red');             // standing
+    only(1, 'yellow');          // walking: frames 1..3, one every 6 ticks
+    only(2, 'magenta');
+    only(3, 'green', 'blue');
+    assert.ok(got[3].green.x < got[3].blue.x, 'looking right, the frame is drawn as it is in the sheet');
+    only(4, 'green', 'blue');
+    assert.ok(got[4].green.x > got[4].blue.x, 'looking left, the frame is mirrored');
+    only(5, 'red');             // standing again
+    // One frame is a quarter of the sheet: its two halves take the same room.
+    assert.ok(Math.abs(got[3].green.n - got[3].blue.n) < 0.05 * got[3].green.n, `green ${got[3].green.n}, blue ${got[3].blue.n}`);
+  } finally { await player.close(); }
+});

@@ -14,6 +14,7 @@ const NEEDS: Record<string, string[]> = {
   trigger: ['pos', 'box'],
   tiles: ['pos'],
   sprite: ['pos', 'box'],
+  anim: ['sprite'],
   label: ['pos'],
   camera: ['pos'],
   eye: ['pos'],
@@ -56,6 +57,14 @@ export function lint(scene: Scene, file: string, exists?: (name: string) => bool
     for (const field of ['image', 'mesh']) {
       const f = sp?.[field] as string | undefined;
       if (f && exists && !exists(f)) warn('K312', `sprite on '${name}' uses ${field} '${f}', which is not next to the scene`);
+    }
+    const an = w.get(id, 'anim');
+    if (an && sp) {
+      const n = an.frames as number, idle = an.idle as number;
+      if (n < 1 || (an.fps as number) < 1 || idle < 0 || idle >= n) warn('K320', `anim on '${name}' has frames=${n} fps=${an.fps} idle=${idle}: frames and fps start at 1, and idle must leave at least one frame for moving`, 'e.g. anim 4 idle=1');
+      else if (!sp.image) warn('K321', `'${name}' has 'anim' but its sprite has no image, so there are no frames to show`, `add image=SHEET.png to the sprite of '${name}'`);
+      else if (idle && !w.has(id, 'vel')) warn('K322',`anim on '${name}' has idle=${idle} but '${name}' has no 'vel', so it never shows the moving frames`, `add vel to '${name}', or drop idle`);
+      if (w.query('eye').length) warn('K323', `'${name}' has 'anim', but the scene is drawn in 3D, where sprites are boxes or meshes`);
     }
     const tl = w.get(id, 'tiles');
     if (tl?.paint) for (const [ch, [, image]] of paintOf(tl.paint as string)) {

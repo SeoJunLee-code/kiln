@@ -208,6 +208,13 @@ export function step(w: World, script?: InputScript): void {
 
   for (const sys of w.pre) sys(w);
 
+  // Which way an animated sprite looks is state: it has to survive a save, and standing
+  // still must not forget it. It follows what the entity is trying to do this tick.
+  for (const id of w.query('anim', 'vel')) {
+    const x = w.get(id, 'vel')!.x as number;
+    if (x) w.get(id, 'anim')!.face = x > 0 ? 1 : -1;
+  }
+
   for (const id of w.query('body', 'vel')) {
     // The backend gives a rigid body its gravity; adding it here too would read as a script changing its speed.
     if (w.physics && w.has(id, 'rigid')) continue;
@@ -345,6 +352,19 @@ export function step(w: World, script?: InputScript): void {
   }
   for (const id of doomed) w.despawn(id);
   for (const sys of w.post) sys(w);
+}
+
+/**
+ * Which picture of its sheet an `anim` entity shows now. It is a function of the tick and
+ * of the state, so replaying the same input draws the same frames.
+ */
+export function frameOf(w: World, id: number): number {
+  const a = w.get(id, 'anim');
+  if (!a) return 0;
+  const n = Math.max(1, a.frames as number), idle = Math.min(Math.max(0, a.idle as number), n - 1);
+  const v = w.get(id, 'vel'), moving = !!v && (v.x !== 0 || v.y !== 0);
+  const turn = Math.floor((w.tick * Math.max(1, a.fps as number)) / w.hz);
+  return !idle ? turn % n : moving ? idle + (turn % (n - idle)) : turn % idle;
 }
 
 /**

@@ -22,9 +22,14 @@ Saving a running physics scene as text and loading it does not continue exactly;
 from the start with the same input instead.`,
   },
   view: {
-    about: 'how the scene is drawn: turning, cameras, labels',
+    about: 'drawing: turning, animation, cameras, labels',
     text: `None of these change collision, triggers or solve: they see the unturned box.
-2D shows rot about z only. 3D needs an entity with eye. Check the picture with look.`,
+2D shows rot about z only. 3D needs an entity with eye. Check the picture with look.
+Animation (2D): draw the frames in one image, side by side, all the same size and looking
+right (PNG, or SVG with a viewBox), and give the entity sprite image=walk.png + anim 4.
+The frame comes from the tick alone: tick*fps/hz, so a replay draws the same pictures.
+anim 4 idle=1 keeps frame 0 for standing and loops 1..3 while vel is not zero.
+Looking left mirrors the picture; face is saved with the scene and is part of the hash.`,
   },
 };
 
