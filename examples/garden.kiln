@@ -1,0 +1,28 @@
+# Each tile character can have its own color or image: paint=CHAR:COLOR,CHAR:IMAGE.
+# Here hedges are green, water is blue and blocks the way, the bridge is brown,
+# and the empty cells ('.') are a grass picture.
+world hz=60
+
+prefab hero
+  box 0.8 0.8
+  vel
+  ctrl 4
+  sprite image=hero.svg
+prefab flower
+  box 0.5 0.5
+  tag flower
+  trigger hero pick despawn-self
+  sprite * crimson
+
+entity map
+  pos 0 0
+  tiles solid=#~ spawn=@:hero,*:flower paint=#:#2f6f4f,~:steelblue,=:peru,.:grass.svg
+    ############
+    #@...~~...*#
+    #....~~....#
+    #....==....#
+    #.*..~~....#
+    #....~~..*.#
+    ############
+
+expect gone #flower by 600

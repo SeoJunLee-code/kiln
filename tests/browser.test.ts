@@ -122,6 +122,45 @@ test('browser: labels are drawn', { skip }, async () => {
   } finally { await player.close(); }
 });
 
+test('browser: painted tiles are drawn in their colors and images, in 2D and as colors in 3D', { skip }, async () => {
+  const png = (url: string) => decodePng(Buffer.from(url.slice(url.indexOf(',') + 1), 'base64'));
+  // Share of the picture within a little of one color.
+  const share = (p: { width: number; height: number; rgba: Uint8Array }, [r, g, b]: number[]): number => {
+    let n = 0;
+    for (let i = 0; i < p.rgba.length; i += 4) if (Math.abs(p.rgba[i] - r) < 6 && Math.abs(p.rgba[i + 1] - g) < 6 && Math.abs(p.rgba[i + 2] - b) < 6) n++;
+    return n / (p.width * p.height);
+  };
+  const seen = await look(ex('garden.kiln'), { browser });
+  assert.deepEqual(seen.errors, []);
+  // The map is 12 cells wide: 8 of them are water (steelblue), 2 bridge (peru), 34 hedge, and 40 grass
+  // (an image, mostly one green), four of those under the hero and the flowers.
+  const box = summarize(seen.picture).box!, cell = ((box.x1 - box.x0 + 1) / 12) ** 2 / (seen.picture.width * seen.picture.height);
+  for (const [name, color, cells] of [['water', [70, 130, 180], 8], ['bridge', [205, 133, 63], 2], ['hedge', [0x2f, 0x6f, 0x4f], 34], ['grass', [0x3f, 0x8f, 0x4a], 35]] as const) {
+    const got = share(seen.picture, [...color]) / cell;
+    assert.ok(got > cells * 0.9 && got < cells * 1.1, `${name}: ${got.toFixed(1)} cells of its color, expected about ${cells}`);
+  }
+  assert.equal(share(seen.picture, [0x3a, 0x40, 0x4b]), 0, 'a cell kept the unpainted wall color');
+
+  for (const renderer of ['webgl2', 'webgpu']) {
+    const player = await openPlayer(ex('crypt3d.kiln'), { browser, query: `renderer=${renderer}` });
+    try {
+      const shots = await player.page.eval<{ renderer: string; plain: string; red: string }>(`(async () => {
+        const plain = await kiln.shot();
+        for (const id of kiln.world.query('tiles')) kiln.world.get(id, 'tiles').paint = '#:red';
+        return { renderer: plain.renderer, plain: plain.png, red: (await kiln.shot()).png };
+      })()`);
+      if (shots.renderer !== renderer) continue; // this browser lacks it
+      const plain = png(shots.plain), red = png(shots.red);
+      const reddish = (p: typeof red): number => {
+        let n = 0;
+        for (let i = 0; i < p.rgba.length; i += 4) if (p.rgba[i] > 90 && p.rgba[i] > 3 * p.rgba[i + 1] && p.rgba[i] > 3 * p.rgba[i + 2]) n++;
+        return n / (p.width * p.height);
+      };
+      assert.ok(reddish(red) > 0.05 && reddish(plain) < 0.005, `${renderer}: red walls cover ${reddish(red).toFixed(3)} of the frame (unpainted ${reddish(plain).toFixed(3)})`);
+    } finally { await player.close(); }
+  }
+});
+
 test('browser: touch buttons become input, and each event asks for a tone', { skip }, async () => {
   const player = await openPlayer(ex('maze.kiln'), { browser, query: 'pad' });
   try {

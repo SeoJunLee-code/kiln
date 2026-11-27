@@ -25,7 +25,7 @@ const ACTUAL = join(ROOT, 'out', 'images');
 // its own reference, NAME.webgpu.png.
 const CASES: [scene: string, tick: number, renderer?: string, own?: 'own'][] = [
   ['maze', 0], ['cave', 60], ['dungeon', 0], ['platformer', 90], ['level1', 0],
-  ['sokoban', 120], ['quest', 200], ['windmill', 100],
+  ['sokoban', 120], ['quest', 200], ['windmill', 100], ['garden', 60],
   ['arena3d', 120, 'webgl2'], ['arena3d', 120, 'webgpu'], ['crypt3d', 60, 'webgl2'], ['crypt3d', 60, 'webgpu'],
   ['orrery3d', 100, 'webgpu', 'own'], ['gallery3d', 10, 'webgpu', 'own'], ['tumble3d', 70, 'webgpu', 'own'],
 ];

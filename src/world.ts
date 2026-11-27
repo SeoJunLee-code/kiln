@@ -38,8 +38,8 @@ defineComponent('pace', 'walks back and forth along axis (x, y or z) from min to
 defineComponent('tag', 'group label; refer to it as #name', [f('name', 'str')]);
 defineComponent('trigger', 'emits event when target (entity name or #tag) starts overlapping. action: none, despawn-self, despawn-other, despawn:REF (name or #tag), load:FILE (event load; the scene ends there and the player opens FILE); join with +',
   [f('target', 'str'), f('event', 'str'), f('action', 'str', 'none')]);
-defineComponent('tiles', 'grid of square cells at pos. size: cell size. solid: characters that block movers. spawn: CHAR:PREFAB pairs (o:coin,@:hero), replaced by entities on load. plane=xz lays the grid flat as a 3D floor plan (rows run along z); depth is then the wall height',
-  [f('size', 'fx', 65536), f('solid', 'str', '#'), f('spawn', 'str', ''), f('depth', 'fx', 65536), f('plane', 'str', 'xy')]);
+defineComponent('tiles', 'grid of cells at pos. solid: characters that block. spawn: CHAR:PREFAB (o:coin,@:hero), made entities on load. paint: CHAR:COLOR or, in 2D, CHAR:IMAGE (#:teal,.:grass.svg). plane=xz: a 3D floor plan (rows run along z), depth is the wall height',
+  [f('size', 'fx', 65536), f('solid', 'str', '#'), f('spawn', 'str', ''), f('depth', 'fx', 65536), f('plane', 'str', 'xy'), f('paint', 'str', '')]);
 defineComponent('sprite', 'glyph: character in the ASCII view. color: CSS color. image (2D): svg/png beside the scene. mesh (3D): .obj/.gltf/.glb, fitted to the box',
   [f('glyph', 'str', ''), f('color', 'str', 'white'), f('image', 'str', ''), f('mesh', 'str', '')]);
 defineComponent('rot', 'turned angle degrees about axis (x, y, z) through the box centre, clockwise in 2D. spin: degrees/second. Collision ignores it',

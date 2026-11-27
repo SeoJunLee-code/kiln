@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { command } from '../src/commands.ts';
-import { parseScene, serialize } from '../src/scene.ts';
+import { paintOf, parseScene, serialize } from '../src/scene.ts';
 import { World } from '../src/world.ts';
 
 const ex = (name: string): string => fileURLToPath(new URL(`../examples/${name}`, import.meta.url));
@@ -461,4 +461,40 @@ test('check: every example is free of warnings, and a missing asset is noticed',
   const r = await command('check', { file: join(dir, 's.kiln') });
   assert.match(r.text, /^W K312 .*uses image 'hero\.png', which is not next to the scene$/m);
   assert.match(r.text, /^W K312 .*loads 'next\.kiln', which is not next to the scene$/m);
+});
+
+test('tiles paint: a color or image per character, checked and kept through a save', async () => {
+  const map = (line: string, rows = '    #.~\n'): string => `entity map\n  pos 0 0\n  ${line}\n${rows}`;
+  const w = parseScene(map('tiles solid=#~ paint=#:#2f6f4f,~:steelblue,.:grass.svg')).world;
+  assert.equal(w.get(0, 'tiles')!.paint, '#:#2f6f4f,~:steelblue,.:grass.svg');
+  assert.deepEqual([...paintOf('#:teal,.:grass.svg,bad')], [['#', ['teal', '']], ['.', ['', 'grass.svg']]]);
+  // The paint is part of the saved text, and an unpainted map saves as it always did.
+  assert.equal(serialize(parseScene(serialize(w)).world), serialize(w));
+  assert.match(serialize(w), /^  tiles 1 #~ paint=#:#2f6f4f,~:steelblue,\.:grass\.svg$/m);
+  assert.match(serialize(parseScene(map('tiles')).world), /^  tiles$/m);
+
+  const bad = await command('check', { scene: map('tiles paint=#teal,~:') });
+  assert.equal(bad.code, 2);
+  assert.match(bad.text, /^E K104 scene:3 paint entry '#teal' must be CHAR:COLOR or CHAR:IMAGE/m);
+  assert.match(bad.text, /^E K104 scene:3 paint entry '~:' must be/m);
+
+  const typo = await command('check', { scene: map('tiles paint=w:teal') });
+  assert.match(typo.text, /^W K317 scene tiles on 'map' paints 'w', which is in none of its rows$/m);
+  const flat = await command('check', { scene: map('tiles paint=#:wall.png') + 'entity cam\n  pos 0 0\n  eye 0 -8 9\n' });
+  assert.match(flat.text, /^W K318 scene tiles on 'map' paints '#' with an image, but the scene is drawn in 3D/m);
+
+  const dir = mkdtempSync(join(tmpdir(), 'kiln-paint-'));
+  writeFileSync(join(dir, 's.kiln'), map('tiles paint=#:wall.png'));
+  assert.match((await command('check', { file: join(dir, 's.kiln') })).text, /^W K312 .*paints '#' with image 'wall\.png', which is not next to the scene$/m);
+});
+
+test("'#' as a value: named it is kept, bare it is a comment and check says so", async () => {
+  const one = (sprite: string): string => `entity a\n  pos 0 0\n  box 1 1\n  ${sprite}\n`;
+  assert.equal(parseScene(one('sprite glyph=# color=red')).world.get(0, 'sprite')!.glyph, '#');
+  assert.equal(parseScene(one('sprite @ red  # the hero')).world.get(0, 'sprite')!.color, 'red');
+  assert.equal(parseScene('entity a\n  tag x\n  trigger #x hit  # comment\n').world.get(0, 'trigger')!.target, '#x');
+  const r = await command('check', { scene: one('sprite # red') });
+  assert.match(r.text, /^W K319 scene line 4: '#' after 'sprite' starts a comment, so glyph is empty \(hint: for the character '#' write glyph=#; put a comment on its own line\)$/m);
+  assert.doesNotMatch((await command('check', { scene: one('sprite @ # red') })).text, /K319/);
+  assert.doesNotMatch((await command('check', { scene: one('sprite glyph=#') })).text, /K319/);
 });

@@ -18,6 +18,17 @@ export interface RawExpect { line: number; text: string }
 /** `at`: the line each thing was written on, keyed 'ID COMPONENT' or 'physics'. A spawned entity points at its prefab. */
 export interface Scene { world: World; expects: RawExpect[]; uses: string[]; at: Map<string, number> }
 
+const painted = new Map<string, Map<string, [color: string, image: string]>>();
+/** A tiles paint table, read once per text: character -> its color or its image file. */
+export function paintOf(paint: string): Map<string, [color: string, image: string]> {
+  let m = painted.get(paint);
+  if (!m) {
+    painted.set(paint, (m = new Map()));
+    for (const p of paint.split(',')) if (p[1] === ':' && p[2]) m.set(p[0], /\.(svg|png|jpe?g|webp|gif)$/i.test(p) ? ['', p.slice(2)] : [p.slice(2), '']);
+  }
+  return m;
+}
+
 function lev(a: string, b: string): number {
   const d = Array.from({ length: b.length + 1 }, (_, i) => i);
   for (let i = 1; i <= a.length; i++) {
@@ -74,7 +85,8 @@ export function parseScene(text: string, file = 'scene'): Scene {
       return;
     }
     // A `tiles` line keeps its '#': there it is the usual solid character, not a comment.
-    const body = (/^\s+tiles(\s|$)/.test(raw) ? raw : raw.replace(/#(?![\w-]).*$|^\s*#.*$/, '')).trimEnd();
+    // Elsewhere '#' is a comment unless a name follows (#tag) or it is a named value (glyph=#).
+    const body = (/^\s+tiles(\s|$)/.test(raw) ? raw : raw.replace(/(?<!=)#(?![\w-]).*$|^\s*#.*$/, '')).trimEnd();
     if (!body.trim()) return;
     rowsOf = null;
     const indented = /^\s/.test(body);
@@ -174,6 +186,11 @@ export function parseScene(text: string, file = 'scene'): Scene {
     if (def.name === 'tiles' && !bad && data.plane !== 'xy' && data.plane !== 'xz') {
       err('K104', line, `tiles plane must be xy or xz, got '${data.plane}'`);
       bad = true;
+    }
+    if (def.name === 'tiles' && !bad && data.paint) {
+      for (const p of (data.paint as string).split(',')) {
+        if (p[1] !== ':' || !p[2]) { err('K104', line, `paint entry '${p}' must be CHAR:COLOR or CHAR:IMAGE`, 'e.g. paint=#:teal,.:grass.svg'); bad = true; }
+      }
     }
     if (def.name === 'pace' && !bad && !['x', 'y', 'z'].includes(data.axis as string)) {
       err('K104', line, `pace axis must be x, y or z, got '${data.axis}'`, 'usage: pace axis min max speed');

@@ -85,13 +85,13 @@ Neither engine was built for this; these rows are why Kiln exists.
 
 | Feature | Godot | Unity | Kiln | Check |
 |---|---|---|---|---|
-| Sprites, tile maps, camera | yes | yes | **gated** | reference images of 8 scenes |
+| Sprites, tile maps, camera | yes | yes | **gated** | reference images of 9 scenes |
 | Box collision, swept movement | yes | yes | **gated** | tests, hashes |
 | Rotation | yes | yes | **gated** (drawn only) | angle is hashed state on 3 OSes; reference image (`windmill`). Collision ignores it |
 | Circle and polygon collision | yes | yes | none | |
 | Rigid bodies, joints | yes | yes | none in 2D (3D backend only); no joints | |
 | Sprite animation | yes | yes | none | |
-| Per-tile color and image | yes | yes | none | |
+| Per-tile color and image | yes | yes | **gated** | `tiles paint=CHAR:COLOR,CHAR:IMAGE`: reference image (`garden`); browser test counts each painted color's cells in 2D and sees painted walls in both 3D renderers (colors only there); `check` rejects a malformed entry and warns about a character in no row, a missing image, an image in a 3D scene (K317, K312, K318). One image per character: no atlas, no auto-tiling, no animated tiles |
 | Particles | yes | yes | none | |
 | Audio (samples, music, mixing) | yes | yes | **gated** (event tones only) | test counts tone requests; nobody has listened |
 | UI (text, buttons, layout) | yes | yes | **gated** (labels only) | test |

@@ -105,7 +105,7 @@ export async function command(cmd: string, a: CmdArgs): Promise<{ text: string; 
       const s = parseScene(text, file);
       parseExpects(s.expects, s.world, file);
       // Files can only be checked when the scene came from disk.
-      const warnings = lint(s, file, a.scene === undefined ? (name) => existsSync(join(dirname(file), name)) : undefined);
+      const warnings = lint(s, file, a.scene === undefined ? (name) => existsSync(join(dirname(file), name)) : undefined, text);
       // A model is read the way the player will read it, so what it would lose shows up here.
       if (a.scene === undefined) for (const id of s.world.query('sprite')) {
         const mesh = s.world.get(id, 'sprite')!.mesh as string, at = join(dirname(file), mesh);

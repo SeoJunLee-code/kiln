@@ -8,7 +8,7 @@ import type { Expect } from '../src/expect.ts';
 import { ONE } from '../src/fx.ts';
 import { freeLink, loadBackend, physicsOf } from '../src/physics.ts';
 import type { Mods } from '../src/run.ts';
-import { parseScene } from '../src/scene.ts';
+import { paintOf, parseScene } from '../src/scene.ts';
 import { hash, parseInput, step, tileRows } from '../src/sim.ts';
 import type { InputScript } from '../src/sim.ts';
 import type { World } from '../src/world.ts';
@@ -226,7 +226,8 @@ try {
           boxes.push({
             p: flat ? [u(p.x) + c * size, u(p.y), u(p.z) + r * size] : [u(p.x) + c * size, u(p.y) + r * size, u(p.z)],
             s: flat ? [size, u(t.depth), size] : [size, size, u(t.depth)],
-            color: rgb((t.solid as string).includes(row[c]) ? '#59616e' : '#7a8494'),
+            // A painted color shows in 3D too; a painted image is for the 2D view only.
+            color: rgb(paintOf(t.paint as string).get(row[c])?.[0] || ((t.solid as string).includes(row[c]) ? '#59616e' : '#7a8494')),
           });
         }
       });
@@ -283,12 +284,17 @@ try {
     for (const m of world.query('tiles', 'pos').filter((i) => world.get(i, 'tiles')!.plane === 'xy')) {
       const t = world.get(m, 'tiles')!, p = world.get(m, 'pos')!;
       const size = ((t.size as number) / ONE) * scale;
+      const paint = paintOf(t.paint as string);
       tileRows(t).forEach((row, r) => {
         for (let c = 0; c < row.length; c++) {
-          if (row[c] === '.') continue;
-          g.fillStyle = (t.solid as string).includes(row[c]) ? '#3a404b' : '#59616e';
+          // A painted character has its own color or image; that goes for '.' too, otherwise empty.
+          const how = paint.get(row[c]), im = how?.[1] ? image(how[1]) : null;
+          if (row[c] === '.' && !how) continue;
+          const x = ((p.x as number) / ONE) * scale + ox + c * size, y = ((p.y as number) / ONE) * scale + oy + r * size;
+          g.fillStyle = how?.[0] || ((t.solid as string).includes(row[c]) ? '#3a404b' : '#59616e');
           // Overdraw by a fraction of a pixel so neighbouring cells leave no seams.
-          g.fillRect(((p.x as number) / ONE) * scale + ox + c * size, ((p.y as number) / ONE) * scale + oy + r * size, size + 0.5, size + 0.5);
+          if (im) g.drawImage(im, x, y, size + 0.5, size + 0.5);
+          else g.fillRect(x, y, size + 0.5, size + 0.5);
         }
       });
     }
