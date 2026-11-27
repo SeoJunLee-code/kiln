@@ -122,9 +122,52 @@ test('edition: the scenes only WebGPU draws are exactly the ones whose drawing i
 
 // Rule 4: a game ships only what it uses. Rule 5: the engine's bytes in a built game stay
 // under a budget. The numbers were set from the first measurement (2026-11-26: 90,703 /
-// 128,480 / 4,537,594) with about 3% of room; raise one only on purpose, in the same
-// change that says what the bytes bought.
-const BUDGET = { lite2d: 94_000, lite3d: 133_000, standard: 4_680_000 };
+// 128,480 / 4,537,594) with about 3% of room, and tightened on 2026-11-27 when `build`
+// began to squeeze engine files (measured 61,108 / 90,484 / 4,491,655). The 2D number
+// keeps about 11,000 bytes for the Lite rows still to come (animation, gamepad, audio,
+// UI); raise one only on purpose, in the same change that says what the bytes bought.
+const BUDGET = { lite2d: 72_000, lite3d: 102_000, standard: 4_630_000 };
+
+test('squeeze: comments, indentation and blank lines go; strings, templates and regular expressions stay', async () => {
+  const { squeeze } = await import('../src/squeeze.ts');
+  const { stripTypeScriptTypes } = await import('node:module');
+  const { execFileSync } = await import('node:child_process');
+  const src = [
+    '/** doc */',
+    'const a = 1;   // note',
+    '',
+    '  const s = "  // not a comment  ",  t = \'/* nor   this */\';',
+    '  const re = /[/"]  \\/ `/g, q = a / 2 / 1;',
+    '  const w = `line',
+    '    // kept   ${ a  +  /* gone */ `in ${ { b: 1 }.b }  ner` }',
+    '  end`;',
+    '  if (a) { /* x */ b() }',
+  ].join('\n');
+  assert.equal(squeeze(src), [
+    'const a = 1;',
+    'const s = "  // not a comment  ", t = \'/* nor   this */\';',
+    'const re = /[/"]  \\/ `/g, q = a / 2 / 1;',
+    'const w = `line',
+    '    // kept   ${ a + `in ${ { b: 1 }.b }  ner` }',
+    '  end`;',
+    'if (a) { b() }',
+    '',
+  ].join('\n'));
+  assert.equal(squeeze(squeeze(src)), squeeze(src));
+
+  // Every module of the engine still parses after squeezing. That it still behaves the
+  // same is held by the browser tests, which run built games against headless hashes.
+  const dir = mkdtempSync(join(tmpdir(), 'kiln-squeeze-'));
+  const files = [...readdirSync(root('src')).map((f) => `src/${f}`), ...readdirSync(root('web')).map((f) => `web/${f}`), 'backends/rapier/index.ts'].filter((f) => f.endsWith('.ts'));
+  for (const f of files) {
+    const js = stripTypeScriptTypes(readFileSync(root(f), 'utf8'));
+    const out = squeeze(js);
+    assert.ok(out.length < js.length, f);
+    assert.ok(!/^\s|[ \t]$|\n\n/m.test(out.replace(/`[^`]*`/g, '``')) , `${f}: a blank line or an indented line outside a template is left`);
+    writeFileSync(join(dir, `${f.replace(/\W/g, '_')}.mjs`), out);
+  }
+  for (const f of readdirSync(dir)) execFileSync(process.execPath, ['--check', join(dir, f)], { stdio: 'pipe' });
+});
 
 test('edition: a built game carries only the parts it uses, within the byte budget', async () => {
   const { build } = await import('../src/build.ts');

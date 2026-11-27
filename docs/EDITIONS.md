@@ -91,13 +91,13 @@ Measured on the working tree of 2026-11-26:
 
 So today the choice of edition is, in bytes, the choice of whether Rapier is present: it is twenty times the rest. `build` leaves it out of games that do not use it, and since 2026-11-26 also the renderers and the glTF reader.
 
-Engine bytes in a built game, as shipped (types stripped, not minified, not compressed):
+Engine bytes in a built game, as shipped. Since 2026-11-27 `build` squeezes engine files (`src/squeeze.ts`: comments, indentation, blank lines and the spaces stripped types leave are removed; names are not shortened, nothing is compressed). The budgets were tightened in the same change; the 2D one keeps about 11,000 bytes for the Lite rows still to come.
 
-| Game | Engine bytes | Budget |
-|---|---|---|
-| 2D, Lite | 90,703 | 94,000 |
-| 3D with boxes and OBJ meshes, Lite (both renderers) | 128,480 | 133,000 |
-| Everything: glTF and Rapier, Standard | 4,537,594 | 4,680,000 |
+| Game | Engine bytes | Budget | Before squeezing (first measured → last) |
+|---|---|---|---|
+| 2D, Lite | 61,108 | 72,000 | 90,703 → 93,775, budget 94,000 |
+| 3D with boxes and OBJ meshes, Lite (both renderers) | 90,484 | 102,000 | 128,480, budget 133,000 |
+| Everything: glTF and Rapier, Standard | 4,491,655 | 4,630,000 | 4,537,594, budget 4,680,000 |
 
 Existing features by edition:
 
