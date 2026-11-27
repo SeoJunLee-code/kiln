@@ -11,7 +11,8 @@ specs.
 | [`GEMVAULT-CHECKS.md`](GEMVAULT-CHECKS.md) | Screen pass checks of the development spec |
 | [`SPREAD.md`](SPREAD.md) | The development spec run five times on each engine. Highest price over lowest is 1.42 and 1.39, so a held-out spec is run 3 times per setup |
 | [`GODOT-TOOLS.md`](GODOT-TOOLS.md) | Agent tooling for Godot: the candidates, the one chosen, and its trial runs |
-| [`H1.md`](H1.md), [`H2.md`](H2.md), [`H3.md`](H3.md) | The three held-out specs. Not run |
+| [`H1.md`](H1.md), [`H2.md`](H2.md), [`H3.md`](H3.md) | The three held-out specs. H2 was run on 2026-11-27; H1 and H3 are not run |
+| [`RESULT-H2.md`](RESULT-H2.md) | H2 run three times on each of the three setups, engine pinned at `1f50d8d`: the logs and the automatic checks. All nine ended by themselves. Verdict pending the screen checks |
 | [`h1-sounds/`](h1-sounds) | The five sound files both engines are given for H1 (`node scripts/h1sounds.ts` makes them) |
 | [`h2-start/`](h2-start), [`H2-PLANTED.md`](H2-PLANTED.md) | The two starting games of H2 with the three defects in them, and where the defects are. No agent is given the second |
 
