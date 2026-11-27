@@ -95,7 +95,7 @@ Neither engine was built for this; these rows are why Kiln exists.
 | Particles | yes | yes | none | |
 | Audio (samples, music, mixing) | yes | yes | **gated** (event tones only) | test counts tone requests; nobody has listened |
 | UI (text, buttons, layout) | yes | yes | **gated** (labels only) | test |
-| Gamepad | yes | yes | none | |
+| Gamepad | yes | yes | **gated** (standard layout, actions only) | the player asks the Gamepad API once a frame: d-pad or left stick past half way, button 0 is `a`, button 1 is `b`; a change becomes the same input line a key makes. Browser test with a synthetic pad: d-pad, stick under and over the threshold, both buttons, a pad that goes away, and the recorded input replays headless to the same hash. No analog values (the simulation has six on/off actions), no remapping, no rumble, no pad button for pause or restart; never tried with a real pad |
 | Touch | yes | yes | **gated** | test with synthetic pointer events; not tried on a phone |
 | State carried between levels | yes | yes | **gated** (named components of named entities) | `keep A,B` on an entity of the same name in both scenes: at a `load:` it starts the next scene with those components as they were at the tick of the load. `tally EVENT [n] [by]` is the built-in value (a score, lives), shown by a label as `%`. Headless test: handed over or not, save round trip, what is taken and what is refused; `--follow` and the browser player reach the same hash in the second level (browser test), and a restart there starts from what was handed over. No save to disk, no globals outside entities, nothing carried back to a scene left earlier |
 

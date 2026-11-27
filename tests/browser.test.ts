@@ -183,6 +183,40 @@ test('browser: touch buttons become input, and each event asks for a tone', { sk
   } finally { await replay.close(); }
 });
 
+test('browser: a gamepad becomes input: d-pad, stick past half way, buttons a and b', { skip }, async () => {
+  const player = await openPlayer(ex('maze.kiln'), { browser });
+  try {
+    const log = await player.page.eval<string>(`(() => {
+      // A pad in the standard layout; the test moves its stick and presses its buttons.
+      const pad = { axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false })) };
+      navigator.getGamepads = () => [null, pad];
+      kiln.runTo(1);
+      pad.buttons[15].pressed = true;
+      kiln.runTo(5);
+      pad.buttons[15].pressed = false;
+      pad.axes[0] = 0.4;
+      kiln.runTo(8);
+      pad.axes[0] = -0.9;
+      pad.axes[1] = 0.7;
+      pad.buttons[0].pressed = true;
+      kiln.runTo(12);
+      pad.axes[0] = pad.axes[1] = 0;
+      pad.buttons[0].pressed = false;
+      pad.buttons[1].pressed = true;
+      kiln.runTo(15);
+      pad.buttons[12].pressed = true;
+      navigator.getGamepads = () => [];
+      kiln.runTo(20);
+      return kiln.inputLog();
+    })()`);
+    assert.equal(log, ['1 right down', '5 right up', '8 left down', '8 down down', '8 a down', '12 left up', '12 down up', '12 a up', '12 b down', '15 b up'].join('\n'));
+    // What the pad did replays headless to the hash the player reached.
+    const live = await player.page.eval<string>('kiln.hash()');
+    const { run } = await import('../src/run.ts');
+    assert.equal(live, run(readFileSync(ex('maze.kiln'), 'utf8'), { input: `${log}\n`, ticks: 20 }).hash);
+  } finally { await player.close(); }
+});
+
 test('mcp: look answers with a line of text and the picture itself', { skip }, async () => {
   const child = spawn(process.execPath, [fileURLToPath(new URL('../src/cli.ts', import.meta.url)), 'mcp'], { stdio: ['pipe', 'pipe', 'inherit'] });
   try {

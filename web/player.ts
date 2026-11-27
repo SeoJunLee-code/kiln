@@ -108,6 +108,8 @@ let world: World, expects: Expect[], script: InputScript;
 let log: string[] = [];
 // Keys held right now. Tracked here because world.pressed only changes on the next tick.
 const held = new Set<string>();
+// What the gamepads held when last asked.
+let padWas: Record<string, boolean> = {};
 // Everything is fetched relative to the page, so the same files work from the dev server
 // and from a built folder under any path on a static host.
 const GAME = new URL('game/', location.href);
@@ -177,6 +179,7 @@ try {
     script = replay === null ? new Map() : parseInput(replay, 'input');
     log = [];
     held.clear();
+    padWas = {};
     heard = 0;
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const id of world.query('pos', 'box')) {
@@ -217,6 +220,27 @@ try {
     if (!script.has(world.tick)) script.set(world.tick, []);
     script.get(world.tick)!.push([action, down]);
     log.push(`${world.tick} ${action} ${down ? 'down' : 'up'}`);
+  };
+
+  // Gamepads in the standard layout: the d-pad or the left stick past half way, button 0 is a
+  // and button 1 is b. Asked once a frame; only a change is passed on, as a key would be.
+  const pads = (): void => {
+    const now: Record<string, boolean> = {};
+    for (const p of navigator.getGamepads?.() ?? []) {
+      if (!p) continue;
+      const b = (i: number): boolean => !!p.buttons[i]?.pressed, [x, y] = p.axes;
+      now.left ||= b(14) || x < -0.5;
+      now.right ||= b(15) || x > 0.5;
+      now.up ||= b(12) || y < -0.5;
+      now.down ||= b(13) || y > 0.5;
+      now.a ||= b(0);
+      now.b ||= b(1);
+    }
+    for (const k of ['left', 'right', 'up', 'down', 'a', 'b']) {
+      if (!now[k] === !padWas[k]) continue;
+      if ((padWas[k] = !!now[k])) audio ??= new AudioContext();
+      press(k, padWas[k]);
+    }
   };
 
   const draw3 = (eyeId: number): void => {
@@ -408,6 +432,7 @@ try {
     acc += Math.min(now - last, 250);
     last = now;
     const dt = 1000 / world.hz;
+    pads();
     while (acc >= dt) { acc -= dt; if (!paused) tick(); }
     draw();
     hud();
@@ -422,7 +447,7 @@ try {
       hash: () => hash(world),
       reset,
       /** Step synchronously until the given tick (ignores pause). */
-      runTo: (t: number) => { paused = true; while (world.tick < t) tick(); draw(); hud(); return hash(world); },
+      runTo: (t: number) => { paused = true; pads(); while (world.tick < t) tick(); draw(); hud(); return hash(world); },
       inputLog: () => log.join('\n'),
       beeps: () => beeps,
       /** The game view as a PNG data URL, once every asset the frame asks for has arrived. */
