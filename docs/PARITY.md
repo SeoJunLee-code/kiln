@@ -18,6 +18,12 @@ Only **gated** rows count toward a gate below. A new feature lands together with
 its check; a change that turns a gated check red is fixed or reverted before
 anything else is added.
 
+A row whose Kiln cell says **gated** and then names a part in brackets is
+**gated in part**: the check is real, but the row is not level with its bar.
+Such a row does not close a gate by itself and is counted apart from the rows
+gated in full (rule added 2026-11-27; the tables below have not been recounted,
+and they do not yet say which edition each row belongs to).
+
 Three kinds of check, because they fail differently:
 
 - **State** is exact. The simulation is integer fixed-point, so the same scene
@@ -45,12 +51,12 @@ does that thing best. The agent-first rows belong to the core and hold in all th
 | Exported size within a byte budget, per edition | **gated** | engine bytes of a built game: 2D Lite 72,000, 3D Lite 102,000, Standard with everything 4,630,000 (2D Lite now 63,997 with sprite animation and state between levels; measured 61,108 / 90,484 / 4,491,655 since `build` squeezes engine files; before that 93,775 against 94,000) |
 | A game of a lower edition reaches the same hash under a higher one | works | browser test: a 2D and a 3D Lite game built without the parts they do not use reach the headless hash (two scenes, 90 ticks, nothing pressed). Not every example, and there is no way yet to run one game under a named edition |
 | Lite features drawn by both renderers | **gated** | the reference images shared by WebGL2 and WebGPU |
-| No allocation per tick in the simulation path | none | not measured; Kiln runs on a garbage-collected language |
+| Allocation per tick in the simulation path: Lite no more than measured, Standard and Ultra none | none | measured once on the reference PC with `bench/alloc.ts`: 5 to 11 KB per tick in four Lite examples, also on ticks where nothing happens. No test holds it yet |
 | Parallel simulation reaches the serial hash | none | no parallel code yet |
 | `check` reports the edition per axis (drawing, physics, world, network) | **gated** | one line per axis above Lite; nothing sets world or network yet. The scenes drawn only by WebGPU must be exactly those whose drawing is Standard |
 | Budgets per edition: exported bytes, memory, time to first frame | works (bytes only) | bytes are gated in the row above; memory and time to first frame have not been measured |
 | A proof game per edition, built by an agent, at 60 fps on that edition's reference machine | works (Lite, on the PC; no phone) | `proof/lite`: spec, game and run record; tests replay it headless and in a browser. Frame rate measured on the reference PC by the protocol ([`proof/lite/FPS.md`](../proof/lite/FPS.md), 24 runs of 60 s): 1% low never under 247 fps without a frame cap, with the GPU or with it turned off, and no frame over 16.67 ms on the display. Not measured on a phone; with the page's CPU slowed 4x, one run of three had a 1% low of 52 fps. CI cannot check time; it holds a frame of the largest level to 90 Canvas 2D calls (`tests/proof.test.ts`). Standard and Ultra: none |
-| Agent cost per edition: tokens for one spec, failures repaired without a person | works (Lite, one run each) | [`proof/lite/COMPARE.md`](../proof/lite/COMPARE.md): the same spec built once on Kiln before its fixes (7 failures repaired, 105 turns, $0.73), once after (0, 44 turns, $0.43) and once on Godot 4.7.2 (0, 45 turns, $0.73, 29 minutes against 4, and three and a half times the bytes of game: the agent wrote the rules, the solver and the test runner itself). One run each, so the spread is unknown; the spec was written by Kiln |
+| Agent cost per edition: tokens for one spec, failures repaired without a person | works (Lite, one run each) | [`proof/lite/COMPARE.md`](../proof/lite/COMPARE.md): the same spec built once on Kiln before its fixes (7 failures repaired, 105 turns, $0.73), once after (0, 44 turns, $0.43) and once on Godot 4.7.2 (0, 45 turns, $0.73, 29 minutes against 4, and three and a half times the bytes of game: the agent wrote the rules, the solver and the test runner itself). One run each, so the spread is unknown; the spec was written by Kiln, and the engine was fixed for it between the two Kiln runs, so it shows nothing about which engine is cheaper. The comparison that counts is planned in [`EDITIONS.md`](EDITIONS.md), "Winning, not only matching" |
 
 ## Where Unity is the bar
 
@@ -138,10 +144,17 @@ Neither engine was built for this; these rows are why Kiln exists.
 
 Each gate also needs the edition rows above **gated** for that edition: its budgets, its proof game and its agent cost.
 
+Since 2026-11-27 a gate also has a winning condition: on specs the engine was not fixed for, an agent finishes at least as often with Kiln as with the bar engine and for less. From Standard on, frame rate and size are held to the same rule. How that is measured is in [`EDITIONS.md`](EDITIONS.md), "Winning, not only matching". Not run yet.
+
 ### Lite
 
 Runs without WebGPU and with no dependencies. Bars: Godot for 2D features, Unity for low-end and phone frame rate. Three of Godot's official 2D demos rebuilt in Kiln, each solved by `solve`, each
 row they use **gated**.
+
+Open, and the gate cannot be judged until they are settled: the three demos
+have not been named, and the choice decides whether circle and polygon
+collision and particles (both **none**) are Lite rows. Rigid bodies in 2D are
+not: they are Standard on the physics axis.
 
 ### Standard
 

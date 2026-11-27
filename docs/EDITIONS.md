@@ -67,7 +67,9 @@ Four things, the same four for each edition. A feature list alone does not close
    | Exported bytes of the engine for a game of that edition | CI (bytes do not jitter) |
    | Memory after loading the proof game | Reference machine |
    | Time from opening the page to the first frame | Reference machine |
-   | Allocation per tick in the simulation path: none | CI, if it can be counted without jitter; otherwise reference machine |
+   | Allocation per tick in the simulation path. Lite: no more than what is measured today. Standard and Ultra: none | CI, if it can be counted without jitter; otherwise reference machine |
+
+   The allocation budget changed on 2026-11-27. What it protects is frame time without pauses for garbage collection. Lite's proof game allocates 5 to 11 KB per tick and its frame time shows no such pause ([`FPS.md`](../proof/lite/FPS.md)), so Lite only keeps that number from growing. It has to reach none where it can hurt: Standard's hundred thousand entities. For Lite the budget that is still unmeasured and matters is the time to the first frame on its reference phone.
 
 3. **A proof game.** One game per edition, built by an agent from a written spec, running at 60 fps on that edition's reference machine, by [`bench/PROTOCOL.md`](../bench/PROTOCOL.md). The spec, the game and the measurement are in the repository.
 
@@ -78,6 +80,22 @@ Four things, the same four for each edition. A feature list alone does not close
    | Ultra | A machine with a discrete GPU. **None is available yet** | To be chosen |
 
 4. **Agent cost.** For the proof game: tokens used, time taken, failures the agent repaired without a person, and whether it finished. The same spec is then built with an agent on the engine that is the bar. This is the number Kiln exists for, and it is reported before any graphics number.
+
+### Winning, not only matching
+
+Planned 2026-11-27. **Nothing in this section has been run.** The four things above show that an edition is as good as its bar. A gate also asks that building with Kiln costs an agent less. The one comparison made so far ([`proof/lite/COMPARE.md`](../proof/lite/COMPARE.md)) does not show that: before its fixes Kiln cost the same $0.73 as Godot, and the cheaper second run was on a spec the engine had just been fixed for. So:
+
+- **Runs are isolated.** An empty settings folder, a pinned engine commit, the same model, tools and starting folder for every run. Time is recorded in two parts: waiting for the model, and inside tools.
+- **A spec carries its own pass checks**, written before any run and independent of the engine: given this input, the screen shows that. The same checks judge every game built from the spec.
+- **A spec the engine was changed for does not count.** It is a development spec; Gem Vault is one. A counted spec is held out: it is run for the first time on a pinned commit, and a rerun after a fix is not counted.
+- **Held-out specs of the first comparison:** a room puzzle with flipped gravity, taken from a public list of game challenges; a task that changes and repairs an existing game; a small 3D game with physics, because the claim has to hold above Lite as well.
+- **Three setups:** Kiln with file tools and its MCP server; the other engine with file tools and its own command; the other engine with the best agent tooling there is for it. Kiln has to beat the better of the other two.
+- **Fixed for every run** (settled by the owner, 2026-11-27): one model and one version of the agent program, an empty `game/` folder, the same spec text, sound files and prompt except for the engine's name. A price ceiling and a clock ceiling per run; reaching either is a game that did not pass. A failure of the infrastructure is recorded and the run repeated; a failure caused by the engine counts. Runs go one after another, engines taking turns.
+- **Passing** means every pass check holds on the game exactly as the agent left it. A person judges on the screen with the keyboard, in each engine's ordinary way of running a game, and records it.
+- **The spread comes first.** The development spec is run on each engine. Three runs per setup for a held-out spec; five if the spread showed the dearest run at more than twice the cheapest.
+- **Who wins a spec:** the side that passes at least two more times. Otherwise the side whose passing runs are all cheaper than every passing run of the other (API price, cached reads priced as cached). If the prices overlap, the same rule on time waiting for the model. If that overlaps too, no difference.
+- **Who wins the comparison:** two specs of three won and none lost.
+- **Frame rate and size decide nothing for Lite.** They are recorded, but a 2D game of this size is not expected to separate the engines (Godot's frame rate and exported size have not been measured). From Standard on they are winning conditions: same scene and settings by [`bench/PROTOCOL.md`](../bench/PROTOCOL.md), and compressed size and time to first frame.
 
 ## Where the line falls today
 
@@ -116,7 +134,7 @@ The last column is the present state, not the hope.
 | Unreal: slow compile, shader compile, cook | No build step; assets are read as they are | True today. **Ultra geometry will need offline processing of meshes.** It must be incremental and keyed by content |
 | Unreal: Blueprint overhead | One script language, no second visual layer | True today. Script speed in JavaScript has not been measured |
 | Unreal: Nanite and Lumen are costly | Only Ultra pays for them | Not built |
-| Unreal, Unity, Godot: not built for agents | The core | Gated, but **no real agent has yet built a game with it** |
+| Unreal, Unity, Godot: not built for agents | The core | Gated. One agent has built the Lite proof game with it, twice; not yet shown to be cheaper than another engine |
 | Unity: garbage collection pauses | **Kiln runs on JavaScript and has the same problem.** Answer: the allocation budget above | Not measured, not checked |
 | Unity: GameObject and ECS side by side | One entity model. A second is never added | True today |
 | Unity: recompile and domain reload | State is text; reloading is parsing | True today |
@@ -134,7 +152,7 @@ The last column is the present state, not the hope.
 
 - **Determinism against parallelism.** Every edition promises a deterministic simulation; Standard and Ultra promise parallel work. The Rapier build Kiln uses runs on one thread, and its documentation is remembered as saying the deterministic mode excludes threads and SIMD (to be confirmed before relying on it). Parallel simulation is accepted only with a check that it reaches the same hash as the serial run. Parallel work that does not touch state (drawing, loading, search) is free of this.
 - **`solve` at Ultra scale.** Search works by copying and restoring the world. It will not search a scene of ten thousand bodies; what "the same agent tools" means there is replay, `expect`, `look` and solving a reduced scene.
-- **The browser against Ultra.** WebGPU in a browser has no mesh shaders or hardware ray tracing, limits memory, and threads need page headers some hosts cannot send. The Ultra targets may need a native runtime that runs the same scenes. This is decided by a measured spike when Standard's gate is near, not now. The target is not lowered.
+- **The browser against Ultra.** WebGPU in a browser has no mesh shaders or hardware ray tracing, limits memory, and threads need page headers some hosts cannot send. The Ultra targets may need a native runtime that runs the same scenes. This is decided by a measured spike. Since 2026-11-27 the spike comes right after the first comparison instead of near Standard's gate, and it asks the costlier question first: the simulation core is TypeScript, so where does it run in a native runtime (a JavaScript engine carried inside it, or a second implementation that must reach the same hashes)? That part needs no new machine. What a browser cannot draw is measured once a machine with a discrete GPU exists. The target is not lowered.
 - **Lite first, but Standard work already exists.** Rapier, glTF and PBR are built and gated. They stay. "Lite first" means the Lite gate is the next one to close.
 - **Rigid bodies in 2D.** Godot 2D has them. Any solver is megabytes. With axes this is no longer a wall: a 2D game with rigid bodies is Lite in drawing and Standard in physics, and ships exactly that.
 - **Phones.** Lite names a phone as a reference machine. Nothing has ever been run on one.
@@ -143,8 +161,12 @@ The last column is the present state, not the hope.
 
 1. **Draw the line in code.** Each component and scene feature names its axis and edition; `check` reports per axis and why; `--edition` ceiling; the byte budget in CI; every example replayed under each edition to one hash.
 2. **Prove the core with a real agent.** Write the Lite proof game's spec, connect an agent over MCP, build it to the end, record the agent cost. Every edition rests on this. Run once (2026-11-26, [`proof/lite/RUN.md`](../proof/lite/RUN.md)): finished without a person. Since then ([`proof/lite/COMPARE.md`](../proof/lite/COMPARE.md)): what the run showed `solve` cannot do is fixed, a second run met no failure it had to repair, and the same spec was built once on Godot. Still open: repeats, so that the spread between runs is known.
-3. **Close the Lite gate**: sprite animation, per-tile art, audio, UI, gamepad, state between levels; the remaining budgets; a run on a phone.
-4. **Close the Standard gate**: glTF from other tools, animation and skins, lights, shapes and joints, navigation, networking, a hundred thousand entities, a desktop executable; its proof game and agent cost.
-5. **Ultra**, starting with the runtime spike and the study of other engines' architecture.
+3. **The first comparison** (moved ahead of the rest of Lite on 2026-11-27), by the rules under "Winning, not only matching": isolation and the pass checks, the spread, then the held-out specs.
+4. **The runtime spike**, its first half (where the simulation core runs natively).
+5. **Close the Lite gate**: sprite animation, per-tile art, audio, UI, gamepad, state between levels (all done); name the three Godot demos and rebuild them; the scoreboard's edition column and its count of rows gated in part; the remaining budgets; a run on a phone. Tools for the person who supervises start here, not in Ultra: a before-and-after view of a change, stepping through a replay, looking into a scene.
+6. **Close the Standard gate**: glTF from other tools, animation and skins, lights, shapes and joints, navigation, networking, a hundred thousand entities with no allocation per tick, a desktop executable; its proof game and agent cost.
+7. **Ultra**, with the rest of the runtime spike and the study of other engines' architecture.
+
+Beside these, and waiting on the owner: the licence, then an install in one line and a first tutorial, then one person outside the project building a game without help. Nothing is said in public about cost until the held-out comparison has a result.
 
 The study of Godot, Unity and Unreal feeds steps 3 to 5 as each is reached. Godot's code is MIT. Unity's and Unreal's sources are under licences that do not allow copying into a public project; only structure, behaviour and numbers are taken from them, and each licence is read before starting.
