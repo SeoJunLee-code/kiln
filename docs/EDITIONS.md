@@ -95,7 +95,7 @@ Engine bytes in a built game, as shipped. Since 2026-11-27 `build` squeezes engi
 
 | Game | Engine bytes | Budget | Before squeezing (first measured → last) |
 |---|---|---|---|
-| 2D, Lite | 61,108 | 72,000 | 90,703 → 93,775, budget 94,000 |
+| 2D, Lite | 61,108 (63,997 with sprite animation and state between levels) | 72,000 | 90,703 → 93,775, budget 94,000 |
 | 3D with boxes and OBJ meshes, Lite (both renderers) | 90,484 | 102,000 | 128,480, budget 133,000 |
 | Everything: glTF and Rapier, Standard | 4,491,655 | 4,630,000 | 4,537,594, budget 4,680,000 |
 

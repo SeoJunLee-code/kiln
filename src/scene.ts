@@ -277,6 +277,54 @@ export function parseScene(text: string, file = 'scene'): Scene {
   return { world, expects, uses, at };
 }
 
+/** One component as its scene line. */
+function compLine(def: CompDef, c: Comp): string {
+  const vals = def.fields.map((fd) => (fd.type === 'fx' ? fmtFx(c[fd.name] as number) : String(c[fd.name])));
+  let end = vals.length;
+  while (end > 0 && def.fields[end - 1].def !== undefined && c[def.fields[end - 1].name] === def.fields[end - 1].def) end--;
+  // Positional until the first empty string, then name=value for what is not default.
+  const gap = vals.findIndex((v, i) => i < end && v === '');
+  const parts = gap < 0 ? vals.slice(0, end) : [
+    ...vals.slice(0, gap),
+    ...def.fields.slice(gap, end).filter((fd) => c[fd.name] !== fd.def).map((fd) => `${fd.name}=${vals[def.fields.indexOf(fd)]}`),
+  ];
+  return `  ${[def.name, ...parts].join(' ')}`;
+}
+
+/**
+ * What a scene hands to the one it loads: the components its `keep` entities name, as scene
+ * text. Text, because the player carries it to the next page in the address.
+ */
+export function kept(w: World): string {
+  const out: string[] = [];
+  for (const id of w.query('keep')) {
+    out.push(`entity ${w.names[id]}`);
+    for (const n of (w.get(id, 'keep')!.what as string).split(',')) {
+      const def = registry.get(n), c = w.get(id, n);
+      if (def && c && n !== 'tiles') out.push(compLine(def, c));
+    }
+  }
+  return out.join('\n');
+}
+
+/**
+ * The other end: an entity here with `keep` takes what the scene before handed over, in
+ * place of what its own scene wrote. Only what both ends name; anything else in the text
+ * is dropped unread, since in the player it arrives from outside.
+ */
+export function take(w: World, text: string): void {
+  let want: string[] = [];
+  const lines = text.split('\n').filter((l) => {
+    const tok = l.trim().split(' ');
+    if (l[0] === ' ') return want.includes(tok[0]) && registry.has(tok[0]) && tok[0] !== 'tiles';
+    const id = tok[0] === 'entity' ? w.ids.get(tok[1]) : undefined;
+    want = id === undefined ? [] : String(w.get(id, 'keep')?.what ?? '').split(',');
+    return id !== undefined;
+  });
+  const from = parseScene(lines.join('\n'), 'kept').world;
+  for (const [comp, m] of from.comps) for (const [id, data] of m) w.add(w.ids.get(from.names[id]!)!, comp, data);
+}
+
 /** Canonical scene text for the current state. Parsing it back gives the same world. */
 export function serialize(w: World, expects: RawExpect[] = [], uses: string[] = []): string {
   const out = [...uses.map((u) => `use ${u}`),
@@ -287,16 +335,7 @@ export function serialize(w: World, expects: RawExpect[] = [], uses: string[] = 
     for (const def of registry.values()) {
       const c = w.get(id, def.name);
       if (!c) continue;
-      const vals = def.fields.map((fd) => (fd.type === 'fx' ? fmtFx(c[fd.name] as number) : String(c[fd.name])));
-      let end = vals.length;
-      while (end > 0 && def.fields[end - 1].def !== undefined && c[def.fields[end - 1].name] === def.fields[end - 1].def) end--;
-      // Positional until the first empty string, then name=value for what is not default.
-      const gap = vals.findIndex((v, i) => i < end && v === '');
-      const parts = gap < 0 ? vals.slice(0, end) : [
-        ...vals.slice(0, gap),
-        ...def.fields.slice(gap, end).filter((fd) => c[fd.name] !== fd.def).map((fd) => `${fd.name}=${vals[def.fields.indexOf(fd)]}`),
-      ];
-      out.push(`  ${[def.name, ...parts].join(' ')}`);
+      out.push(compLine(def, c));
       if (def.name === 'tiles') for (const r of (c.rows as string).split('\n')) out.push(`    ${r}`);
     }
   });

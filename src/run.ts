@@ -1,7 +1,7 @@
 import { ONE, fmtFx } from './fx.ts';
 import { evalTick, finish, lastTick, parseExpects } from './expect.ts';
 import type { Expect } from './expect.ts';
-import { parseScene } from './scene.ts';
+import { kept, parseScene, take } from './scene.ts';
 import type { RawExpect } from './scene.ts';
 import { hash, parseInput, step, tileAt, tileRows } from './sim.ts';
 import type { System, World } from './world.ts';
@@ -10,6 +10,8 @@ export interface RunResult {
   world: World; hash: string; expects: Expect[]; ok: boolean; uses: string[];
   /** the scene a trigger's load:FILE asked for; the run stopped at that tick */
   load?: string;
+  /** with `load`: what the `keep` entities hand to that scene (see scene.ts) */
+  kept?: string;
   /** the file the expects came from: the scene, or an input file that carries its own */
   from: string;
 }
@@ -34,8 +36,9 @@ export function splitInput(text: string): { input: string; expects: RawExpect[] 
  * Load a scene, run it headless, and evaluate its `expect` lines.
  * A scene is over at the tick a trigger loads another one: the run stops there, as the player does.
  */
-export function run(sceneText: string, opts: { input?: string; ticks?: number; file?: string; inputFile?: string; mods?: Mods } = {}): RunResult {
+export function run(sceneText: string, opts: { input?: string; ticks?: number; file?: string; inputFile?: string; mods?: Mods; kept?: string } = {}): RunResult {
   const { world, expects: raw, uses } = parseScene(sceneText, opts.file);
+  if (opts.kept) take(world, opts.kept);
   if (opts.mods) { world.pre = opts.mods.pre; world.post = opts.mods.post; }
   const own = opts.input === undefined ? undefined : splitInput(opts.input);
   const from = own?.expects.length ? opts.inputFile ?? 'input' : opts.file ?? 'scene';
@@ -51,7 +54,7 @@ export function run(sceneText: string, opts: { input?: string; ticks?: number; f
     for (let i = heard; i < world.events.length && load === undefined; i++) if (world.events[i].name === 'load' && world.events[i].a) load = world.events[i].a;
   }
   finish(expects, world, load);
-  return { world, hash: hash(world), expects, ok: expects.every((e) => e.ok), uses, load, from };
+  return { world, hash: hash(world), expects, ok: expects.every((e) => e.ok), uses, load, kept: load === undefined ? undefined : kept(world), from };
 }
 
 /**

@@ -36,7 +36,7 @@ defineComponent('ctrl', 'input-driven. jump=0: 4-way. jump>0: platformer, up jum
 defineComponent('pace', 'walks back and forth along axis (x, y or z) from min to max at speed; needs vel',
   [f('axis', 'str'), f('min', 'fx'), f('max', 'fx'), f('speed', 'fx')]);
 defineComponent('tag', 'group label; refer to it as #name', [f('name', 'str')]);
-defineComponent('trigger', 'emits event when target (entity name or #tag) starts overlapping. action: none, despawn-self, despawn-other, despawn:REF (name or #tag), load:FILE (event load; the scene ends there and the player opens FILE); join with +',
+defineComponent('trigger', 'emits event when target (entity name or #tag) starts overlapping. action: none, despawn-self, despawn-other, despawn:REF (name or #tag), load:FILE (event load; the scene ends and FILE opens); join with +',
   [f('target', 'str'), f('event', 'str'), f('action', 'str', 'none')]);
 defineComponent('tiles', 'grid of cells at pos. solid: characters that block. spawn: CHAR:PREFAB (o:coin,@:hero), made entities on load. paint: CHAR:COLOR or, in 2D, CHAR:IMAGE (#:teal,.:grass.svg). plane=xz: a 3D floor plan (rows run along z), depth is the wall height',
   [f('size', 'fx', 65536), f('solid', 'str', '#'), f('spawn', 'str', ''), f('depth', 'fx', 65536), f('plane', 'str', 'xy'), f('paint', 'str', '')]);
@@ -55,6 +55,10 @@ defineComponent('eye', '3D view: a camera at this entity plus the offset, lookin
 defineComponent('anim', '2D: the sprite image is FRAMES pictures side by side, shown in turn. idle=N: the first N while still, the rest while moving. face: 1 right, -1 left (drawn mirrored); the engine sets it from vel x',
   [f('frames', 'int'), f('fps', 'int', 8), f('idle', 'int', 0), f('face', 'int', 1)], 'view');
 defineComponent('label','text drawn above the entity in 2D; _ is a space', [f('text', 'str'), f('color', 'str', 'white')], 'view');
+defineComponent('tally', 'a number that counts: n changes by `by` each time the event is emitted (a score; n=3 by=-1: lives). A label on the same entity shows n where it has %',
+  [f('event', 'str'), f('n', 'int', 0), f('by', 'int', 1)], 'levels');
+defineComponent('keep', 'what: component names joined by commas. When a load: opens this scene, this entity takes them from the entity of the same name in the scene that was left, if that one keeps them too',
+  [f('what', 'str')], 'levels');
 defineComponent('camera', '2D view: follows this entity, shows w x h units; ignored headless', [f('w', 'fx'), f('h', 'fx')], 'view');
 
 export class World {

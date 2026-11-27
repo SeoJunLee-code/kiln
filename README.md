@@ -26,7 +26,7 @@ Kiln is a few days old. The long-term aim is an engine that agents can take from
 
 | Works today | Not yet |
 |---|---|
-| Text scenes, 21 built-in components, levels drawn as character grids with prefabs | Skeletal animation, custom shaders, more than one light |
+| Text scenes, 23 built-in components, levels drawn as character grids with prefabs | Skeletal animation, custom shaders, more than one light |
 | Fixed-point simulation on x, y and z; swept box collision; triggers that emit events and remove things (keys, doors, pickups); pacing guards; pushable crates; moving platforms that carry what stands on them | Collision that follows rotation, joints |
 | Rotation as fixed-point state: an angle (`rot`) or a quaternion (`quat`), drawn in 2D and by WebGPU | Parent-child transforms |
 | Rigid bodies (boxes and balls) through an optional backend, Rapier's deterministic build: same hash on Linux, macOS and Windows, and `solve` searches through them | Rigid bodies that block the character; other shapes |
@@ -35,7 +35,7 @@ Kiln is a few days old. The long-term aim is an engine that agents can take from
 | Browser player: Canvas 2D, and lit, shadowed boxes and OBJ meshes for 3D scenes, drawn with WebGPU (WebGL2 where the browser has none) | Images in 3D |
 | glTF 2.0 models (.glb, .gltf) with metallic-roughness materials and textures, on WebGPU | glTF animation and skins; files from other exporters are untested; environment lighting |
 | `look`: the scene drawn in a headless browser, returned to the agent as a picture | |
-| Several levels (a trigger loads the next scene), text labels, a tone per event | Music, sound files, menus |
+| Several levels (a trigger loads the next scene), a score or lives that go along (`tally`, `keep`), text labels, a tone per event | Music, sound files, menus |
 | `solve`: automatic search for a winning input |  |
 | `build`: export to a static web folder |  |
 | MCP server, CLI | Networking, desktop and mobile export |
@@ -151,6 +151,8 @@ scene level2.kiln tick=886 hash=900348c1 passed=8 load=level3.kiln
 scene level3.kiln tick=671 hash=4ab2b31b passed=8 load=end.kiln
 ok tick=1 hash=505dfab4 passed=1 failed=0 path=level1.kiln>level2.kiln>level3.kiln>end.kiln
 ```
+
+**Values go along.** `tally coin` on an entity counts the `coin` events, and `keep tally` on the entity of the same name in both scenes starts the next one with the number the last one ended on ([examples/level1.kiln](examples/level1.kiln)). `--follow` and the browser player carry it the same way and reach the same hash; a scene run by itself starts from its own file. See `kiln guide levels`.
 
 `solve` treats a load the same way: a route through a trigger that restarts the level is not an answer.
 

@@ -166,7 +166,7 @@ export async function command(cmd: string, a: CmdArgs): Promise<{ text: string; 
       out.push(`scene ${path.at(-1)} tick=${r.world.tick} hash=${r.hash} passed=${r.expects.length} load=${r.load}`);
       const t = readFileSync(next, 'utf8'), m = await loadMods(t, next);
       await loadBackend(physicsOf(t), next);
-      r = run(t, { input: existsSync(nextInput) ? readFileSync(nextInput, 'utf8') : undefined, file: next, inputFile: nextInput, ticks: a.ticks, mods: m });
+      r = run(t, { input: existsSync(nextInput) ? readFileSync(nextInput, 'utf8') : undefined, file: next, inputFile: nextInput, ticks: a.ticks, mods: m, kept: r.kept });
       report(r, next);
       path.push(basename(next));
     }

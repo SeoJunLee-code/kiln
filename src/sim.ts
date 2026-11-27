@@ -184,6 +184,7 @@ export function step(w: World, script?: InputScript): void {
     if (down) w.pressed.add(action);
     else w.pressed.delete(action);
   }
+  const heard = w.events.length;
   const k = w.tick % w.hz;
   const on = (a: string): number => (w.pressed.has(a) ? 1 : 0);
 
@@ -352,6 +353,11 @@ export function step(w: World, script?: InputScript): void {
   }
   for (const id of doomed) w.despawn(id);
   for (const sys of w.post) sys(w);
+  // A tally counts what this step emitted, scripts included. It is state: saved and hashed.
+  for (const id of w.query('tally')) {
+    const t = w.get(id, 'tally')!;
+    for (let i = heard; i < w.events.length; i++) if (w.events[i].name === t.event) t.n = (t.n as number) + (t.by as number);
+  }
 }
 
 /**

@@ -8,7 +8,7 @@ import { registry } from './world.ts';
  */
 export const TOPICS: Record<string, { about: string; text: string }> = {
   physics: {
-    about: 'rigid bodies that fall, tumble and collide',
+    about: 'bodies that fall, tumble, collide',
     text: `Put physics=rapier on the world line. An entity with rigid + pos + box is a dynamic body.
 solid entities and solid tiles are fixed colliders. Movers (pos+vel+box, such as the ctrl
 character) stop at a body, shove it by their weight, and can stand and ride on it.
@@ -22,7 +22,7 @@ Saving a running physics scene as text and loading it does not continue exactly;
 from the start with the same input instead.`,
   },
   view: {
-    about: 'drawing: turning, animation, cameras, labels',
+    about: 'turning, animation, cameras, labels',
     text: `None of these change collision, triggers or solve: they see the unturned box.
 2D shows rot about z only. 3D needs an entity with eye. Check the picture with look.
 Animation (2D): draw the frames in one image, side by side, all the same size and looking
@@ -30,6 +30,20 @@ right (PNG, or SVG with a viewBox), and give the entity sprite image=walk.png + 
 The frame comes from the tick alone: tick*fps/hz, so a replay draws the same pictures.
 anim 4 idle=1 keeps frame 0 for standing and loops 1..3 while vel is not zero.
 Looking left mirrors the picture; face is saved with the scene and is part of the hash.`,
+  },
+  levels: {
+    about: 'a score or lives, kept across scenes',
+    text: `A value that lasts is a component, and tally is the ready-made one:
+entity score
+  pos 7 0.9
+  label Coins:_%          % shows n
+  tally coin              +1 for every coin event; tally hit 3 -1 is three lives
+  keep tally
+Put the same entity, with the same keep line, in the scene that load: opens. There it
+starts with the n it had when the first scene ended (the tick of the load event), not
+with what its own file says. keep takes any components, a script's own too: keep tally,bag.
+A scene run by itself starts from its file. test --follow carries values as the player
+does, and both reach the same hash. Check a value with: expect at N score.tally.n == 2`,
   },
 };
 
@@ -100,7 +114,7 @@ check    parse and validate (a folder: every scene). Says the edition the game n
          anywhere; [standard] parts need WebGPU (drawing) or megabytes more (physics). --edition lite: more is an error
 test     run, evaluate expects; --input FILE; exit 1 if any fails. A folder: every scene
          with its NAME.input, then once per NAME.CASE.input. expect lines in an input
-         replace the scene's (one scene, many checks). --follow: go on into
+         replace the scene's. --follow: go on into
          the scene a load: opened, with its NAME.input
 run      run without judging; --ticks N
 solve    find an input meeting reach/gone/event, keeping never and count X == 0; --out FILE saves it

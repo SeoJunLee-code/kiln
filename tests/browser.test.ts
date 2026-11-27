@@ -215,6 +215,30 @@ test('browser: a load trigger opens the next level', { skip }, async () => {
   } finally { await player.close(); }
 });
 
+test('browser: the next level starts with what the last one kept, at the same hash as --follow', { skip }, async () => {
+  const { run } = await import('../src/run.ts');
+  const one = run(readFileSync(ex('level1.kiln'), 'utf8'), { input: readFileSync(ex('level1.input'), 'utf8') });
+  const two = run(readFileSync(ex('level2.kiln'), 'utf8'), { kept: one.kept, ticks: 600 });
+  const player = await openPlayer(ex('level1.kiln'), { inputFile: ex('level1.input'), browser });
+  try {
+    // Past the load event: the score must be the one from that tick, whatever happens after it.
+    await player.page.eval('kiln.runTo(600)');
+    let ready = false;
+    for (let i = 0; i < 80 && !ready; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      try { ready = await player.page.eval<boolean>('location.search.includes("level2.kiln") && typeof kiln === "object"'); } catch { /* the page is navigating */ }
+    }
+    assert.ok(ready, 'level2 did not open');
+    assert.equal(new URLSearchParams(await player.page.eval<string>('location.search')).get('keep'), one.kept);
+    const score = 'kiln.world.get(kiln.world.ids.get("score"), "tally").n';
+    assert.equal(await player.page.eval<number>(score), 2);
+    assert.equal(await player.page.eval<string>('kiln.runTo(600)'), two.hash);
+    // Starting the level again starts from what was handed over, not from the file.
+    await player.page.eval('kiln.reset()');
+    assert.equal(await player.page.eval<number>(score), 2);
+  } finally { await player.close(); }
+});
+
 test('browser: rotation changes what is drawn, in 2D and by WebGPU', { skip }, async () => {
   for (const [scene, query, renderer] of [['windmill', '', '2d'], ['orrery3d', 'renderer=webgpu', 'webgpu']]) {
     const player = await openPlayer(ex(`${scene}.kiln`), { inputFile: ex(`${scene}.input`), browser, query });

@@ -26,6 +26,13 @@ entity map
     #...o.#>#
     #########
 
+# The coins counted so far. `keep` hands the number on to the next level.
+entity score
+  pos 7 0.9
+  label Coins:_% gold
+  tally coin
+  keep tally
+
 entity title
   pos 4.5 0.9
   label Level_1

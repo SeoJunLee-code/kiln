@@ -66,6 +66,9 @@ export function lint(scene: Scene, file: string, exists?: (name: string) => bool
       else if (idle && !w.has(id, 'vel')) warn('K322',`anim on '${name}' has idle=${idle} but '${name}' has no 'vel', so it never shows the moving frames`, `add vel to '${name}', or drop idle`);
       if (w.query('eye').length) warn('K323', `'${name}' has 'anim', but the scene is drawn in 3D, where sprites are boxes or meshes`);
     }
+    for (const k of String(w.get(id, 'keep')?.what ?? '').split(',').filter(Boolean)) {
+      if (!w.has(id, k) || k === 'tiles') warn('K324', `'${name}' keeps '${k}', ${k === 'tiles' ? 'which cannot be carried to another scene' : registry.has(k) ? `but has no '${k}'` : 'which is not a component'}, so nothing is carried`, k === 'tiles' ? undefined : registry.has(k) ? `add ${k} to '${name}'` : suggest(k, registry.keys()));
+    }
     const tl = w.get(id, 'tiles');
     if (tl?.paint) for (const [ch, [, image]] of paintOf(tl.paint as string)) {
       if (!(tl.rows as string).includes(ch)) warn('K317', `tiles on '${name}' paints '${ch}', which is in none of its rows`);

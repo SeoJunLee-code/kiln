@@ -42,7 +42,7 @@ does that thing best. The agent-first rows belong to the core and hold in all th
 | `check` names the lowest edition a game needs, and why | **gated** | `tests/edition.test.ts`: the edition of every example is written down; each kind of use is reported with its line; a folder needs the largest edition of its scenes |
 | A feature above a given ceiling (`--edition`) is an error | **gated** | K140 with the line of every use, also for entities spawned from a prefab; at or under the ceiling the output is unchanged |
 | A game ships only the parts it uses | **gated** | `tests/edition.test.ts`: a 2D game is built with the player alone, a 3D one adds the two renderers, a model file adds the glTF reader, a physics scene adds the backend. Decided from what the game folder holds; a part a scene asks for and the build lacks is a page error |
-| Exported size within a byte budget, per edition | **gated** | engine bytes of a built game: 2D Lite 72,000, 3D Lite 102,000, Standard with everything 4,630,000 (measured 61,108 / 90,484 / 4,491,655 since `build` squeezes engine files; before that 93,775 against 94,000) |
+| Exported size within a byte budget, per edition | **gated** | engine bytes of a built game: 2D Lite 72,000, 3D Lite 102,000, Standard with everything 4,630,000 (2D Lite now 63,997 with sprite animation and state between levels; measured 61,108 / 90,484 / 4,491,655 since `build` squeezes engine files; before that 93,775 against 94,000) |
 | A game of a lower edition reaches the same hash under a higher one | works | browser test: a 2D and a 3D Lite game built without the parts they do not use reach the headless hash (two scenes, 90 ticks, nothing pressed). Not every example, and there is no way yet to run one game under a named edition |
 | Lite features drawn by both renderers | **gated** | the reference images shared by WebGL2 and WebGPU |
 | No allocation per tick in the simulation path | none | not measured; Kiln runs on a garbage-collected language |
@@ -97,7 +97,7 @@ Neither engine was built for this; these rows are why Kiln exists.
 | UI (text, buttons, layout) | yes | yes | **gated** (labels only) | test |
 | Gamepad | yes | yes | none | |
 | Touch | yes | yes | **gated** | test with synthetic pointer events; not tried on a phone |
-| State carried between levels | yes | yes | none | |
+| State carried between levels | yes | yes | **gated** (named components of named entities) | `keep A,B` on an entity of the same name in both scenes: at a `load:` it starts the next scene with those components as they were at the tick of the load. `tally EVENT [n] [by]` is the built-in value (a score, lives), shown by a label as `%`. Headless test: handed over or not, save round trip, what is taken and what is refused; `--follow` and the browser player reach the same hash in the second level (browser test), and a restart there starts from what was handed over. No save to disk, no globals outside entities, nothing carried back to a scene left earlier |
 
 ## 3D rendering
 

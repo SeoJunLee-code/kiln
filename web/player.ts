@@ -8,7 +8,7 @@ import type { Expect } from '../src/expect.ts';
 import { ONE } from '../src/fx.ts';
 import { freeLink, loadBackend, physicsOf } from '../src/physics.ts';
 import type { Mods } from '../src/run.ts';
-import { paintOf, parseScene } from '../src/scene.ts';
+import { kept, paintOf, parseScene, take } from '../src/scene.ts';
 import { frameOf, hash, parseInput, step, tileRows } from '../src/sim.ts';
 import type { InputScript } from '../src/sim.ts';
 import type { World } from '../src/world.ts';
@@ -149,7 +149,9 @@ let bounds = { x: 0, y: 0, w: 1, h: 1 };
 try {
   const cfg = await (await fetch('config.json')).json();
   // ?scene=NAME opens another scene from the same folder (live input only).
-  const other = new URLSearchParams(location.search).get('scene');
+  const asked = new URLSearchParams(location.search), other = asked.get('scene');
+  // What the scene before this one handed over (see `keep`); a restart starts from it again.
+  const handed = asked.get('keep');
   if (other) Object.assign(cfg, { scene: other, input: false });
   const sceneRes = await fetch(new URL(cfg.scene, GAME));
   if (!sceneRes.ok) throw new Error(`E K001 cannot read scene '${cfg.scene}'`);
@@ -168,6 +170,7 @@ try {
     if (world) freeLink(world);
     const s = parseScene(sceneText, cfg.scene);
     world = s.world;
+    if (handed) take(world, handed);
     world.pre = mods.pre;
     world.post = mods.post;
     expects = parseExpects(s.expects, world, cfg.scene);
@@ -200,7 +203,9 @@ try {
       // A trigger with load:FILE asks for the next scene; give the player a moment to see why.
       if (ev.name === 'load' && !leaving) {
         leaving = true;
-        setTimeout(() => { location.search = `?scene=${encodeURIComponent(ev.a)}`; }, 600);
+        // Taken now, at the tick the scene ends, as the headless run does; the game goes on a moment longer.
+        const k = kept(world);
+        setTimeout(() => { location.search = `?scene=${encodeURIComponent(ev.a)}${k && `&keep=${encodeURIComponent(k)}`}`; }, 600);
       }
     }
   };
@@ -343,7 +348,7 @@ try {
       g.font = `600 ${Math.max(11, scale * 0.42)}px ui-monospace, Consolas, monospace`;
       g.textAlign = 'center';
       g.textBaseline = 'bottom';
-      g.fillText((l.text as string).replace(/_/g, ' '), (((p.x as number) + ((b?.w as number) ?? 0) / 2) / ONE) * scale + ox, ((p.y as number) / ONE) * scale + oy - 3);
+      g.fillText((l.text as string).replace(/_/g, ' ').replace('%', `${world.get(id, 'tally')?.n ?? '%'}`),(((p.x as number) + ((b?.w as number) ?? 0) / 2) / ONE) * scale + ox, ((p.y as number) / ONE) * scale + oy - 3);
     }
   };
 

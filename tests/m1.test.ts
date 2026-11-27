@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -235,7 +235,7 @@ test('guide: the core and its topics cover every component and command, and each
   }
   const bad = await command('guide', { topic: 'nope' });
   assert.equal(bad.code, 2);
-  assert.match(bad.text, /^E K003 unknown guide topic 'nope' \(hint: valid: physics view\)/);
+  assert.match(bad.text, /^E K003 unknown guide topic 'nope' \(hint: valid: physics view levels\)/);
   // Room for the next few core components: adding one must not be what breaks this test.
   assert.ok(g.length < 5600, `core guide is ${g.length} characters`);
   for (const c of COMMANDS.filter((x) => x !== 'guide')) assert.match(g, new RegExp(`^${c} `, 'm'), `command ${c}`);
@@ -531,4 +531,48 @@ test('anim: the frame comes from the tick and the state, and the facing is saved
   assert.match(await check(scene('anim 4') + 'entity cam\n  pos 0 0\n  eye 0 -8 9\n'), /^W K323 scene 'hero' has 'anim', but the scene is drawn in 3D/m);
   assert.match(await check('entity a\n  pos 0 0\n  box 1 1\n  anim 2\n'), /^W K310 scene 'a' has 'anim' but no 'sprite'/m);
   assert.doesNotMatch(await check(scene('anim 4 idle=1')), /^W K32/m);
+});
+
+test('levels: a tally counts events, and keep hands it to the scene a load opens', async () => {
+  const { run } = await import('../src/run.ts');
+  const { kept, take } = await import('../src/scene.ts');
+  const read = (name: string): string => readFileSync(ex(name), 'utf8');
+  const n = (w: World, name = 'score'): unknown => w.get(w.ids.get(name)!, 'tally')!.n;
+
+  // The first level ends at its load event with both coins counted.
+  const one = run(read('level1.kiln'), { input: read('level1.input'), file: 'level1.kiln' });
+  assert.equal(one.load, 'level2.kiln');
+  assert.equal(n(one.world), 2);
+  assert.equal(one.kept, 'entity score\n  tally coin 2');
+  // The second starts from that when it is handed over, and from its own file when it is not.
+  const alone = run(read('level2.kiln'), { input: read('level2.input'), file: 'level2.kiln' });
+  const after = run(read('level2.kiln'), { input: read('level2.input'), file: 'level2.kiln', kept: one.kept });
+  assert.deepEqual([n(alone.world), n(after.world)], [0, 2]);
+  assert.notEqual(alone.hash, after.hash);
+  assert.equal(alone.kept, undefined);
+  // --follow is that same run.
+  const f = await command('test', { file: ex('level1.kiln'), inputFile: ex('level1.input'), follow: true });
+  assert.match(f.text, new RegExp(`^ok tick=${after.world.tick} hash=${after.hash} .*path=level1\\.kiln>level2\\.kiln\\n$`, 'm'));
+
+  // It is state: it survives a save, and going down works for lives.
+  const lives = 'entity hero\n  pos 0 0\n  box 1 1\n  vel 4 0\nentity spike\n  pos 2 0\n  box 1 1\n  trigger hero hit\nentity hud\n  tally hit 3 -1\n  keep tally,label,nope\n';
+  const hurt = run(lives, { ticks: 60 });
+  assert.equal(n(hurt.world, 'hud'), 2);
+  assert.match(serialize(hurt.world), /^ {2}tally hit 2 -1$/m);
+  assert.equal(n(parseScene(serialize(hurt.world)).world, 'hud'), 2);
+  // Only what the entity has is handed over.
+  assert.equal(kept(hurt.world), 'entity hud\n  tally hit 2 -1');
+
+  // Taking: only an entity that is here, only what it keeps, and nothing else in the text is read.
+  const w = parseScene('entity hud\n  tally hit 3 -1\n  keep tally\nentity other\n  tally hit 5\n').world;
+  take(w, 'world hz=1\nentity hud\n  tally hit 1 -1\n  label sneaked\nentity other\n  tally hit 9\nentity ghost\n  tally hit 7\nrubbish\n');
+  assert.deepEqual([n(w, 'hud'), n(w, 'other'), w.has(w.ids.get('hud')!, 'label'), w.hz, w.ids.has('ghost')], [1, 5, false, 60, false]);
+
+  const check = async (text: string): Promise<string> => (await command('check', { scene: text })).text;
+  const warned = await check(lives);
+  assert.match(warned, /^W K324 scene 'hud' keeps 'label', but has no 'label', so nothing is carried \(hint: add label to 'hud'\)$/m);
+  assert.match(warned, /^W K324 scene 'hud' keeps 'nope', which is not a component, so nothing is carried/m);
+  assert.match(await check('entity m\n  pos 0 0\n  keep tiles\n  tiles\n    #\n'), /^W K324 scene 'm' keeps 'tiles', which cannot be carried/m);
+  assert.doesNotMatch(await check('entity hud\n  tally hit 3 -1\n  keep tally\n'), /K324/);
+  assert.match((await command('check', { file: ex('level1.kiln') })).text, /edition=lite warnings=0/);
 });
