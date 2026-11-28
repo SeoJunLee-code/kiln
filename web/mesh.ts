@@ -94,6 +94,10 @@ export interface Box3 {
   hz?: number;
 }
 
+/** A point light, in the simulation's axes; the color already carries its power. */
+export interface Lamp { p: number[]; color: number[]; range: number }
+export const MAX_LAMPS = 32;
+
 /**
  * The 4x4 that takes the unit cube to a box: scaled to its size, turned about its centre,
  * moved to its place, and then the simulation's downward y turned to point up.
@@ -123,7 +127,8 @@ export function boxMatrix(out: Float32Array, at: number, b: Box3): void {
 export interface Renderer3 {
   /** Which backend draws: 'webgl2' or 'webgpu'. */
   name: string;
-  draw(boxes: Box3[], eye: number[], target: number[], fovDeg: number): void;
+  /** `lamps` are drawn by WebGPU only. */
+  draw(boxes: Box3[], eye: number[], target: number[], fovDeg: number, lamps?: Lamp[]): void;
   /** Register OBJ text under a name; boxes that ask for it are drawn as that mesh, fitted to their box. */
   addMesh(name: string, obj: string): void;
   /** Register a glTF model under a name, like addMesh. Resolves when its textures are ready. Only WebGPU has it. */

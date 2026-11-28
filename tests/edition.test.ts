@@ -13,7 +13,7 @@ const BOX = 'entity a\n  pos 0 0\n  box 1 1\n';
 
 // The edition of every example, written down so that a change in where the line falls is a
 // change someone made on purpose. Standard here is exactly: Rapier, glTF, or turning in 3D.
-const STANDARD = ['gallery3d', 'orrery3d', 'rig3d', 'tumble3d'];
+const STANDARD = ['gallery3d', 'lamps3d', 'orrery3d', 'rig3d', 'tumble3d'];
 
 test('edition: each example needs the edition written here', async () => {
   for (const f of readdirSync(root('examples')).filter((x) => x.endsWith('.kiln'))) {
@@ -103,7 +103,7 @@ test('edition: a folder is a game, and needs the largest edition of its scenes',
 
 test('edition: the component reference marks what is not Lite', () => {
   const marked = schemaText().split('\n').filter((l) => l.includes('[standard]')).map((l) => l.split(' ')[0]);
-  assert.deepEqual(marked.sort(), ['clip', 'force', 'impulse', 'quat', 'rigid']);
+  assert.deepEqual(marked.sort(), ['clip', 'force', 'impulse', 'light', 'quat', 'rigid']);
 });
 
 // Rule 6 of docs/EDITIONS.md: a Lite feature is drawn by both renderers. The picture check
@@ -126,7 +126,9 @@ test('edition: the scenes only WebGPU draws are exactly the ones whose drawing i
 // began to squeeze engine files (measured 61,108 / 90,484 / 4,491,655). The 2D number
 // keeps about 11,000 bytes for the Lite rows still to come (animation, gamepad, audio,
 // UI); raise one only on purpose, in the same change that says what the bytes bought.
-const BUDGET = { lite2d: 72_000, lite3d: 102_000, standard: 4_630_000 };
+// 3D Lite went from 102,000 to 104,000 on 2026-11-28: the WebGPU renderer, which a 3D Lite
+// game ships, learned point lights and to take posed vertices from a model.
+const BUDGET = { lite2d: 72_000, lite3d: 104_000, standard: 4_630_000 };
 
 test('squeeze: comments, indentation and blank lines go; strings, templates and regular expressions stay', async () => {
   const { squeeze } = await import('../src/squeeze.ts');

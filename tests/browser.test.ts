@@ -501,6 +501,25 @@ test('browser: clip poses a model by the tick: it moves, comes round, and the sa
   } finally { await player.close(); }
 });
 
+test('browser: lights are seen by WebGPU, on the plain material and on a model', { skip }, async () => {
+  const player = await openPlayer(ex('lamps3d.kiln'), { inputFile: ex('lamps3d.input'), browser, query: 'renderer=webgpu' });
+  try {
+    const shots = await player.page.eval<{ renderer: string; lit: string; dark: string; moved: string }>(`(async () => {
+      kiln.runTo(90);
+      const lit = await kiln.shot();
+      kiln.runTo(150);
+      const moved = (await kiln.shot()).png;
+      for (const id of kiln.world.query('light')) kiln.world.comps.get('light').delete(id);
+      return { renderer: lit.renderer, lit: lit.png, moved, dark: (await kiln.shot()).png };
+    })()`);
+    if (shots.renderer !== 'webgpu') return; // no WebGPU in this browser
+    assert.deepEqual(player.page.errors(), []);
+    const png = (url: string) => decodePng(Buffer.from(url.slice(url.indexOf(',') + 1), 'base64'));
+    assert.ok(compare(png(shots.moved), png(shots.dark)).changed > 0.1, 'the lights made no difference to the frame');
+    assert.ok(compare(png(shots.lit), png(shots.moved)).changed > 0.02, 'the walking light did not move');
+  } finally { await player.close(); }
+});
+
 // A host that knows nothing about Kiln: files by extension, under a sub-path as on a project page.
 async function host(out: string): Promise<{ url: string; close: () => void }> {
   const { createServer } = await import('node:http');

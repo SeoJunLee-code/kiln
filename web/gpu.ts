@@ -6,8 +6,8 @@
 //
 // WebGPU's types are not declared here, so its objects are `any`; the engine has no
 // dependency to take them from.
-import { boxMatrix, cube, lookAt, mul, norm, ortho01, parseObj, perspective01, sub, SHADOW_SIZE, SKY, SUN } from './mesh.ts';
-import type { Box3, Renderer3 } from './mesh.ts';
+import { boxMatrix, cube, lookAt, MAX_LAMPS, mul, norm, ortho01, parseObj, perspective01, sub, SHADOW_SIZE, SKY, SUN } from './mesh.ts';
+import type { Box3, Lamp, Renderer3 } from './mesh.ts';
 import type { Model, Poses, Wrap } from './gltf.ts';
 
 const SAMPLES = 4;
@@ -15,7 +15,8 @@ const SAMPLES = 4;
 const INSTANCE_FLOATS = 20;
 
 const FRAME = `
-struct Frame { vp: mat4x4f, light: mat4x4f, eye: vec4f, sun: vec4f, sky: vec4f };
+struct Lamp { at: vec4f, color: vec4f };
+struct Frame { vp: mat4x4f, light: mat4x4f, eye: vec4f, sun: vec4f, sky: vec4f, count: vec4f, lamps: array<Lamp, ${MAX_LAMPS}> };
 @group(0) @binding(0) var<uniform> frame: Frame;
 struct Vertex {
   @location(0) pos: vec3f, @location(1) normal: vec3f,
@@ -53,6 +54,25 @@ const SKY_LIGHT = vec3f(0.55, 0.62, 0.75);
 const GROUND_LIGHT = vec3f(0.12, 0.11, 0.10);
 fn around(dir: vec3f, blur: f32) -> vec3f {
   return mix(GROUND_LIGHT, SKY_LIGHT, smoothstep(-0.15 - blur, 0.25 + blur, dir.y));
+}
+// What a point light adds from direction l: its color, fading to nothing at its range.
+fn reach(lamp: Lamp, to: vec3f) -> vec3f {
+  let near = clamp(1.0 - dot(to, to) / (lamp.at.w * lamp.at.w), 0.0, 1.0);
+  return lamp.color.rgb * near * near;
+}
+// Cook-Torrance: GGX distribution, Smith-Schlick visibility, Schlick Fresnel. What a
+// surface sends towards v of the light from l, for a light of strength 1/pi.
+fn shine(m: vec3f, v: vec3f, l: vec3f, f0: vec3f, diffuse: vec3f, rough: f32) -> vec3f {
+  let h = normalize(v + l);
+  let nl = max(dot(m, l), 0.0); let nv = max(dot(m, v), 0.001); let nh = max(dot(m, h), 0.0); let vh = max(dot(v, h), 0.0);
+  let a2 = pow(rough, 4.0);
+  let spread = nh * nh * (a2 - 1.0) + 1.0;
+  let d = a2 / (PI * spread * spread);
+  let k = (rough + 1.0) * (rough + 1.0) / 8.0;
+  let g = (nl / (nl * (1.0 - k) + k)) * (nv / (nv * (1.0 - k) + k));
+  let fresnel = f0 + (1.0 - f0) * pow(1.0 - vh, 5.0);
+  let specular = fresnel * (d * g / (4.0 * nl * nv + 0.0001));
+  return ((1.0 - fresnel) * diffuse / PI + specular) * nl;
 }
 @vertex fn vs(v: Vertex) -> Varying {
   let world = mat4x4f(v.m0, v.m1, v.m2, v.m3) * vec4f(v.pos, 1.0);
@@ -93,7 +113,12 @@ fn around(dir: vec3f, blur: f32) -> vec3f {
   if (material.kind.x == 0.0) {
     let sun = max(facing, 0.0) * lit;
     let fill = max(dot(n, normalize(vec3f(-0.5, 0.2, -0.6))), 0.0);
-    let c = f.color * (0.30 + 0.66 * sun + 0.12 * fill);
+    var lamps = vec3f(0.0);
+    for (var i = 0u; i < u32(frame.count.x); i++) {
+      let to = frame.lamps[i].at.xyz - f.world;
+      lamps += reach(frame.lamps[i], to) * max(dot(n, normalize(to)), 0.0);
+    }
+    let c = f.color * (vec3f(0.30 + 0.66 * sun + 0.12 * fill) + lamps);
     return vec4f(mix(c, frame.sky.rgb, fog), 1.0);
   }
 
@@ -112,21 +137,15 @@ fn around(dir: vec3f, blur: f32) -> vec3f {
   let metallic = clamp(material.surface.x * packed.b, 0.0, 1.0);
   let rough = clamp(material.surface.y * packed.g, 0.045, 1.0);
   let v = normalize(frame.eye.xyz - f.world);
-  let l = frame.sun.xyz;
-  let h = normalize(v + l);
-  let nl = max(dot(m, l), 0.0); let nv = max(dot(m, v), 0.001); let nh = max(dot(m, h), 0.0); let vh = max(dot(v, h), 0.0);
+  let nv = max(dot(m, v), 0.001);
   let f0 = mix(vec3f(0.04), albedo, metallic);
   let diffuse = albedo * (1.0 - metallic);
-  // Cook-Torrance: GGX distribution, Smith-Schlick visibility, Schlick Fresnel.
-  let a2 = pow(rough, 4.0);
-  let spread = nh * nh * (a2 - 1.0) + 1.0;
-  let d = a2 / (PI * spread * spread);
-  let k = (rough + 1.0) * (rough + 1.0) / 8.0;
-  let g = (nl / (nl * (1.0 - k) + k)) * (nv / (nv * (1.0 - k) + k));
-  let fresnel = f0 + (1.0 - f0) * pow(1.0 - vh, 5.0);
-  let specular = fresnel * (d * g / (4.0 * nl * nv + 0.0001));
   // The sun's strength is pi, so a white diffuse surface facing it comes out white.
-  let direct = ((1.0 - fresnel) * diffuse / PI + specular) * nl * lit * PI;
+  var direct = shine(m, v, frame.sun.xyz, f0, diffuse, rough) * lit * PI;
+  for (var i = 0u; i < u32(frame.count.x); i++) {
+    let to = frame.lamps[i].at.xyz - f.world;
+    direct += shine(m, v, normalize(to), f0, diffuse, rough) * reach(frame.lamps[i], to) * PI;
+  }
   let grazing = f0 + (max(vec3f(1.0 - rough), f0) - f0) * pow(1.0 - nv, 5.0);
   let shade = mix(1.0, occlusion, material.extra.x);
   let ambient = (diffuse * around(m, 0.6) * 0.45 + grazing * around(reflect(-v, m), rough)) * shade;
@@ -277,7 +296,7 @@ export async function makeRendererGpu(canvas: HTMLCanvasElement, offscreen = fal
   // Depth-only target the sun renders into.
   const shadowMap = device.createTexture({ size: [SHADOW_SIZE, SHADOW_SIZE], format: 'depth32float', usage: TEX.RENDER_ATTACHMENT | TEX.TEXTURE_BINDING });
   const shadowView = shadowMap.createView();
-  const frame = new Float32Array(16 + 16 + 4 + 4 + 4);
+  const frame = new Float32Array(16 + 16 + 4 + 4 + 4 + 4 + MAX_LAMPS * 8);
   const frameBuffer = device.createBuffer({ size: frame.byteLength, usage: USAGE.UNIFORM | USAGE.COPY_DST });
   const shadowBind = device.createBindGroup({ layout: shadowPipeline.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: frameBuffer } }] });
   const mainBind = device.createBindGroup({
@@ -311,7 +330,7 @@ export async function makeRendererGpu(canvas: HTMLCanvasElement, offscreen = fal
   };
 
   // Draw one frame into `into`, a texture of the canvas's size and format.
-  const render = (boxes: Box3[], eye: number[], target: number[], fovDeg: number, into: any): void => {
+  const render = (boxes: Box3[], eye: number[], target: number[], fovDeg: number, lamps: Lamp[], into: any): void => {
     const w = canvas.width, h = canvas.height;
 
     // Instances, grouped so that each mesh is one draw call.
@@ -346,6 +365,11 @@ export async function makeRendererGpu(canvas: HTMLCanvasElement, offscreen = fal
     frame.set(e, 32);
     frame.set(sun, 36);
     frame.set(SKY, 40);
+    // With more lights than there is room for, the ones nearest what the camera looks at count.
+    const off = (l: Lamp): number => Math.hypot(...sub(l.p, target));
+    const near = lamps.length > MAX_LAMPS ? [...lamps].sort((x, y) => off(x) - off(y)).slice(0, MAX_LAMPS) : lamps;
+    frame[44] = near.length;
+    near.forEach((l, i) => frame.set([l.p[0], -l.p[1], l.p[2], l.range, ...l.color, 0], 48 + i * 8));
     device.queue.writeBuffer(frameBuffer, 0, frame);
 
     const drawAll = (pass: any, shaded: boolean): void => {
@@ -375,7 +399,7 @@ export async function makeRendererGpu(canvas: HTMLCanvasElement, offscreen = fal
     device.queue.submit([encoder.finish()]);
   };
 
-  let last: [Box3[], number[], number[], number] | undefined;
+  let last: [Box3[], number[], number[], number, Lamp[]] | undefined;
   return {
     name: 'webgpu',
     addMesh(name, obj) {
@@ -418,10 +442,10 @@ export async function makeRendererGpu(canvas: HTMLCanvasElement, offscreen = fal
         (into, data) => into.forEach((mesh, i) => device.queue.writeBuffer(mesh.buffer, 0, data[i])),
       ));
     },
-    draw(boxes, eye, target, fovDeg) {
-      last = [boxes, eye, target, fovDeg];
+    draw(boxes, eye, target, fovDeg, lamps = []) {
+      last = [boxes, eye, target, fovDeg, lamps];
       fit();
-      if (context) render(boxes, eye, target, fovDeg, context.getCurrentTexture());
+      if (context) render(boxes, eye, target, fovDeg, lamps, context.getCurrentTexture());
     },
     // The canvas cannot be read back reliably: with software rendering on Linux it comes
     // back blank. So the last frame is drawn again into a texture and copied out of that.

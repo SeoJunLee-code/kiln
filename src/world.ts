@@ -52,6 +52,8 @@ defineComponent('impulse', 'on a rigid: one shove (mass x speed), then removed',
 defineComponent('force', 'on a rigid: a push every tick', [f('x', 'fx', 0), f('y', 'fx', 0), f('z', 'fx', 0)], 'physics', ['physics', 'standard']);
 defineComponent('eye', '3D view: a camera at this entity plus the offset, looking at it; ignored headless',
   [f('x', 'fx'), f('y', 'fx'), f('z', 'fx'), f('fov', 'int', 55)], 'view');
+defineComponent('light', '3D: point light at the middle of the entity, reaching range units. WebGPU; the 32 nearest the view',
+  [f('color', 'str', 'white'), f('range', 'fx', 6 * 65536), f('power', 'fx', 65536)], 'view', ['drawing', 'standard']);
 defineComponent('clip', '3D: play glTF animation NAME from tick FROM; speed<0 reverses',
   [f('name', 'str'), f('speed', 'fx', 65536), f('from', 'int', 0), f('loop', 'int', 1)], 'view', ['drawing', 'standard']);
 defineComponent('anim', '2D: the sprite image is FRAMES pictures side by side, shown in turn. idle=N: the first N while still, the rest while moving. face: 1 right, -1 left (drawn mirrored); the engine sets it from vel x',

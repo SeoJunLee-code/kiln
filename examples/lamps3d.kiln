@@ -1,0 +1,72 @@
+# Point lights: three fixed lamps in a row of pillars and one that walks. Light is part of
+# the picture only; the simulation does not know about it. WebGPU draws it; the WebGL2
+# fallback has the sun alone.
+world hz=60 gravity=0,30
+
+entity walker
+  pos -4 -0.8 3
+  box 0.6 0.8 0.6
+  vel
+  body
+  ctrl 4 0 xz
+  eye 0 -7 7
+  sprite @ white
+
+entity floor
+  pos -9 0 -3
+  box 18 1 10
+  solid
+  sprite color=dimgray
+
+entity pillar_a
+  pos -5 -2.5 0
+  box 0.8 2.5 0.8
+  solid
+  sprite color=silver
+entity pillar_b
+  pos -0.4 -2.5 0
+  box 0.8 2.5 0.8
+  solid
+  sprite color=silver
+entity pillar_c
+  pos 4.2 -2.5 0
+  box 0.8 2.5 0.8
+  solid
+  sprite color=silver
+
+entity red
+  pos -3.8 -1.5 1
+  box 0.2 0.2 0.2
+  light red range=4 power=1.4
+  sprite color=red
+entity green
+  pos 0.8 -1.5 1
+  box 0.2 0.2 0.2
+  light lime range=4
+  sprite color=lime
+entity blue
+  pos 5.4 -1.5 1
+  box 0.2 0.2 0.2
+  light dodgerblue range=4 power=1.6
+  sprite color=dodgerblue
+
+entity firefly
+  pos -2 -1 4
+  box 0.2 0.2 0.2
+  vel
+  pace x -3 3 2
+  light orange range=3.5
+  sprite color=orange
+
+entity far
+  pos 3 -1 3
+  box 0.5 1 0.5
+  trigger walker arrived
+
+expect event arrived by 300
+
+# A model, so that the lamps are seen on a metallic-roughness material too.
+entity beads
+  pos -2.5 -0.7 -1.2
+  box 4.2 0.7 0.7
+  sprite mesh=orbs.glb

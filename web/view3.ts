@@ -2,7 +2,7 @@
 // model reader and mesh files that takes. It is a part of its own so that a 2D game
 // carries none of it.
 import type { Model } from './gltf.ts';
-import type { Box3, Renderer3 } from './mesh.ts';
+import type { Box3, Lamp, Renderer3 } from './mesh.ts';
 import { ONE } from '../src/fx.ts';
 import { paintOf } from '../src/scene.ts';
 import { tileRows } from '../src/sim.ts';
@@ -115,7 +115,11 @@ export async function makeView3(canvas3: HTMLCanvasElement, game: URL, loading: 
     }
     const e = world.get(eyeId, 'eye')!, p = world.get(eyeId, 'pos')!, b = world.get(eyeId, 'box');
     const target = [u(p.x) + u(b?.w ?? 0) / 2, u(p.y) + u(b?.h ?? 0) / 2, u(p.z) + u(b?.d ?? 0) / 2];
-    renderer.draw(boxes, [target[0] + u(e.x), target[1] + u(e.y), target[2] + u(e.z)], target, e.fov as number);
+    const lamps: Lamp[] = world.query('light', 'pos').map((id) => {
+      const l = world.get(id, 'light')!, at = world.get(id, 'pos')!, size = world.get(id, 'box');
+      return { p: [u(at.x) + u(size?.w ?? 0) / 2, u(at.y) + u(size?.h ?? 0) / 2, u(at.z) + u(size?.d ?? 0) / 2], color: rgb(l.color as string).map((c) => c * u(l.power)), range: u(l.range) };
+    });
+    renderer.draw(boxes, [target[0] + u(e.x), target[1] + u(e.y), target[2] + u(e.z)], target, e.fov as number, lamps);
   };
 
   return { name: renderer.name, draw, read: renderer.read?.bind(renderer) };
