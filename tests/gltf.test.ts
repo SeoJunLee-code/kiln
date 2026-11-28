@@ -1,12 +1,14 @@
 // The glTF reader, without a browser: containers, accessors, the node tree, materials,
 // and what it reports instead of silently dropping.
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { build, sidecars } from '../src/build.ts';
 import { command } from '../src/commands.ts';
+import { serve } from '../src/serve.ts';
 import { buildModel, loadGltf, splitGlb } from '../web/gltf.ts';
 import type { Model } from '../web/gltf.ts';
 
@@ -31,6 +33,7 @@ const insideOut = (m: Model): number => {
     const v = (k: number, o: number): number[] => [...part.data.subarray(t + k * 8 + o, t + k * 8 + o + 3)];
     const a = v(0, 0), e1 = v(1, 0).map((x, i) => x - a[i]), e2 = v(2, 0).map((x, i) => x - a[i]);
     const face = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+    if (Math.hypot(...face) < 1e-9) continue; // a triangle with no area faces nowhere
     for (let k = 0; k < 3; k++) if (face.reduce((s, x, i) => s + x * v(k, 3)[i], 0) <= 0) bad++;
   }
   return bad;
@@ -205,4 +208,43 @@ test('check: a model that cannot be read, or loses something, is a warning', asy
   const partly = await command('check', { file: join(dir, 'partly.kiln') });
   assert.match(partly.text, /^W K315 .*mesh 'partly\.gltf': animations are not played$/m);
   assert.match(partly.text, /warnings=1$/m);
+});
+
+// Files another tool wrote: Godot's exporter, run on scripts/godot/export.gd.
+const godot = (name: string): string => ex(`godot/${name}`);
+const beside = async (uri: string): Promise<Uint8Array> => new Uint8Array(readFileSync(godot(uri)));
+
+test('gltf: files exported by Godot load, with the texture from its subfolder', async () => {
+  const props = await loadGltf(new Uint8Array(readFileSync(godot('props.gltf'))), beside);
+  assert.equal(props.triangles, 268);
+  assert.equal(props.materials.length, 3);
+  assert.equal(props.images.length, 1);
+  assert.equal(props.materials[0].colorTex, 0);
+  // The mirrored spike keeps facing outward like the rest.
+  assert.equal(insideOut(props), 0);
+  assert.deepEqual(props.warnings, []);
+  const bend = await loadGltf(new Uint8Array(readFileSync(godot('bend.glb'))), none);
+  assert.equal(bend.triangles, 48);
+  assert.equal(insideOut(bend), 0);
+});
+
+test('gltf: what a model names beside itself is built and served; nothing else in a subfolder is', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'kiln-side-'));
+  mkdirSync(join(dir, 'textures'));
+  for (const f of ['props.gltf', 'props0.bin', 'textures/_albedo.png']) writeFileSync(join(dir, f), readFileSync(godot(f)));
+  writeFileSync(join(dir, 'textures', 'other.png'), 'not named by the model');
+  writeFileSync(join(dir, 'scene.kiln'), 'world hz=60\n\nentity cam\n  pos 0 0 0\n  box 1 1 1\n  eye 0 -2 4\n\nentity thing\n  pos 2 0 0\n  box 1 1 1\n  sprite mesh=props.gltf\n');
+  const out = join(dir, 'out');
+  const { written } = build(join(dir, 'scene.kiln'), out);
+  assert.ok(written.includes('game/textures/_albedo.png'));
+  assert.ok(!written.includes('game/textures/other.png'));
+  const server = await serve(join(dir, 'scene.kiln'), undefined, 0);
+  try {
+    const get = async (path: string): Promise<number> => (await fetch(`http://127.0.0.1:${server.port}/game/${path}`)).status;
+    assert.equal(await get('textures%2F_albedo.png'), 200);
+    assert.equal(await get('textures/_albedo.png'), 200);
+    assert.equal(await get('textures/other.png'), 403);
+  } finally { server.close(); }
+  assert.deepEqual(sidecars('a.gltf', new TextEncoder().encode(JSON.stringify({ buffers: [{ uri: '../out.bin' }, { uri: '.hidden/x.bin' }, { uri: 'file:x.bin' }], images: [{ uri: 'notes.txt' }, { uri: 'ok%20one.png' }] }))),
+    { files: ['ok one.png'], refused: ['../out.bin', '.hidden/x.bin', 'file:x.bin', 'notes.txt'] });
 });

@@ -150,7 +150,8 @@ export function buildModel(json: any, buffers: Uint8Array[], images: Image[]): M
   const warnings: string[] = [];
   const warn = (w: string): void => { if (!warnings.includes(w)) warnings.push(w); };
   for (const e of json.extensionsRequired ?? []) warn(`requires extension ${e}, which is not supported: the model may be wrong or empty`);
-  for (const e of json.extensionsUsed ?? []) if (!(json.extensionsRequired ?? []).includes(e)) warn(`uses extension ${e}, which is ignored`);
+  // Extensions that say something about the file and change nothing in the picture.
+  for (const e of json.extensionsUsed ?? []) if (e !== 'GODOT_single_root' && !(json.extensionsRequired ?? []).includes(e)) warn(`uses extension ${e}, which is ignored`);
   if (json.animations?.length) warn('animations are not played');
   if (json.skins?.length) warn('skins are ignored: the model is drawn in its bind pose');
 

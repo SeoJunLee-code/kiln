@@ -129,7 +129,7 @@ Neither engine was built for this; these rows are why Kiln exists.
 | Boxes and OBJ meshes, one shadowed sun | Lite | yes | yes | yes | **gated** | reference images, both renderers |
 | WebGPU renderer | Standard | — | — | — | **gated** | held to the WebGL2 reference images; canvas output tested on Windows and macOS |
 | Rotation and full transforms | Standard | yes | yes | yes | **gated** (WebGPU; no parenting) | quaternion is hashed state on 3 OSes; WebGPU-only reference image (`orrery3d`). Collision ignores it |
-| glTF import | Standard | yes | yes | yes | **gated** (static models) | reader tests; `check` reports what a model would lose (K315); WebGPU-only reference image (`gallery3d`). No animation, skins or extensions; only this project's own files have been loaded |
+| glTF import | Standard | yes | yes | yes | **gated** (static models) | reader tests; `check` reports what a model would lose (K315); WebGPU-only reference image (`gallery3d`). No animation, skins or extensions; files from this project's writer and from Godot 4.7.2's exporter (a texture in a subfolder is built and served). Khronos sample models are untried |
 | PBR materials, textures | Standard | yes | yes | yes | **gated** (WebGPU) | reference image (`gallery3d`): metallic-roughness, base color, normal, occlusion and emissive maps, mipmaps. One sun and a fixed sky/ground ambient; no environment map |
 | Many lights, cascaded shadows | Standard | yes | yes | yes | none | |
 | Skeletal animation, blending, IK | Standard | yes | yes | yes | none | |

@@ -3,7 +3,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { stripTypeScriptTypes } from 'node:module';
 import { basename, dirname, resolve, sep } from 'node:path';
-import { ASSETS } from './build.ts';
+import { ASSETS, sidecars } from './build.ts';
 import { fileURLToPath } from 'node:url';
 
 const TYPES: Record<string, string> = {
@@ -46,6 +46,10 @@ export function serve(sceneFile: string, inputFile: string | undefined, port: nu
   const config = JSON.stringify({ scene: basename(sceneFile), input: !!inputFile, scenes });
 
   const old = before === undefined ? undefined : earlier(before, sceneFile);
+  // A game asset is a file beside the scene, or one a model there names (see sidecars).
+  const asset = (rel: string, read: (name: string) => Buffer | null): boolean => ASSETS.test(rel)
+    || readdirSync(gameDir).some((f) => /\.(gltf|glb)$/i.test(f) && ASSETS.test(f) && sidecars(f, read(f)).files.includes(rel));
+  const here = (name: string): Buffer | null => { try { return readFileSync(resolve(gameDir, name)); } catch { return null; } };
   const send = (res: import('node:http').ServerResponse, status: number, type: string, body: string | Buffer): void => {
     res.writeHead(status, { 'content-type': /^(image\/(png|jpeg|webp|gif)|audio\/\w+|model\/gltf-binary|application\/octet-stream)$/.test(type) ? type : `${type}; charset=utf-8`, 'cache-control': 'no-store' });
     res.end(body);
@@ -71,7 +75,7 @@ export function serve(sceneFile: string, inputFile: string | undefined, port: nu
       if (path === '/config.json') return send(res, 200, 'application/json', JSON.stringify({ scene: old.scene, input: !!inputFile, scenes: [old.scene] }));
       if (path.startsWith('/game/')) {
         const rel = path.slice(6);
-        if (!ASSETS.test(rel) || rel.split(/[\\/]/).includes('..')) return send(res, 403, 'text/plain', 'not a game asset');
+        if (rel.split(/[\\/]/).includes('..') || !asset(rel, old.read)) return send(res, 403, 'text/plain', 'not a game asset');
         const data = old.read(rel);
         return data ? typed(res, rel, data) : send(res, 404, 'text/plain', `not found: ${rel}`);
       }
@@ -82,7 +86,7 @@ export function serve(sceneFile: string, inputFile: string | undefined, port: nu
     if (path.startsWith('/engine/')) return file(res, ROOT, path.slice(8));
     if (path.startsWith('/game/')) {
       // Same rule as `build`: only game assets, never dotfiles or stray files next to the scene.
-      if (!ASSETS.test(path.slice(6))) return send(res, 403, 'text/plain', 'not a game asset');
+      if (!asset(path.slice(6), here)) return send(res, 403, 'text/plain', 'not a game asset');
       return file(res, gameDir, path.slice(6));
     }
     send(res, 404, 'text/plain', 'not found');

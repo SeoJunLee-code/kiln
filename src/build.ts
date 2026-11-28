@@ -14,6 +14,31 @@ const BACKEND_FILES: Record<string, string[]> = {
   rapier: ['node_modules/@dimforge/rapier3d-deterministic-compat/dist/rapier.mjs', 'node_modules/@dimforge/rapier3d-deterministic-compat/LICENSE'],
 };
 
+/**
+ * The files a glTF model names beside itself (buffers and images), as paths from the game
+ * folder. Exporters put textures in a subfolder, which the top-level rule above does not
+ * reach, so `build` and `play` take these from the model. A name that leaves the folder,
+ * is hidden or is not buffer or image data is in `refused` and is never published.
+ */
+export function sidecars(name: string, bytes: Uint8Array | null): { files: string[]; refused: string[] } {
+  const files: string[] = [], refused: string[] = [];
+  let json: any;
+  try {
+    // A .glb starts with a 12-byte header, and its first chunk is the JSON.
+    const view = new DataView(bytes!.buffer, bytes!.byteOffset, bytes!.byteLength);
+    const glb = bytes!.length >= 20 && view.getUint32(0, true) === 0x46546c67;
+    json = JSON.parse(new TextDecoder().decode(glb ? bytes!.subarray(20, 20 + view.getUint32(12, true)) : bytes!));
+  } catch { return { files, refused }; } // `check` says what is wrong with the model
+  for (const { uri } of [...(json?.buffers ?? []), ...(json?.images ?? [])]) {
+    if (typeof uri !== 'string' || uri.startsWith('data:')) continue;
+    let rel: string;
+    try { rel = posix.normalize(decodeURIComponent(uri)); } catch { refused.push(uri); continue; }
+    const ok = !/[\\:]/.test(rel) && !rel.startsWith('/') && !rel.split('/').some((s) => s.startsWith('.')) && /\.(bin|png|jpe?g|webp)$/i.test(rel);
+    (ok ? files : refused).push(ok ? rel : uri);
+  }
+  return { files, refused };
+}
+
 // A static host serves `.ts` with a non-script type, so built files are `.js` and say so in their imports.
 const IMPORT = /((?:from|import)\s+')(\.\.?\/[^']+)\.ts'/g;
 // `import('./x.ts')`: a part the player fetches only when a scene needs it.
@@ -52,6 +77,12 @@ export function build(sceneFile: string, outDir: string): { written: string[]; s
   const scenes: string[] = [];
   const skipped: string[] = [];
   const parts = new Set<string>();
+  const copy = (rel: string): void => {
+    if (written.includes(`game/${rel}`)) return;
+    mkdirSync(dirname(join(outDir, 'game', rel)), { recursive: true });
+    copyFileSync(join(gameDir, rel), join(outDir, 'game', rel));
+    written.push(`game/${rel}`);
+  };
   for (const f of readdirSync(gameDir).sort()) {
     const path = join(gameDir, f);
     if (!statSync(path).isFile()) continue;
@@ -62,7 +93,8 @@ export function build(sceneFile: string, outDir: string): { written: string[]; s
     if (/\.(kiln|ts)$/.test(f) && (f.endsWith('.ts') ? /['"`]sound['"`]/ : /^\s+sound(\s|$)/m).test(readFileSync(path, 'utf8'))) parts.add('audio');
     if (f.endsWith('.kiln')) scenes.push(f);
     if (f.endsWith('.ts')) put(`game/${f.replace(/\.ts$/, '.js')}`, toJs(readFileSync(path, 'utf8')));
-    else { mkdirSync(join(outDir, 'game'), { recursive: true }); copyFileSync(path, join(outDir, 'game', f)); written.push(`game/${f}`); }
+    else copy(f);
+    if (/\.(gltf|glb)$/i.test(f)) for (const rel of sidecars(f, readFileSync(path)).files) if (rel.includes('/') && existsSync(join(gameDir, rel))) copy(rel);
   }
 
   // Engine: what the player imports, found by following imports after types are stripped;

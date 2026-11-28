@@ -3,6 +3,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { EDITIONS, isEdition, lowest, needs, over, why } from './edition.ts';
 import { fmtWarn, lint } from './lint.ts';
+import { sidecars } from './build.ts';
 import { loadGltf } from '../web/gltf.ts';
 import { parseExpects } from './expect.ts';
 import { TOPICS, guideText, topicText } from './guide.ts';
@@ -132,6 +133,7 @@ export async function command(cmd: string, a: CmdArgs): Promise<{ text: string; 
         const said = (msg: string): void => {
           if (!warnings.some((w) => w.msg === msg)) warnings.push({ code: 'K315', file, line: 0, msg });
         };
+        for (const uri of sidecars(basename(at), new Uint8Array(readFileSync(at))).refused) said(`mesh '${mesh}': names the file '${uri}', which play and build do not serve`);
         try {
           const model = await loadGltf(new Uint8Array(readFileSync(at)), async (uri) => new Uint8Array(readFileSync(join(dirname(at), uri))));
           for (const w of model.warnings) said(`mesh '${mesh}': ${w}`);
