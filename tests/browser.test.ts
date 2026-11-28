@@ -682,6 +682,28 @@ test('browser: a built game with navigation walks the same way as headless', { s
   } finally { site.close(); }
 });
 
+test('browser: a built game with rules runs them as headless does, and one without does not carry them', { skip }, async () => {
+  const { build } = await import('../src/build.ts');
+  const { run } = await import('../src/run.ts');
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = mkdtempSync(join(tmpdir(), 'kiln-game-')), out = mkdtempSync(join(tmpdir(), 'kiln-site-'));
+  // The mover leaves, a timer puts everything back each half second, and a tally counts the rounds.
+  const text = 'entity a\n  pos 0 0\n  box 1 1\n  vel 4 0\nentity clock\n  timer 0.5 round loop=1\n  when round reset:a\nentity rounds\n  tally round\n';
+  writeFileSync(join(dir, 'round.kiln'), text);
+  const b = build(join(dir, 'round.kiln'), out);
+  assert.deepEqual(b.parts, ['rules']);
+  assert.ok(b.written.includes('engine/src/rules.js'));
+  const site = await host(out);
+  try {
+    const page = await browser.open(`${site.url}?paused&offscreen&scene=round.kiln`, { width: 960, height: 600 });
+    const got = await page.eval<{ hash: string }>(PLAY);
+    assert.equal(got.hash, run(text, { ticks: 90 }).hash);
+    assert.deepEqual(page.errors(), []);
+  } finally { site.close(); }
+});
+
 test('browser: two pages play one game through the relay of play, and stay in step', { skip }, async () => {
   const { serve } = await import('../src/serve.ts');
   const { mkdtempSync, writeFileSync } = await import('node:fs');

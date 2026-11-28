@@ -43,6 +43,8 @@ export function sidecars(name: string, bytes: Uint8Array | null): { files: strin
 const IMPORT = /((?:from|import)\s+')(\.\.?\/[^']+)\.ts'/g;
 // `import('./x.ts')`: a part the player fetches only when a scene needs it.
 const LAZY = /(import\(')(\.\.?\/[^']+)\.ts'/g;
+// What a component is for, said in world.ts for `guide`: a running game never reads it.
+const DOC = /^(defineComponent\('[\w-]+',\s*)'(?:[^'\\\n]|\\.)*'/gm;
 const toJs = (code: string): string => stripTypeScriptTypes(code).replace(IMPORT, "$1$2.js'").replace(LAZY, "$1$2.js'");
 
 /**
@@ -55,10 +57,11 @@ const toJs = (code: string): string => stripTypeScriptTypes(code).replace(IMPORT
  *   nav   path finding: some scene or script has `nav`
  *   net   network play: some scene's world has players=2 or more
  *   particles  some scene or script has `particles`
+ *   rules  `timer`, `when` and the action `reset:`: some scene or script names one
  * Scripts can add components while the game runs, so the test is on what the folder
  * holds, not on what one scene says at tick 0.
  */
-const PARTS: Record<string, string> = { 'web/view3.ts': '3d', 'web/gpu.ts': '3d', 'web/gl.ts': '3d', 'web/gltf.ts': 'gltf', 'web/audio.ts': 'audio', 'src/rigid.ts': 'rigid', 'src/nav.ts': 'nav', 'web/netplay.ts': 'net', 'web/particles.ts': 'particles', 'web/inspect.ts': 'play only' };
+const PARTS: Record<string, string> = { 'web/view3.ts': '3d', 'web/gpu.ts': '3d', 'web/gl.ts': '3d', 'web/gltf.ts': 'gltf', 'web/audio.ts': 'audio', 'src/rigid.ts': 'rigid', 'src/nav.ts': 'nav', 'src/rules.ts': 'rules', 'web/netplay.ts': 'net', 'web/particles.ts': 'particles', 'web/inspect.ts': 'play only' };
 
 /**
  * Write a folder that any static web host can serve (the developer's side panel is hidden
@@ -98,6 +101,7 @@ export function build(sceneFile: string, outDir: string, opts: { panel?: boolean
     if (/\.(kiln|ts)$/.test(f) && (f.endsWith('.ts') ? /['"`]sound['"`]/ : /^\s+sound(\s|$)/m).test(readFileSync(path, 'utf8'))) parts.add('audio');
     if (/\.(kiln|ts)$/.test(f) && (f.endsWith('.ts') ? /['"`]nav['"`]/ : /^\s+nav(\s|$)/m).test(readFileSync(path, 'utf8'))) parts.add('nav');
     if (/\.(kiln|ts)$/.test(f) && (f.endsWith('.ts') ? /['"`]particles['"`]/ : /^\s+particles(\s|$)/m).test(readFileSync(path, 'utf8'))) parts.add('particles');
+    if (/\.(kiln|ts)$/.test(f) && (f.endsWith('.ts') ? /['"`](timer|when)['"`]|reset:/ : /^\s+(timer|when)(\s|$)|reset:/m).test(readFileSync(path, 'utf8'))) parts.add('rules');
     if (f.endsWith('.kiln')) scenes.push(f);
     if (f.endsWith('.kiln') && /^world\b.*\splayers=([2-9]|[1-9]\d)\b/m.test(readFileSync(path, 'utf8'))) parts.add('net');
     if (f.endsWith('.ts')) put(`game/${f.replace(/\.ts$/, '.js')}`, toJs(readFileSync(path, 'utf8')));
@@ -122,7 +126,7 @@ export function build(sceneFile: string, outDir: string, opts: { panel?: boolean
       seen.add(dep);
       todo.push(dep);
     }
-    put(`engine/${rel.replace(/\.ts$/, '.js')}`, squeeze(js.replace(IMPORT, "$1$2.js'").replace(LAZY, "$1$2.js'")));
+    put(`engine/${rel.replace(/\.ts$/, '.js')}`, squeeze((rel === 'src/world.ts' ? js.replace(DOC, "$1''") : js).replace(IMPORT, "$1$2.js'").replace(LAZY, "$1$2.js'")));
   }
 
   for (const name of backends) {
@@ -135,7 +139,7 @@ export function build(sceneFile: string, outDir: string, opts: { panel?: boolean
   }
 
   put('index.html', readFileSync(join(ROOT, 'web/index.html'), 'utf8').replace('engine/web/player.ts', 'engine/web/player.js'));
-  put('config.json', JSON.stringify({ scene: basename(sceneFile), input: false, built: true, scenes, nav: parts.has('nav'), particles: parts.has('particles'), panel: !!opts.panel }));
+  put('config.json', JSON.stringify({ scene: basename(sceneFile), input: false, built: true, scenes, nav: parts.has('nav'), rules: parts.has('rules'), particles: parts.has('particles'), panel: !!opts.panel }));
   parts.delete('rigid'); // it is the backend's other half, not a part of its own
   return { written, skipped, parts: [...parts].sort(), engineBytes };
 }

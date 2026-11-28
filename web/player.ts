@@ -116,6 +116,8 @@ try {
   await loadBackend(physicsOf(sceneText), cfg.scene);
   // A built game that does not use navigation was built without it.
   if (cfg.nav !== false) await import('../src/nav.ts');
+  // Nor does one without `timer`, `when` or `reset:` carry those.
+  if (cfg.rules !== false) await import('../src/rules.ts');
   // Particles are a part too, wanted from the first tick on.
   const dots = cfg.particles === false ? null : await part(import('./particles.ts').then((m) => m.makeParticles()));
 
