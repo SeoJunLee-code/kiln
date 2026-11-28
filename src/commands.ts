@@ -41,6 +41,8 @@ export interface CmdArgs {
   observe?: boolean;
   events?: boolean;
   out?: string;
+  /** test, run: a scene file or git revision to run beside this one, to say where they first differ */
+  before?: string;
   /** test, run: when the scene loads another, go on in that one with its NAME.input */
   follow?: boolean;
   /** solve: ticks each key choice is held (default 5) */
@@ -174,7 +176,9 @@ export async function command(cmd: string, a: CmdArgs): Promise<{ text: string; 
       out.push(s.input.trimEnd(), `ok solved tick=${s.tick} states=${s.states}${a.out ? ` wrote=${a.out}` : ''}`);
       return done(0);
     }
+    const start = parseScene(text, file).world.tick;
     let r = run(text, { input, file, inputFile: a.inputFile, ticks: a.ticks, mods });
+    const first = r;
     const report = (r: RunResult, file: string): void => {
       if (cmd !== 'test') return;
       // Following a game through its scenes, only what failed is worth a line.
@@ -207,6 +211,11 @@ export async function command(cmd: string, a: CmdArgs): Promise<{ text: string; 
     if (a.view) out.push(view(r.world).trimEnd());
     if (a.top) out.push(view(r.world, 'xz').trimEnd());
     if (a.out) writeFileSync(a.out, serialize(r.world, [], r.uses));
+    if (a.before !== undefined) {
+      if (a.scene !== undefined || a.follow) return out.push('E K002 before needs a scene file and no follow'), done(2);
+      const { divergence } = await import('./before.ts');
+      out.push(...await divergence(file, text, a.before, first.world.tick - start, { input, inputFile: a.inputFile }));
+    }
     const failed = r.expects.filter((e) => !e.ok).length;
     const bad = cmd === 'test' && failed > 0;
     out.push(`${bad ? 'fail' : 'ok'} tick=${r.world.tick} hash=${r.hash}${cmd === 'test' ? ` passed=${r.expects.length - failed} failed=${failed}` : ''}${r.load !== undefined ? ` load=${r.load}` : ''}${path.length > 1 ? ` path=${path.join('>')}` : ''}`);
