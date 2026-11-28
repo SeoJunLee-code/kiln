@@ -23,8 +23,8 @@ A row whose Kiln cell says **gated** and then names a part in brackets is
 Such a row does not close a gate by itself and is counted apart from the rows
 gated in full (rule added 2026-11-27).
 
-Counted on 2026-11-28, 63 rows: **23 gated in full, 12 gated in part, 6 works,
-21 none**, and one row that is a number (platforms). By the edition column of
+Counted on 2026-11-28, 63 rows: **23 gated in full, 13 gated in part, 6 works,
+20 none**, and one row that is a number (platforms). By the edition column of
 the tables:
 
 | Edition | gated in full | gated in part | works | none | number | rows |
@@ -32,7 +32,7 @@ the tables:
 | all | 16 | 1 | 6 | 2 | 0 | 25 |
 | Lite | 6 | 7 | 0 | 2 | 0 | 15 |
 | Lite? | 0 | 0 | 0 | 2 | 0 | 2 |
-| Standard | 1 | 4 | 0 | 8 | 1 | 14 |
+| Standard | 1 | 5 | 0 | 7 | 1 | 14 |
 | Ultra | 0 | 0 | 0 | 5 | 0 | 5 |
 | — | 0 | 0 | 0 | 2 | 0 | 2 |
 
@@ -129,10 +129,10 @@ Neither engine was built for this; these rows are why Kiln exists.
 | Boxes and OBJ meshes, one shadowed sun | Lite | yes | yes | yes | **gated** | reference images, both renderers |
 | WebGPU renderer | Standard | — | — | — | **gated** | held to the WebGL2 reference images; canvas output tested on Windows and macOS |
 | Rotation and full transforms | Standard | yes | yes | yes | **gated** (WebGPU; no parenting) | quaternion is hashed state on 3 OSes; WebGPU-only reference image (`orrery3d`). Collision ignores it |
-| glTF import | Standard | yes | yes | yes | **gated** (static models) | reader tests; `check` reports what a model would lose (K315); WebGPU-only reference image (`gallery3d`). No animation, skins or extensions; files from this project's writer and from Godot 4.7.2's exporter (a texture in a subfolder is built and served). Khronos sample models are untried |
+| glTF import | Standard | yes | yes | yes | **gated** (no morph targets or extensions) | reader tests; `check` reports what a model would lose (K315); WebGPU-only reference image (`gallery3d`). Skins and animations load (the row below). Files from this project's writer and from Godot 4.7.2's exporter (a texture in a subfolder is built and served). Khronos sample models are untried |
 | PBR materials, textures | Standard | yes | yes | yes | **gated** (WebGPU) | reference image (`gallery3d`): metallic-roughness, base color, normal, occlusion and emissive maps, mipmaps. One sun and a fixed sky/ground ambient; no environment map |
 | Many lights, cascaded shadows | Standard | yes | yes | yes | none | |
-| Skeletal animation, blending, IK | Standard | yes | yes | yes | none | |
+| Skeletal animation, blending, IK | Standard | yes | yes | yes | **gated** (clips only: no blending or IK; WebGPU) | `clip NAME [speed] [from] [loop]` plays a glTF animation, skinned or not, as a function of the tick: tests on what Godot exported (`examples/bend.glb`), the pose against hand-worked places, a browser test that the same moment looks the same, reference image (`rig3d`). Vertices are posed on the CPU, once per distinct moment on screen; how many characters that holds is not measured |
 | GPU-driven culling, automatic LOD (Nanite class) | Ultra | no | partial | yes | none | |
 | Dynamic global illumination (Lumen class) | Ultra | partial | partial | yes | none | |
 | Post effects, temporal upscaling | Ultra | yes | yes | yes | none | |

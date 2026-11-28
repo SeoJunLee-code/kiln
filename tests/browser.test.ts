@@ -476,6 +476,31 @@ test('browser: glTF models are drawn by WebGPU with their materials, and as boxe
   } finally { await player.close(); }
 });
 
+test('browser: clip poses a model by the tick: it moves, comes round, and the same moment looks the same', { skip }, async () => {
+  const player = await openPlayer(ex('rig3d.kiln'), { browser, query: 'renderer=webgpu' });
+  try {
+    const shots = await player.page.eval<{ renderer: string; a: string; b: string; again: string; still: string }>(`(async () => {
+      // The flag of 'signal' takes four seconds to come round; the two reeds take one.
+      kiln.world.despawn(kiln.world.match('signal')[0]);
+      kiln.runTo(75);
+      const a = await kiln.shot();
+      kiln.runTo(90);
+      const b = (await kiln.shot()).png;
+      kiln.runTo(315);
+      const again = (await kiln.shot()).png;
+      for (const id of kiln.world.query('clip')) kiln.world.comps.get('clip').delete(id);
+      return { renderer: a.renderer, a: a.png, b, again, still: (await kiln.shot()).png };
+    })()`);
+    if (shots.renderer !== 'webgpu') return; // no WebGPU in this browser
+    assert.deepEqual(player.page.errors(), []);
+    const png = (url: string) => decodePng(Buffer.from(url.slice(url.indexOf(',') + 1), 'base64'));
+    assert.ok(compare(png(shots.a), png(shots.b)).changed > 0.005, 'the animation did not move');
+    // The walker has stopped by tick 40, and 315 is four periods of the reeds after 75.
+    assert.ok(compare(png(shots.a), png(shots.again)).changed < 0.001, 'the same moment of the animation looks the same');
+    assert.ok(compare(png(shots.again), png(shots.still)).changed > 0.005, 'without clip the model is at rest');
+  } finally { await player.close(); }
+});
+
 // A host that knows nothing about Kiln: files by extension, under a sub-path as on a project page.
 async function host(out: string): Promise<{ url: string; close: () => void }> {
   const { createServer } = await import('node:http');

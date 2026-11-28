@@ -48,13 +48,13 @@ const toJs = (code: string): string => stripTypeScriptTypes(code).replace(IMPORT
 /**
  * Engine modules a game may do without, and the part each belongs to. A game ships a
  * part only if it uses it (docs/EDITIONS.md, rule 4):
- *   3d    the two renderers: some scene or script has `eye`
+ *   3d    the 3D view and the two renderers: some scene or script has `eye`
  *   gltf  the glTF reader: a model file is in the game folder
  *   audio samples and music: some scene or script has `sound`
  * Scripts can add components while the game runs, so the test is on what the folder
  * holds, not on what one scene says at tick 0.
  */
-const PARTS: Record<string, string> = { 'web/gpu.ts': '3d', 'web/gl.ts': '3d', 'web/gltf.ts': 'gltf', 'web/audio.ts': 'audio', 'web/inspect.ts': 'play only' };
+const PARTS: Record<string, string> = { 'web/view3.ts': '3d', 'web/gpu.ts': '3d', 'web/gl.ts': '3d', 'web/gltf.ts': 'gltf', 'web/audio.ts': 'audio', 'web/inspect.ts': 'play only' };
 
 /**
  * Write a folder that any static web host can serve: the player, the engine modules it

@@ -13,7 +13,7 @@ const BOX = 'entity a\n  pos 0 0\n  box 1 1\n';
 
 // The edition of every example, written down so that a change in where the line falls is a
 // change someone made on purpose. Standard here is exactly: Rapier, glTF, or turning in 3D.
-const STANDARD = ['gallery3d', 'orrery3d', 'tumble3d'];
+const STANDARD = ['gallery3d', 'orrery3d', 'rig3d', 'tumble3d'];
 
 test('edition: each example needs the edition written here', async () => {
   for (const f of readdirSync(root('examples')).filter((x) => x.endsWith('.kiln'))) {
@@ -103,7 +103,7 @@ test('edition: a folder is a game, and needs the largest edition of its scenes',
 
 test('edition: the component reference marks what is not Lite', () => {
   const marked = schemaText().split('\n').filter((l) => l.includes('[standard]')).map((l) => l.split(' ')[0]);
-  assert.deepEqual(marked.sort(), ['force', 'impulse', 'quat', 'rigid']);
+  assert.deepEqual(marked.sort(), ['clip', 'force', 'impulse', 'quat', 'rigid']);
 });
 
 // Rule 6 of docs/EDITIONS.md: a Lite feature is drawn by both renderers. The picture check
@@ -192,10 +192,10 @@ test('edition: a built game carries only the parts it uses, within the byte budg
   // The player asks for its parts by the names a static host will have. inspect.js is the panel
   // of `play`: named here, never written into a build and never asked for by a built game.
   const player = readFileSync(join(flat.out, 'engine/web/player.js'), 'utf8');
-  assert.deepEqual([...player.matchAll(/import\('(\.[^']+)'\)/g)].map((m) => m[1]).sort(), ['./audio.js', './gl.js', './gltf.js', './gpu.js', './inspect.js']);
+  assert.deepEqual([...player.matchAll(/import\('(\.[^']+)'\)/g)].map((m) => m[1]).sort(), ['./audio.js', './inspect.js', './view3.js']);
 
   const solid = built(game(['arena3d.kiln', 'gem.obj']), 'arena3d.kiln');
-  assert.deepEqual([solid.parts, solid.web], [['3d'], ['gl.js', 'gpu.js', 'mesh.js', 'player.js']]);
+  assert.deepEqual([solid.parts, solid.web], [['3d'], ['gl.js', 'gpu.js', 'mesh.js', 'player.js', 'view3.js']]);
   assert.ok(solid.engineBytes <= BUDGET.lite3d, `3D Lite engine is ${solid.engineBytes} bytes, budget ${BUDGET.lite3d}`);
 
   // Samples and music are a part too: a scene with `sound` brings it, and its files go along.
@@ -206,7 +206,7 @@ test('edition: a built game carries only the parts it uses, within the byte budg
 
   // A script can add `eye` while the game runs, so naming it in a script is enough; a model file is enough for the reader.
   const scripted = built(game(['maze.kiln', 'crate.glb'], { 'cam.ts': `export default (k) => k.system('post', (w) => w.add(0, 'eye', { x: 0, y: 0, z: 0, fov: 55 }));\n` }), 'maze.kiln');
-  assert.deepEqual([scripted.parts, scripted.web], [['3d', 'gltf'], ['gl.js', 'gltf.js', 'gpu.js', 'mesh.js', 'player.js']]);
+  assert.deepEqual([scripted.parts, scripted.web], [['3d', 'gltf'], ['gl.js', 'gltf.js', 'gpu.js', 'mesh.js', 'player.js', 'view3.js']]);
   assert.ok(!scripted.written.some((f) => f.startsWith('engine/backends/')));
 
   if (!existsSync(root('backends/rapier/node_modules'))) return; // the optional backend is not installed

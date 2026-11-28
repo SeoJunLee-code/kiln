@@ -1,8 +1,7 @@
 // Browser player. It runs the same simulation modules as the headless CLI and only
 // adds drawing and keyboard input. Floats appear here for drawing, never in the simulation.
 import type { Sounds } from './audio.ts';
-import type { Model } from './gltf.ts';
-import type { Box3, Renderer3 } from './mesh.ts';
+import type { View3 } from './view3.ts';
 import { makeApi } from '../src/api.ts';
 import { evalTick, parseExpects } from '../src/expect.ts';
 import type { Expect } from '../src/expect.ts';
@@ -32,79 +31,18 @@ const part = <T>(module: Promise<T>): Promise<T | null> => module.catch((e) => {
   console.error(`engine part missing from this build: ${(e as Error).message}`);
   return null;
 });
-let gl3: Renderer3 | null | undefined;
-let rendererAsked = false;
-const wantRenderer = (): void => {
-  if (rendererAsked) return;
-  rendererAsked = true;
-  const only = new URLSearchParams(location.search).get('renderer');
-  loading.push((async () => {
-    let made: Renderer3 | null = null;
-    // ?offscreen: WebGPU frames are made for pictures only and never shown (see look).
-    const gpu = only !== 'webgl2' ? await part(import('./gpu.ts')) : null;
-    if (gpu) made = await gpu.makeRendererGpu(canvas3, new URLSearchParams(location.search).has('offscreen')).catch(() => null);
-    const gl = !made && only !== 'webgpu' ? await part(import('./gl.ts')) : null;
-    if (gl) made = gl.makeRenderer3(canvas3);
-    for (const [path, text] of meshText) made?.addMesh(path, text);
-    await Promise.all([...models].map(([path, model]) => made?.addModel?.(path, model)));
-    gl3 = made;
-  })());
+// The 3D view (renderers, model reader, mesh files) is a part: fetched when a scene first has an eye.
+let view3: View3 | null | undefined;
+let view3Asked = false;
+const wantView3 = (): void => {
+  if (view3Asked) return;
+  view3Asked = true;
+  loading.push(part(import('./view3.ts')).then(async (m) => { view3 = await m?.makeView3(canvas3, GAME, loading, part); }));
 };
 
-// Mesh files asked for so far. Each is fetched once and handed to the renderer when it arrives;
-// until then (or if it fails) the entity is drawn as its box.
-const meshAsked = new Set<string>();
-// Mesh text that has arrived, kept for a renderer that is made later.
-const meshText = new Map<string, string>();
 // Assets still on their way. A picture taken for a check waits for these, so it never
 // shows the fallback box of a mesh or image that simply had not arrived yet.
 const loading: Promise<unknown>[] = [];
-// glTF models that have arrived. Only a renderer with addModel draws them; elsewhere the box shows.
-const models = new Map<string, Model>();
-const isModel = (path: string): boolean => /\.(gltf|glb)$/i.test(path);
-const bytesOf = async (url: URL): Promise<Uint8Array> => {
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`${r.status}`);
-  return new Uint8Array(await r.arrayBuffer());
-};
-const loadModel = async (path: string): Promise<void> => {
-  try {
-    const at = new URL(path, GAME), reader = await part(import('./gltf.ts'));
-    if (!reader) return;
-    const model = await reader.loadGltf(await bytesOf(at), (uri) => bytesOf(new URL(uri, at)));
-    for (const w of model.warnings) console.warn(`${path}: ${w}`);
-    models.set(path, model);
-    await gl3?.addModel?.(path, model);
-  } catch (e) {
-    // Reported, so a check sees it; the entity is drawn as its box.
-    console.error(`mesh ${path}: ${(e as Error).message}`);
-  }
-};
-const wantMesh = (path: string): string => {
-  if (!meshAsked.has(path)) {
-    meshAsked.add(path);
-    if (isModel(path)) loading.push(loadModel(path));
-    else loading.push(fetch(new URL(path, GAME)).then((r) => (r.ok ? r.text() : '')).then((t) => { if (t) { meshText.set(path, t); gl3?.addMesh(path, t); } }).catch(() => {}));
-  }
-  return path;
-};
-
-// CSS color name -> rgb 0..1, resolved by the browser and cached.
-const rgbCache = new Map<string, number[]>();
-const probe = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!;
-const rgb = (css: string): number[] => {
-  let c = rgbCache.get(css);
-  if (!c) {
-    probe.clearRect(0, 0, 1, 1);
-    probe.fillStyle = '#d7dbe2';
-    probe.fillStyle = css;
-    probe.fillRect(0, 0, 1, 1);
-    const d = probe.getImageData(0, 0, 1, 1).data;
-    rgbCache.set(css, (c = [d[0] / 255, d[1] / 255, d[2] / 255]));
-  }
-  return c;
-};
-
 let world: World, expects: Expect[], script: InputScript;
 let log: string[] = [];
 // The last tick of `log`: after a rewind it lies ahead, and a new press drops what follows.
@@ -283,53 +221,13 @@ try {
     }
   };
 
-  const draw3 = (eyeId: number): void => {
-    const boxes: Box3[] = [];
-    const u = (n: number | string): number => (n as number) / ONE;
-    for (const m of world.query('tiles', 'pos')) {
-      const t = world.get(m, 'tiles')!, p = world.get(m, 'pos')!, size = u(t.size);
-      tileRows(t).forEach((row, r) => {
-        for (let c = 0; c < row.length; c++) {
-          if (row[c] === '.') continue;
-          const flat = t.plane === 'xz';
-          boxes.push({
-            p: flat ? [u(p.x) + c * size, u(p.y), u(p.z) + r * size] : [u(p.x) + c * size, u(p.y) + r * size, u(p.z)],
-            s: flat ? [size, u(t.depth), size] : [size, size, u(t.depth)],
-            // A painted color shows in 3D too; a painted image is for the 2D view only.
-            color: rgb(paintOf(t.paint as string).get(row[c])?.[0] || ((t.solid as string).includes(row[c]) ? '#59616e' : '#7a8494')),
-          });
-        }
-      });
-    }
-    for (const id of world.query('pos', 'box')) {
-      const p = world.get(id, 'pos')!, b = world.get(id, 'box')!, sp = world.get(id, 'sprite'), color = (sp?.color as string) ?? 'white';
-      const qt = world.get(id, 'quat'), r = world.get(id, 'rot');
-      let q: number[] | undefined;
-      if (qt) q = [u(qt.x), u(qt.y), u(qt.z), u(qt.w)];
-      else if (r) {
-        const half = (u(r.angle) * Math.PI) / 360, s = Math.sin(half);
-        q = [r.axis === 'x' ? s : 0, r.axis === 'y' ? s : 0, r.axis === 'z' ? s : 0, Math.cos(half)];
-      }
-      boxes.push({
-        q,
-        p: [u(p.x), u(p.y), u(p.z)], s: [u(b.w), u(b.h), u(b.d)],
-        // A model keeps its own colors unless the sprite names one, which then tints it.
-        color: color === 'white' && sp?.mesh && isModel(sp.mesh as string) && gl3?.addModel ? [1, 1, 1] : rgb(color === 'white' ? (world.has(id, 'solid') ? '#59616e' : '#d7dbe2') : color),
-        mesh: sp?.mesh ? wantMesh(sp.mesh as string) : undefined,
-      });
-    }
-    const e = world.get(eyeId, 'eye')!, p = world.get(eyeId, 'pos')!, b = world.get(eyeId, 'box');
-    const target = [u(p.x) + u(b?.w ?? 0) / 2, u(p.y) + u(b?.h ?? 0) / 2, u(p.z) + u(b?.d ?? 0) / 2];
-    gl3!.draw(boxes, [target[0] + u(e.x), target[1] + u(e.y), target[2] + u(e.z)], target, e.fov as number);
-  };
-
   const draw = (): void => {
     const eyeId = world.query('eye', 'pos')[0];
-    if (eyeId !== undefined) wantRenderer();
-    const use3 = eyeId !== undefined && !!gl3;
+    if (eyeId !== undefined) wantView3();
+    const use3 = eyeId !== undefined && !!view3;
     canvas3.hidden = !use3;
     canvas.hidden = use3;
-    if (use3) return draw3(eyeId);
+    if (use3) return view3!.draw(world, eyeId);
     const dpr = window.devicePixelRatio || 1;
     cw = canvas.clientWidth;
     ch = canvas.clientHeight;
@@ -530,15 +428,15 @@ try {
         // Arriving assets can ask for more, so wait until a draw adds nothing new.
         for (let seen = -1; seen !== loading.length;) { seen = loading.length; await Promise.all(loading); draw(); }
         const use3 = !canvas3.hidden;
-        const pixels = use3 ? await gl3!.read?.() : null;
+        const pixels = use3 ? await view3!.read?.() : null;
         if (pixels) {
           const copy = document.createElement('canvas');
           copy.width = pixels.width;
           copy.height = pixels.height;
           copy.getContext('2d')!.putImageData(new ImageData(pixels.rgba, pixels.width, pixels.height), 0, 0);
-          return { renderer: gl3!.name, png: copy.toDataURL('image/png') };
+          return { renderer: view3!.name, png: copy.toDataURL('image/png') };
         }
-        return { renderer: use3 ? gl3!.name : '2d', png: (use3 ? canvas3 : canvas).toDataURL('image/png') };
+        return { renderer: use3 ? view3!.name : '2d', png: (use3 ? canvas3 : canvas).toDataURL('image/png') };
       },
       expects: () => expects.map((e) => `${e.ok === undefined ? 'open' : e.ok ? 'pass' : 'FAIL'} ${e.text}`),
     },

@@ -1,4 +1,4 @@
-# Makes the glTF files under examples/godot/ with Godot's exporter, so that the reader is
+# Makes the Godot-exported glTF files among the examples (examples/godot/, examples/bend.glb) with Godot's exporter, so that the reader is
 # tried on files another tool wrote. Everything in them is built here from formulas: no
 # art is imported, so they are under this repository's licence.
 #

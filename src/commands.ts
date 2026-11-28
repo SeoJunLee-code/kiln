@@ -127,9 +127,11 @@ export async function command(cmd: string, a: CmdArgs): Promise<{ text: string; 
       // Files can only be checked when the scene came from disk.
       const warnings = lint(s, file, a.scene === undefined ? (name) => existsSync(join(dirname(file), name)) : undefined, text);
       // A model is read the way the player will read it, so what it would lose shows up here.
+      const isModel = (id: number): boolean => /\.(gltf|glb)$/i.test((s.world.get(id, 'sprite')?.mesh as string) ?? '');
+      for (const id of s.world.query('clip')) if (!isModel(id)) warnings.push({ code: 'K315', file, line: s.at.get(`${id} clip`) ?? 0, msg: `'clip' on '${s.world.names[id]}' needs a glTF mesh` });
       if (a.scene === undefined) for (const id of s.world.query('sprite')) {
         const mesh = s.world.get(id, 'sprite')!.mesh as string, at = join(dirname(file), mesh);
-        if (!/\.(gltf|glb)$/i.test(mesh) || !existsSync(at)) continue;
+        if (!isModel(id) || !existsSync(at)) continue;
         const said = (msg: string): void => {
           if (!warnings.some((w) => w.msg === msg)) warnings.push({ code: 'K315', file, line: 0, msg });
         };
@@ -137,6 +139,8 @@ export async function command(cmd: string, a: CmdArgs): Promise<{ text: string; 
         try {
           const model = await loadGltf(new Uint8Array(readFileSync(at)), async (uri) => new Uint8Array(readFileSync(join(dirname(at), uri))));
           for (const w of model.warnings) said(`mesh '${mesh}': ${w}`);
+          const clip = s.world.get(id, 'clip')?.name as string | undefined, has = model.clips.map((c) => c.name);
+          if (clip !== undefined && !has.includes(clip)) said(`mesh '${mesh}' has no animation '${clip}' (it has: ${has.join(', ') || 'none'})`);
         } catch (e) { said(`mesh '${mesh}' cannot be read: ${(e as Error).message}`); }
       }
       for (const d of warnings) out.push(fmtWarn(d));

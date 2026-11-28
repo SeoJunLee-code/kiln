@@ -8,7 +8,7 @@
 // dependency to take them from.
 import { boxMatrix, cube, lookAt, mul, norm, ortho01, parseObj, perspective01, sub, SHADOW_SIZE, SKY, SUN } from './mesh.ts';
 import type { Box3, Renderer3 } from './mesh.ts';
-import type { Model, Wrap } from './gltf.ts';
+import type { Model, Poses, Wrap } from './gltf.ts';
 
 const SAMPLES = 4;
 // One instance: a 4x4 transform (object's unit cube -> world) and a color.
@@ -185,6 +185,8 @@ export async function makeRendererGpu(canvas: HTMLCanvasElement, offscreen = fal
   };
   // What a box draws as: a name is a list of meshes, one per material.
   const meshes = new Map<string, Mesh[]>();
+  // Models that can move: a pose has vertex buffers of its own (see Model.poses).
+  const moving = new Map<string, Poses<Mesh[]>>();
 
   const buffers = [
     {
@@ -315,12 +317,13 @@ export async function makeRendererGpu(canvas: HTMLCanvasElement, offscreen = fal
     // Instances, grouped so that each mesh is one draw call.
     const groups = new Map<Mesh, Box3[]>();
     let total = 0;
-    for (const b of boxes) for (const mesh of (b.mesh && meshes.get(b.mesh)) || [box]) {
+    for (const b of boxes) for (const mesh of (b.clip && moving.get(b.mesh!)?.of(b.clip, b.tick!, b.hz!)) || (b.mesh && meshes.get(b.mesh)) || [box]) {
       let group = groups.get(mesh);
       if (!group) groups.set(mesh, (group = []));
       group.push(b);
       total++;
     }
+    for (const poses of moving.values()) poses.sweep();
     if (total * INSTANCE_FLOATS > instances.length) {
       instances = new Float32Array(Math.max(total, instances.length / INSTANCE_FLOATS * 2) * INSTANCE_FLOATS);
       instanceBuffer.destroy();
@@ -408,7 +411,12 @@ export async function makeRendererGpu(canvas: HTMLCanvasElement, offscreen = fal
         );
       }));
       const parts = model.parts.filter((p) => p.data.length).map((p) => upload(p.data, materials[p.material]));
-      if (parts.length) meshes.set(name, parts);
+      if (!parts.length) return;
+      meshes.set(name, parts);
+      if (model.clips.length) moving.set(name, model.poses(
+        () => parts.map((p) => upload(new Float32Array(p.count * 8), p.material)),
+        (into, data) => into.forEach((mesh, i) => device.queue.writeBuffer(mesh.buffer, 0, data[i])),
+      ));
     },
     draw(boxes, eye, target, fovDeg) {
       last = [boxes, eye, target, fovDeg];

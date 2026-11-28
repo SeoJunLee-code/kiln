@@ -52,6 +52,8 @@ defineComponent('impulse', 'on a rigid: one shove (mass x speed), then removed',
 defineComponent('force', 'on a rigid: a push every tick', [f('x', 'fx', 0), f('y', 'fx', 0), f('z', 'fx', 0)], 'physics', ['physics', 'standard']);
 defineComponent('eye', '3D view: a camera at this entity plus the offset, looking at it; ignored headless',
   [f('x', 'fx'), f('y', 'fx'), f('z', 'fx'), f('fov', 'int', 55)], 'view');
+defineComponent('clip', '3D: play glTF animation NAME from tick FROM; speed<0 reverses',
+  [f('name', 'str'), f('speed', 'fx', 65536), f('from', 'int', 0), f('loop', 'int', 1)], 'view', ['drawing', 'standard']);
 defineComponent('anim', '2D: the sprite image is FRAMES pictures side by side, shown in turn. idle=N: the first N while still, the rest while moving. face: 1 right, -1 left (drawn mirrored); the engine sets it from vel x',
   [f('frames', 'int'), f('fps', 'int', 8), f('idle', 'int', 0), f('face', 'int', 1)], 'view');
 defineComponent('label','text drawn above the entity in 2D; _ is a space', [f('text', 'str'), f('color', 'str', 'white')], 'view');

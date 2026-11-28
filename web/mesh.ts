@@ -88,6 +88,10 @@ export interface Box3 {
   p: number[]; s: number[]; color: number[]; mesh?: string;
   /** Orientation as a quaternion (x, y, z, w) in the simulation's axes, turning the box about its centre. */
   q?: number[];
+  /** A moving model's `clip` component, and when it is being looked at: an animation's time comes from the tick alone, so a replay draws the same frames. */
+  clip?: import('../src/world.ts').Comp;
+  tick?: number;
+  hz?: number;
 }
 
 /**

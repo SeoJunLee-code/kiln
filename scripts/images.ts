@@ -27,7 +27,7 @@ const CASES: [scene: string, tick: number, renderer?: string, own?: 'own'][] = [
   ['maze', 0], ['cave', 60], ['dungeon', 0], ['platformer', 90], ['level1', 0], ['title', 0],
   ['sokoban', 120], ['quest', 200], ['windmill', 100], ['garden', 60], ['stroll', 150],
   ['arena3d', 120, 'webgl2'], ['arena3d', 120, 'webgpu'], ['crypt3d', 60, 'webgl2'], ['crypt3d', 60, 'webgpu'],
-  ['orrery3d', 100, 'webgpu', 'own'], ['gallery3d', 10, 'webgpu', 'own'], ['tumble3d', 70, 'webgpu', 'own'],
+  ['orrery3d', 100, 'webgpu', 'own'], ['gallery3d', 10, 'webgpu', 'own'], ['tumble3d', 70, 'webgpu', 'own'], ['rig3d', 15, 'webgpu', 'own'],
 ];
 // A pixel counts as changed when a channel moves by more than 8 of 255. A picture fails
 // when more than 0.2% of its pixels changed; across renderers, where edges are

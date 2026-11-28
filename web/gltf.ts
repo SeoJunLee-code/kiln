@@ -1,8 +1,10 @@
 // glTF 2.0 reader: .glb, or .gltf with its .bin and image files. No dependencies.
-// It reads what a static model needs (the node tree, triangle meshes, metallic-roughness
-// materials and their textures) and says in `warnings` what it left out. Nothing here
+// It reads the node tree, triangle meshes, metallic-roughness materials and their textures,
+// skins and animations, and says in `warnings` what it left out. Nothing here
 // touches the GPU or the page, so it also runs under Node for `check` and the tests.
 // Floats only: none of this reaches the simulation.
+import { ONE } from '../src/fx.ts';
+import type { Comp } from '../src/world.ts';
 
 export interface Material {
   /** Base color factor, RGBA. */
@@ -27,6 +29,36 @@ export type Wrap = 'repeat' | 'clamp-to-edge' | 'mirror-repeat';
 export interface Texture { image: number; wrapS: Wrap; wrapT: Wrap; smooth: boolean }
 /** Triangles of one material: per vertex position (3), normal (3), uv (2). */
 export interface Part { data: Float32Array; material: number }
+/** One primitive of one node: its vertices as the file has them, and where they go. */
+interface Piece {
+  node: number;
+  /** Index into Rig.skins, or -1. */
+  skin: number;
+  /** Which part it goes into, and at which vertex of it. */
+  part: number;
+  at: number;
+  /** Per vertex: position, normal (empty: the face's own is used), uv, and for a skin 4 joints and 4 weights. */
+  position: Float64Array;
+  normal: Float64Array;
+  uv: Float64Array;
+  joints: Float64Array;
+  weights: Float64Array;
+  /** Three vertex numbers per triangle, in the order they are drawn. */
+  corners: number[];
+}
+export interface Channel { node: number; path: 'translation' | 'rotation' | 'scale'; times: Float64Array; values: Float64Array; blend: string }
+export interface Clip { name: string; duration: number; channels: Channel[] }
+interface Node { parent: number; t: number[]; r: number[]; s: number[]; matrix?: number[] }
+/** What it takes to pose a model that moves. */
+export interface Rig {
+  nodes: Node[];
+  /** Node numbers with every parent before its children. */
+  order: number[];
+  skins: { joints: number[]; inverse: Float64Array }[];
+  pieces: Piece[];
+  /** The corner of the rest pose's box: posed frames are fitted to the same box, so they may reach outside it. */
+  lo: number[];
+}
 export interface Model {
   parts: Part[];
   materials: Material[];
@@ -36,6 +68,49 @@ export interface Model {
   /** Size of the model before it was fitted to the unit cube, in its own units. */
   size: number[];
   warnings: string[];
+  /** The animations, by name, for `poseModel`. */
+  clips: Clip[];
+  rig: Rig;
+  /**
+   * The vertex buffers of the poses a renderer has on screen. It is a method so that the
+   * renderers, which a game without models ships too, carry none of this.
+   */
+  poses<T>(make: () => T, write: (into: T, data: Float32Array[]) => void): Poses<T>;
+}
+
+export interface Poses<T> {
+  /**
+   * The buffers for a `clip` component seen at a tick, or nothing when the model has no such
+   * animation. Whoever shows the same moment of the same animation gets the same ones.
+   */
+  of(clip: Comp, tick: number, hz: number): T | undefined;
+  /** End of a frame: buffers no one asked for in it are written over by later poses. */
+  sweep(): void;
+}
+
+function posesOf<T>(model: Model, make: () => T, write: (into: T, data: Float32Array[]) => void): Poses<T> {
+  const out = model.parts.map((p) => new Float32Array(p.data.length)), free: T[] = [];
+  let before = new Map<string, T>(), now = new Map<string, T>();
+  return {
+    of(clip, tick, hz) {
+      // The time comes from the tick alone, so a replay draws the same frames.
+      const seconds = ((tick - (clip.from as number)) / hz) * ((clip.speed as number) / ONE);
+      const key = [clip.name, seconds, clip.loop].join('\n');
+      let got = now.get(key) ?? before.get(key);
+      if (got === undefined) {
+        if (!poseModel(model, clip.name as string, seconds, !!clip.loop, out)) return undefined;
+        write((got = free.pop() ?? make()), out.filter((d) => d.length));
+      }
+      before.delete(key);
+      now.set(key, got);
+      return got;
+    },
+    sweep() {
+      free.push(...before.values());
+      before = now;
+      now = new Map();
+    },
+  };
 }
 
 const GLB = 0x46546c67, CHUNK_JSON = 0x4e4f534a, CHUNK_BIN = 0x004e4942;
@@ -152,8 +227,6 @@ export function buildModel(json: any, buffers: Uint8Array[], images: Image[]): M
   for (const e of json.extensionsRequired ?? []) warn(`requires extension ${e}, which is not supported: the model may be wrong or empty`);
   // Extensions that say something about the file and change nothing in the picture.
   for (const e of json.extensionsUsed ?? []) if (e !== 'GODOT_single_root' && !(json.extensionsRequired ?? []).includes(e)) warn(`uses extension ${e}, which is ignored`);
-  if (json.animations?.length) warn('animations are not played');
-  if (json.skins?.length) warn('skins are ignored: the model is drawn in its bind pose');
 
   /** An accessor's values as plain numbers, `size` per element. */
   const accessor = (index: number): { data: Float64Array; size: number; count: number } => {
@@ -208,86 +281,233 @@ export function buildModel(json: any, buffers: Uint8Array[], images: Image[]): M
     return { image: t.source ?? -1, wrapS: wrap(s.wrapS), wrapT: wrap(s.wrapT), smooth: s.magFilter !== 9728 };
   });
 
-  // Vertices per material, in the model's own space, as they come out of the node tree.
-  const soup = new Map<number, number[]>();
-  const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
-  const visit = (index: number, parent: Mat, seen: Set<number>): void => {
-    const node = json.nodes?.[index];
-    if (!node || seen.has(index)) return;
+  const nodes: Node[] = (json.nodes ?? []).map((n: any): Node => ({
+    parent: -1, t: n.translation ?? [0, 0, 0], r: n.rotation ?? [0, 0, 0, 1], s: n.scale ?? [1, 1, 1], ...(n.matrix ? { matrix: n.matrix } : {}),
+  }));
+  const skins = (json.skins ?? []).map((k: any) => {
+    const joints: number[] = k.joints ?? [];
+    const inverse = k.inverseBindMatrices === undefined ? Float64Array.from(joints.flatMap(() => IDENTITY)) : accessor(k.inverseBindMatrices).data;
+    return { joints, inverse };
+  });
+
+  // The scene the file names, or else every node that is nobody's child.
+  const children = new Set<number>((json.nodes ?? []).flatMap((nd: any) => nd.children ?? []));
+  const roots: number[] = json.scenes?.[json.scene ?? 0]?.nodes ?? (json.nodes ?? []).map((_: any, i: number) => i).filter((i: number) => !children.has(i));
+  const order: number[] = [], drawn: number[] = [];
+  const seen = new Set<number>();
+  const visit = (index: number, parent: number): void => {
+    if (!nodes[index] || seen.has(index)) return;
     seen.add(index);
-    const m = mulMat(parent, localMatrix(node));
+    nodes[index].parent = parent;
+    order.push(index);
+    drawn.push(index);
+    for (const child of json.nodes[index].children ?? []) visit(child, index);
+  };
+  for (const r of roots) visit(r, -1);
+  // A skin may name joints that hang outside the scene; they are posed too, but nothing there is drawn.
+  const outside = (index: number): void => {
+    if (!nodes[index] || seen.has(index)) return;
+    const parent = (json.nodes ?? []).findIndex((n: any) => n.children?.includes(index));
+    if (parent >= 0) outside(parent);
+    if (seen.has(index)) return;
+    seen.add(index);
+    nodes[index].parent = parent;
+    order.push(index);
+  };
+  for (const k of skins) for (const j of k.joints) outside(j);
+
+  const rest = worldMatrices(nodes, order, null);
+  const pieces: Piece[] = [];
+  const count = new Map<number, number>();
+  for (const index of drawn) {
+    const node = json.nodes[index];
     for (const prim of json.meshes?.[node.mesh]?.primitives ?? []) {
       if (prim.attributes?.POSITION === undefined) continue;
       const mode = prim.mode ?? 4;
       if (mode < 4) { warn('points and lines are not drawn'); continue; }
       const pos = accessor(prim.attributes.POSITION);
-      const nor = prim.attributes.NORMAL === undefined ? null : accessor(prim.attributes.NORMAL);
-      const uv = prim.attributes.TEXCOORD_0 === undefined ? null : accessor(prim.attributes.TEXCOORD_0);
-      const order = prim.indices === undefined ? Float64Array.from({ length: pos.count }, (_, i) => i) : accessor(prim.indices).data;
+      const values = (name: string): Float64Array => (prim.attributes[name] === undefined ? new Float64Array(0) : accessor(prim.attributes[name]).data);
+      const list = prim.indices === undefined ? Float64Array.from({ length: pos.count }, (_, i) => i) : accessor(prim.indices).data;
       if (prim.targets?.length) warn('morph targets are ignored');
+      if (prim.attributes.JOINTS_1 !== undefined) warn('only the first four joints of a vertex are used');
+      const joints = values('JOINTS_0'), weights = values('WEIGHTS_0');
+      const skin = node.skin !== undefined && skins[node.skin] && joints.length && weights.length ? node.skin : -1;
       // Every mode becomes a list of triangles.
       const tris: number[] = [];
-      if (mode === 4) for (let i = 0; i + 2 < order.length; i += 3) tris.push(order[i], order[i + 1], order[i + 2]);
-      else if (mode === 5) for (let i = 0; i + 2 < order.length; i++) tris.push(order[i], order[i + 1 + (i % 2)], order[i + 2 - (i % 2)]);
-      else for (let i = 1; i + 1 < order.length; i++) tris.push(order[0], order[i], order[i + 1]);
-
-      const { n, det } = normalMatrix(m);
-      let out = soup.get(prim.material ?? plain);
-      if (!out) soup.set(prim.material ?? plain, (out = []));
+      if (mode === 4) for (let i = 0; i + 2 < list.length; i += 3) tris.push(list[i], list[i + 1], list[i + 2]);
+      else if (mode === 5) for (let i = 0; i + 2 < list.length; i++) tris.push(list[i], list[i + 1 + (i % 2)], list[i + 2 - (i % 2)]);
+      else for (let i = 1; i + 1 < list.length; i++) tris.push(list[0], list[i], list[i + 1]);
+      // The mirrored y below turns triangles inside out, and so does a mirroring transform:
+      // two corners are swapped once for each, here, so posing does not have to.
+      const mirrored = skin < 0 && normalMatrix(rest[index]).det < 0;
+      const corners: number[] = [];
       for (let t = 0; t + 2 < tris.length; t += 3) {
-        // A mirroring transform turns triangles inside out; swapping two corners undoes that.
-        const corner = det < 0 ? [tris[t], tris[t + 2], tris[t + 1]] : [tris[t], tris[t + 1], tris[t + 2]];
-        if (corner.some((c) => !(c < pos.count))) continue;
-        const p = corner.map((c) => {
-          const x = pos.data[c * 3], y = pos.data[c * 3 + 1], z = pos.data[c * 3 + 2];
-          return [m[0] * x + m[4] * y + m[8] * z + m[12], m[1] * x + m[5] * y + m[9] * z + m[13], m[2] * x + m[6] * y + m[10] * z + m[14]];
-        });
-        const e1 = [p[1][0] - p[0][0], p[1][1] - p[0][1], p[1][2] - p[0][2]], e2 = [p[2][0] - p[0][0], p[2][1] - p[0][1], p[2][2] - p[0][2]];
-        const flat = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
-        corner.forEach((c, k) => {
-          let normal = flat;
-          if (nor) {
-            const x = nor.data[c * 3], y = nor.data[c * 3 + 1], z = nor.data[c * 3 + 2];
-            normal = [n[0] * x + n[3] * y + n[6] * z, n[1] * x + n[4] * y + n[7] * z, n[2] * x + n[5] * y + n[8] * z];
-            if (det < 0) normal = normal.map((v) => -v);
-          }
-          out!.push(...p[k], ...normal, uv ? uv.data[c * 2] : 0, uv ? uv.data[c * 2 + 1] : 0);
-          for (let a = 0; a < 3; a++) { lo[a] = Math.min(lo[a], p[k][a]); hi[a] = Math.max(hi[a], p[k][a]); }
-        });
+        const a = tris[t], b = tris[t + 1], c = tris[t + 2];
+        if (!(a < pos.count && b < pos.count && c < pos.count)) continue;
+        corners.push(a, mirrored ? b : c, mirrored ? c : b);
       }
+      const material = prim.material ?? plain;
+      const at = count.get(material) ?? 0;
+      count.set(material, at + corners.length);
+      pieces.push({ node: index, skin, part: material, at, position: pos.data, normal: values('NORMAL'), uv: values('TEXCOORD_0'), joints, weights, corners });
     }
-    for (const child of node.children ?? []) visit(child, m, seen);
-  };
-  // The scene the file names, or else every node that is nobody's child.
-  const children = new Set<number>((json.nodes ?? []).flatMap((nd: any) => nd.children ?? []));
-  const roots: number[] = json.scenes?.[json.scene ?? 0]?.nodes ?? (json.nodes ?? []).map((_: any, i: number) => i).filter((i: number) => !children.has(i));
-  const seen = new Set<number>();
-  for (const r of roots) visit(r, IDENTITY, seen);
+  }
+  const used = [...count.keys()].sort((a, b) => a - b);
+  for (const p of pieces) p.part = used.indexOf(p.part);
+  const rig: Rig = { nodes, order, skins, pieces, lo: [0, 0, 0] };
 
   // Fit to the unit cube, the way an OBJ mesh is: the entity's box then gives the size.
-  // glTF has y up and the simulation has y down, so y is mirrored and the winding swapped back.
-  const size = [0, 1, 2].map((a) => (hi[a] > lo[a] ? hi[a] - lo[a] : 0));
-  const parts: Part[] = [];
-  let triangles = 0;
-  for (const [material, v] of [...soup].sort((a, b) => a[0] - b[0])) {
-    const data = new Float32Array(v.length);
-    for (let t = 0; t < v.length; t += 24) for (let k = 0; k < 3; k++) {
-      const from = t + [0, 2, 1][k] * 8, to = t + k * 8;
-      for (let a = 0; a < 3; a++) {
-        const u = size[a] ? (v[from + a] - lo[a]) / size[a] : 0.5;
-        data[to + a] = a === 1 ? 1 - u : u;
-      }
-      // Normals go through the inverse of that stretch, and the same mirror.
-      const nx = v[from + 3] * (size[0] || 1), ny = -v[from + 4] * (size[1] || 1), nz = v[from + 5] * (size[2] || 1), l = Math.hypot(nx, ny, nz) || 1;
-      data[to + 3] = nx / l; data[to + 4] = ny / l; data[to + 5] = nz / l;
-      data[to + 6] = v[from + 6]; data[to + 7] = v[from + 7];
-    }
-    parts.push({ data, material });
-    triangles += v.length / 24;
+  const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+  for (const piece of pieces) {
+    const [p] = place(rig, piece, rest);
+    for (const c of piece.corners) for (let a = 0; a < 3; a++) { lo[a] = Math.min(lo[a], p[c * 3 + a]); hi[a] = Math.max(hi[a], p[c * 3 + a]); }
   }
+  const size = [0, 1, 2].map((a) => (hi[a] > lo[a] ? hi[a] - lo[a] : 0));
+  // A flat axis sits in the middle.
+  rig.lo = size.map((x, a) => (x ? lo[a] : lo[a] - 0.5));
+  const parts: Part[] = used.map((material) => ({ data: new Float32Array(count.get(material)! * 8), material }));
+  fill(rig, size, rest, parts.map((p) => p.data));
+  const triangles = parts.reduce((n, p) => n + p.data.length / 24, 0);
+
+  const clips: Clip[] = (json.animations ?? []).map((a: any, i: number): Clip => {
+    const channels: Channel[] = [];
+    for (const c of a.channels ?? []) {
+      const path = c.target?.path, sampler = a.samplers?.[c.sampler];
+      if (path === 'weights') { warn('morph target animation is ignored'); continue; }
+      if (!sampler || !nodes[c.target?.node] || !['translation', 'rotation', 'scale'].includes(path)) continue;
+      if (nodes[c.target.node].matrix) { warn('a node with a matrix cannot be animated'); continue; }
+      channels.push({ node: c.target.node, path, times: accessor(sampler.input).data, values: accessor(sampler.output).data, blend: sampler.interpolation ?? 'LINEAR' });
+    }
+    return { name: a.name || String(i), duration: Math.max(0, ...channels.map((c) => c.times[c.times.length - 1] ?? 0)), channels };
+  });
   if (parts.some((p) => p.material === plain)) {
     materials.push({ color: [1, 1, 1, 1], metallic: 1, roughness: 1, emissive: [0, 0, 0], colorTex: -1, surfaceTex: -1, normalTex: -1, occlusionTex: -1, emissiveTex: -1, normalScale: 1, occlusionStrength: 1, cutoff: 0, doubleSided: false });
   }
   if (!triangles) warn('has no triangles to draw');
-  return { parts, materials, textures, images, triangles, size, warnings };
+  const model: Model = { parts, materials, textures, images, triangles, size, warnings, clips, rig, poses: (make, write) => posesOf(model, make, write) };
+  return model;
+}
+
+/** Where each node is in the model's own space, in a pose (or at rest). */
+function worldMatrices(nodes: Node[], order: number[], pose: Map<number, Partial<Node>> | null): Mat[] {
+  const out: Mat[] = nodes.map(() => IDENTITY);
+  for (const i of order) {
+    const n = nodes[i], p = pose?.get(i);
+    const local = localMatrix(p ? { translation: p.t ?? n.t, rotation: p.r ?? n.r, scale: p.s ?? n.s } : { matrix: n.matrix, translation: n.t, rotation: n.r, scale: n.s });
+    out[i] = n.parent < 0 ? local : mulMat(out[n.parent], local);
+  }
+  return out;
+}
+
+/** A piece's vertices and normals where the nodes, or its joints, put them. */
+function place(rig: Rig, piece: Piece, world: Mat[]): [Float64Array, Float64Array] {
+  const n = piece.position.length / 3;
+  const position = new Float64Array(n * 3), normal = new Float64Array(piece.normal.length ? n * 3 : 0);
+  const skin = piece.skin < 0 ? null : rig.skins[piece.skin];
+  // A skinned mesh is put in place by its joints alone; its own node does not count.
+  const joint = skin?.joints.map((j, k) => mulMat(world[j] ?? IDENTITY, Array.from(skin.inverse.subarray(k * 16, k * 16 + 16))));
+  const blended = new Array<number>(16);
+  let m = world[piece.node], turn = normalMatrix(m);
+  for (let v = 0; v < n; v++) {
+    if (joint) {
+      let total = 0;
+      for (let k = 0; k < 4; k++) total += piece.weights[v * 4 + k];
+      blended.fill(0);
+      for (let k = 0; k < 4; k++) {
+        const w = piece.weights[v * 4 + k] / (total || 1), j = joint[piece.joints[v * 4 + k]] ?? IDENTITY;
+        if (w) for (let e = 0; e < 16; e++) blended[e] += w * j[e];
+      }
+      m = total ? blended : IDENTITY;
+      if (normal.length) turn = normalMatrix(m);
+    }
+    const x = piece.position[v * 3], y = piece.position[v * 3 + 1], z = piece.position[v * 3 + 2];
+    for (let a = 0; a < 3; a++) position[v * 3 + a] = m[a] * x + m[4 + a] * y + m[8 + a] * z + m[12 + a];
+    if (normal.length) {
+      const nx = piece.normal[v * 3], ny = piece.normal[v * 3 + 1], nz = piece.normal[v * 3 + 2], sign = turn.det < 0 ? -1 : 1;
+      for (let a = 0; a < 3; a++) normal[v * 3 + a] = sign * (turn.n[a] * nx + turn.n[3 + a] * ny + turn.n[6 + a] * nz);
+    }
+  }
+  return [position, normal];
+}
+
+/**
+ * Write the parts' vertices for one pose, fitted to the unit cube of the rest pose. glTF has
+ * y up and the simulation has y down, so y is mirrored here.
+ */
+function fill(rig: Rig, size: number[], world: Mat[], out: Float32Array[]): void {
+  for (const piece of rig.pieces) {
+    const [p, n] = place(rig, piece, world), data = out[piece.part];
+    for (let t = 0; t < piece.corners.length; t += 3) {
+      let flat: number[] | null = null;
+      if (!n.length) {
+        const at = (k: number, a: number): number => p[piece.corners[t + k] * 3 + a];
+        // The corners are already swapped for drawing, so the edges are taken the other way round.
+        const e1 = [0, 1, 2].map((a) => at(2, a) - at(0, a)), e2 = [0, 1, 2].map((a) => at(1, a) - at(0, a));
+        flat = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+      }
+      for (let k = 0; k < 3; k++) {
+        const c = piece.corners[t + k], to = (piece.at + t + k) * 8;
+        for (let a = 0; a < 3; a++) {
+          const u = size[a] ? (p[c * 3 + a] - rig.lo[a]) / size[a] : p[c * 3 + a] - rig.lo[a];
+          data[to + a] = a === 1 ? 1 - u : u;
+        }
+        // Normals go through the inverse of that stretch, and the same mirror.
+        const nx = (flat ? flat[0] : n[c * 3]) * (size[0] || 1), ny = -(flat ? flat[1] : n[c * 3 + 1]) * (size[1] || 1), nz = (flat ? flat[2] : n[c * 3 + 2]) * (size[2] || 1);
+        const l = Math.hypot(nx, ny, nz) || 1;
+        data[to + 3] = nx / l; data[to + 4] = ny / l; data[to + 5] = nz / l;
+        data[to + 6] = piece.uv.length ? piece.uv[c * 2] : 0; data[to + 7] = piece.uv.length ? piece.uv[c * 2 + 1] : 0;
+      }
+    }
+  }
+}
+
+function slerp(a: number[], b: number[], t: number): number[] {
+  let dot = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
+  const sign = dot < 0 ? -1 : 1;
+  dot *= sign;
+  const angle = Math.acos(Math.min(1, dot)), s = Math.sin(angle);
+  const ka = s > 1e-6 ? Math.sin((1 - t) * angle) / s : 1 - t, kb = (s > 1e-6 ? Math.sin(t * angle) / s : t) * sign;
+  return a.map((x, i) => x * ka + b[i] * kb);
+}
+
+/** A channel's value at a time in seconds: held before its first key and after its last. */
+function sample(c: Channel, time: number): number[] {
+  const width = c.path === 'rotation' ? 4 : 3, cubic = c.blend === 'CUBICSPLINE', step = cubic ? width * 3 : width;
+  // A cubic key is three values: the tangent coming in, the value, the tangent going out.
+  const key = (i: number, part = cubic ? 1 : 0): number[] => Array.from(c.values.subarray(i * step + part * width, i * step + part * width + width));
+  const unit = (v: number[]): number[] => {
+    if (width !== 4) return v;
+    const l = Math.hypot(...v) || 1;
+    return v.map((x) => x / l);
+  };
+  const last = c.times.length - 1;
+  if (last === 0 || time <= c.times[0]) return unit(key(0));
+  if (time >= c.times[last]) return unit(key(last));
+  let i = 0;
+  while (c.times[i + 1] <= time) i++;
+  const gap = c.times[i + 1] - c.times[i], t = (time - c.times[i]) / gap;
+  if (c.blend === 'STEP') return unit(key(i));
+  const p0 = key(i), p1 = key(i + 1);
+  if (!cubic) return unit(width === 4 ? slerp(p0, p1, t) : p0.map((x, a) => x + (p1[a] - x) * t));
+  const m0 = key(i, 2), m1 = key(i + 1, 0), t2 = t * t, t3 = t2 * t;
+  return unit(p0.map((x, a) => (2 * t3 - 3 * t2 + 1) * x + (t3 - 2 * t2 + t) * gap * m0[a] + (3 * t2 - 2 * t3) * p1[a] + (t3 - t2) * gap * m1[a]));
+}
+
+/**
+ * The parts' vertices `seconds` into an animation, written into `out` (one array per part,
+ * sized like its data). Looping wraps; otherwise the last frame is held. False when the
+ * model has no animation of that name, and then `out` is left alone.
+ */
+export function poseModel(model: Model, name: string, seconds: number, loop: boolean, out: Float32Array[]): boolean {
+  const clip = model.clips.find((c) => c.name === name);
+  if (!clip) return false;
+  const time = loop && clip.duration > 0 ? ((seconds % clip.duration) + clip.duration) % clip.duration : Math.min(Math.max(seconds, 0), clip.duration);
+  const pose = new Map<number, Partial<Node>>();
+  for (const c of clip.channels) {
+    let p = pose.get(c.node);
+    if (!p) pose.set(c.node, (p = {}));
+    p[c.path === 'translation' ? 't' : c.path === 'rotation' ? 'r' : 's'] = sample(c, time);
+  }
+  fill(model.rig, model.size, worldMatrices(model.rig.nodes, model.rig.order, pose), out);
+  return true;
 }
