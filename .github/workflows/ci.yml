@@ -22,7 +22,10 @@ jobs:
           node-version: 24
       # The optional physics backend: one pinned package, used by the rigid-body example.
       - run: npm ci --prefix backends/rapier --ignore-scripts --no-audit --no-fund
-      - run: npm test
+      # One test file at a time on Windows: its runners starve when headless Chrome and the
+      # engine's own threads run beside each other, and time limits in the tests then expire.
+      - run: node --test ${{ runner.os == 'Windows' && '--test-concurrency=1' || '' }} tests/*.test.ts
+        shell: bash
       # The same scene and input must give the same state hash on every OS.
       - name: Check example hashes
         shell: bash
