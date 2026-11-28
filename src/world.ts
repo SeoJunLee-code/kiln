@@ -12,6 +12,10 @@ export type Comp = Record<string, number | string>;
 export interface GameEvent { tick: number; name: string; a: string; b: string }
 export type System = (w: World) => void;
 
+/** What `rigid` and `joint` accept. */
+export const SHAPES = ['box', 'ball', 'capsule', 'cylinder', 'cone'];
+export const JOINTS = ['fixed', 'ball', 'hinge', 'slider', 'rope', 'spring'];
+
 export const registry = new Map<string, CompDef>();
 
 export function defineComponent(name: string, doc: string, fields: Field[] = [], topic?: string, needs?: [Axis, Edition]): void {
@@ -46,8 +50,10 @@ defineComponent('rot', 'turned angle degrees about axis (x, y, z) through the bo
   [f('angle', 'fx', 0), f('spin', 'fx', 0), f('axis', 'str', 'z')], 'view');
 defineComponent('quat', '3D turn as a unit quaternion, instead of rot. sx sy sz: degrees/second about world axes',
   [f('x', 'fx', 0), f('y', 'fx', 0), f('z', 'fx', 0), f('w', 'fx', 65536), f('sx', 'fx', 0), f('sy', 'fx', 0), f('sz', 'fx', 0)], 'view', ['drawing', 'standard']);
-defineComponent('rigid', 'needs world physics=rapier: falls, tumbles; blocks movers, who shove it. shape: box or ball',
+defineComponent('rigid', 'needs world physics=rapier: falls, tumbles; blocks movers, who shove it. shape: box, ball, capsule, cylinder or cone (the last three stand along y)',
   [f('shape', 'str', 'box'), f('density', 'fx', 65536), f('bounce', 'fx', 0), f('friction', 'fx', 32768)], 'physics', ['physics', 'standard']);
+defineComponent('joint', 'on a rigid: ties it to the entity `to` (or world). kind: fixed, ball, hinge, slider, rope, spring (guide physics)',
+  [f('kind', 'str'), f('to', 'str'), f('x', 'fx', 0), f('y', 'fx', 0), f('z', 'fx', 0), f('axis', 'str', 'z'), f('min', 'fx', 0), f('max', 'fx', 0), f('motor', 'fx', 0), f('power', 'fx', 0), f('length', 'fx', 0), f('stiff', 'fx', 0), f('damp', 'fx', 0)], 'physics', ['physics', 'standard']);
 defineComponent('impulse', 'on a rigid: one shove (mass x speed), then removed', [f('x', 'fx', 0), f('y', 'fx', 0), f('z', 'fx', 0)], 'physics', ['physics', 'standard']);
 defineComponent('force', 'on a rigid: a push every tick', [f('x', 'fx', 0), f('y', 'fx', 0), f('z', 'fx', 0)], 'physics', ['physics', 'standard']);
 defineComponent('eye', '3D view: a camera at this entity plus the offset, looking at it; ignored headless',

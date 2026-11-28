@@ -1,5 +1,5 @@
 import { fmtFx, parseFx } from './fx.ts';
-import { World, registry } from './world.ts';
+import { JOINTS, SHAPES, World, registry } from './world.ts';
 import type { Comp, CompDef } from './world.ts';
 
 export interface Diag { code: string; file: string; line: number; msg: string; hint?: string }
@@ -204,9 +204,13 @@ export function parseScene(text: string, file = 'scene'): Scene {
       err('K104', line, `quat 0 0 0 0 is not an orientation`, 'no turn is quat 0 0 0 1');
       bad = true;
     }
-    if (def.name === 'rigid' && !bad && data.shape !== 'box' && data.shape !== 'ball') {
-      err('K104', line, `rigid shape must be box or ball, got '${data.shape}'`);
+    if (def.name === 'rigid' && !bad && !SHAPES.includes(data.shape as string)) {
+      err('K104', line, `rigid shape must be one of ${SHAPES.join(', ')}, got '${data.shape}'`);
       bad = true;
+    }
+    if (def.name === 'joint' && !bad) {
+      if (!JOINTS.includes(data.kind as string)) { err('K104', line, `joint kind must be one of ${JOINTS.join(', ')}, got '${data.kind}'`); bad = true; }
+      else if (!['x', 'y', 'z'].includes(data.axis as string)) { err('K104', line, `joint axis must be x, y or z, got '${data.axis}'`); bad = true; }
     }
     if (def.name === 'trigger' && !bad) {
       for (const act of (data.action as string).split('+')) {

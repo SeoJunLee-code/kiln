@@ -35,7 +35,7 @@ test('physics: the scene names its backend, and mistakes are errors or warnings'
   assert.equal(w.physics, 'rapier');
   assert.match(serialize(w), /^world hz=60 gravity=0,30 physics=rapier\nentity a\n  pos 0 0\n  box 1 1\n  rigid ball 2 0.5\n$/);
   assert.deepEqual(codes(() => parseScene('world physics=havok\n')), ['K104']);
-  assert.deepEqual(codes(() => parseScene('world physics=rapier\nentity a\n  pos 0 0\n  box 1 1\n  rigid cone\n')), ['K104']);
+  assert.deepEqual(codes(() => parseScene('world physics=rapier\nentity a\n  pos 0 0\n  box 1 1\n  rigid pyramid\n')), ['K104']);
   const lint = (await command('check', { scene: 'entity a\n  pos 0 0\n  box 1 1\n  rigid\nentity b\n  pos 0 0\n  rigid\n' })).text;
   assert.match(lint, /^W K316 scene 'a' has 'rigid' but the world has no physics backend/m);
   assert.match(lint, /^W K310 scene 'b' has 'rigid' but no 'box'/m);
@@ -380,7 +380,7 @@ test('solve: finds the push that rolls the ball onto the plate, with or without 
 test('build: a physics scene takes its backend along', { skip }, () => {
   const out = mkdtempSync(join(tmpdir(), 'kiln-physics-build-'));
   const { written } = build(root('examples/tumble3d.kiln'), out);
-  for (const f of ['engine/src/physics.js', 'engine/backends/rapier/index.js', 'engine/backends/rapier/node_modules/@dimforge/rapier3d-deterministic-compat/dist/rapier.mjs']) {
+  for (const f of ['engine/src/physics.js', 'engine/src/rigid.js', 'engine/backends/rapier/index.js', 'engine/backends/rapier/node_modules/@dimforge/rapier3d-deterministic-compat/dist/rapier.mjs']) {
     assert.ok(written.includes(f), `${f} was not written`);
   }
   assert.match(readFileSync(join(out, 'index.html'), 'utf8'), /"@dimforge\/rapier3d-deterministic-compat": "\.\/engine\/backends\/rapier\/node_modules\//);
@@ -407,4 +407,68 @@ test('bodies a script writes to every tick still stop a mover, to the same bits'
   assert.ok(at(w, 'r12', 'pos', 'x') > -3.9, 'the guard never shoved the first body in its way');
   assert.equal(hash(w), '2b87d1e3');
   freeLink(w);
+});
+
+test('physics: the other shapes come to rest at their own size, and block a mover', { skip }, () => {
+  const body = (name: string, x: number, shape: string): string => `entity ${name}\n  pos ${x} -2 0\n  box 1 2 1\n  rigid ${shape}\n`;
+  const w = parseScene(`world gravity=0,30 physics=rapier\n${FLOOR}${body('cap', -3, 'capsule')}${body('can', 0, 'cylinder')}${body('cone', 3, 'cone')}entity guy\n  pos -8 -1 0\n  box 0.8 1 0.8\n  vel\n  body\n  pace x -8 9 3\n`).world;
+  for (let t = 0; t < 30; t++) step(w);
+  // Each stands on its end, its feet where the floor is.
+  for (const name of ['cap', 'can', 'cone']) assert.ok(Math.abs(at(w, name, 'pos', 'y') + 2) < 0.1, `${name} rests at ${at(w, name, 'pos', 'y')}`);
+  for (let t = 0; t < 120; t++) step(w);
+  assert.ok(at(w, 'cap', 'pos', 'x') > -2.9, 'the mover never reached the capsule');
+  freeLink(w);
+});
+
+// Pinned like the scene above: the same joints give the same bits on every OS.
+const JOINED = '1c32a37b';
+const arm = (name: string, x: number, joint: string): string => `entity ${name}\n  pos ${x - 0.5} -0.5 -0.5\n  box 1 1 1\n  rigid\n  joint ${joint}\n`;
+
+test('physics: joints hold, swing, slide and drive as written, and the same everywhere', { skip }, () => {
+  const w = parseScene(`world gravity=0,30 physics=rapier
+${arm('door', 2, 'hinge world -2 0 0 axis=z max=45 min=-5')}${arm('wheel', 12, 'hinge world -2 0 0 axis=y motor=90 power=1000')}${arm('lift', 20, 'slider world axis=x motor=2 power=1000 min=-3 max=3')}${arm('hung', 30, 'rope world 0 -2 0 length=4')}${arm('sprung', 40, 'spring world 0 -2 0 stiff=100 damp=10')}${arm('post', 50, 'fixed world')}${arm('beam', 51.5, 'fixed post')}`).world;
+  for (let t = 0; t < 120; t++) step(w);
+  const centre = (n: string): number[] => ['x', 'y', 'z'].map((f) => at(w, n, 'pos', f) + 0.5);
+  const near = (n: string, want: number[]): void => centre(n).forEach((v, i) => assert.ok(Math.abs(v - want[i]) < 0.2, `${n} is at ${centre(n)}, wanted ${want}`));
+  // The door falls from level to its stop at 45 degrees, 2 units from the pivot.
+  near('door', [1.414, 1.414, 0]);
+  // 90 degrees/second for two seconds: half way round the pivot at x=10, on the far side.
+  near('wheel', [8, 0, 0]);
+  near('lift', [23, 0, 0]);
+  near('hung', [30, 2, 0]);
+  near('sprung', [40, 0.3, 0]);
+  near('post', [50, 0, 0]);
+  near('beam', [51.5, 0, 0]);
+  assert.equal(hash(w), JOINED);
+  // Motors and limits can be changed while running; dropping the joint lets go.
+  w.get(w.ids.get('lift')!, 'joint')!.motor = -2 * ONE;
+  w.drop(w.ids.get('post')!, 'joint');
+  w.despawn(w.ids.get('beam')!);
+  for (let t = 0; t < 60; t++) step(w);
+  near('lift', [21, 0, 0]);
+  assert.ok(centre('post')[1] > 5, 'the post did not fall');
+  freeLink(w);
+});
+
+test('physics: a saved state with joints continues exactly, and the other end can go', { skip }, () => {
+  const w = parseScene(`world gravity=0,30 physics=rapier\n${arm('a', 2, 'ball world -2 0 0')}${arm('b', 4, 'ball a -1 0 0')}`).world;
+  for (let t = 0; t < 40; t++) step(w);
+  const copy = cloneWorld(w);
+  restoreLink(copy, saveLink(w));
+  for (let t = 0; t < 60; t++) { step(w); step(copy); }
+  assert.equal(hash(copy), hash(w));
+  w.despawn(w.ids.get('a')!);
+  const y = at(w, 'b', 'pos', 'y');
+  for (let t = 0; t < 60; t++) step(w);
+  assert.ok(at(w, 'b', 'pos', 'y') > y + 3, 'b did not fall');
+  for (const x of [w, copy]) freeLink(x);
+});
+
+test('physics: mistakes in joints are errors or warnings', { skip }, async () => {
+  const one = 'world physics=rapier\nentity a\n  pos 0 0\n  box 1 1\n  rigid\n';
+  assert.deepEqual(codes(() => parseScene(`${one}  joint weld world\n`)), ['K104']);
+  assert.deepEqual(codes(() => parseScene(`${one}  joint hinge world axis=w\n`)), ['K104']);
+  const lint = (await command('check', { scene: `${one}  joint rope b\nentity c\n  pos 3 0\n  box 1 1\n  rigid\n  joint rope d\nentity d\n  pos 5 0\n` })).text;
+  assert.match(lint, /^W K311 scene joint on 'a' refers to 'b'/m);
+  assert.match(lint, /^W K322 scene joint on 'c' ties it to 'd', which has no body/m);
 });

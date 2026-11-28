@@ -51,10 +51,11 @@ const toJs = (code: string): string => stripTypeScriptTypes(code).replace(IMPORT
  *   3d    the 3D view and the two renderers: some scene or script has `eye`
  *   gltf  the glTF reader: a model file is in the game folder
  *   audio samples and music: some scene or script has `sound`
+ *   rigid the engine's side of a physics backend: some scene names one
  * Scripts can add components while the game runs, so the test is on what the folder
  * holds, not on what one scene says at tick 0.
  */
-const PARTS: Record<string, string> = { 'web/view3.ts': '3d', 'web/gpu.ts': '3d', 'web/gl.ts': '3d', 'web/gltf.ts': 'gltf', 'web/audio.ts': 'audio', 'web/inspect.ts': 'play only' };
+const PARTS: Record<string, string> = { 'web/view3.ts': '3d', 'web/gpu.ts': '3d', 'web/gl.ts': '3d', 'web/gltf.ts': 'gltf', 'web/audio.ts': 'audio', 'src/rigid.ts': 'rigid', 'web/inspect.ts': 'play only' };
 
 /**
  * Write a folder that any static web host can serve: the player, the engine modules it
@@ -97,6 +98,10 @@ export function build(sceneFile: string, outDir: string): { written: string[]; s
     if (/\.(gltf|glb)$/i.test(f)) for (const rel of sidecars(f, readFileSync(path)).files) if (rel.includes('/') && existsSync(join(gameDir, rel))) copy(rel);
   }
 
+  // A scene that names a physics backend ships it, and the engine's side of it.
+  const backends = new Set(scenes.map((f) => physicsOf(readFileSync(join(gameDir, f), 'utf8'))).filter((n) => n in BACKEND_FILES));
+  for (const name of backends) { parts.add(name); parts.add('rigid'); }
+
   // Engine: what the player imports, found by following imports after types are stripped;
   // of the parts it fetches later, only the ones this game uses. Engine files go out
   // squeezed (no comments, no indentation); a game's own scripts go out as written.
@@ -113,9 +118,7 @@ export function build(sceneFile: string, outDir: string): { written: string[]; s
     put(`engine/${rel.replace(/\.ts$/, '.js')}`, squeeze(js.replace(IMPORT, "$1$2.js'").replace(LAZY, "$1$2.js'")));
   }
 
-  // A scene that names a physics backend needs that backend's adapter and its engine file.
-  for (const name of new Set(scenes.map((f) => physicsOf(readFileSync(join(gameDir, f), 'utf8'))).filter((n) => n in BACKEND_FILES))) {
-    parts.add(name);
+  for (const name of backends) {
     put(`engine/backends/${name}/index.js`, squeeze(toJs(readFileSync(join(ROOT, `backends/${name}/index.ts`), 'utf8'))));
     for (const rel of BACKEND_FILES[name]) {
       const from = join(ROOT, 'backends', name, rel);
@@ -126,5 +129,6 @@ export function build(sceneFile: string, outDir: string): { written: string[]; s
 
   put('index.html', readFileSync(join(ROOT, 'web/index.html'), 'utf8').replace('engine/web/player.ts', 'engine/web/player.js'));
   put('config.json', JSON.stringify({ scene: basename(sceneFile), input: false, built: true, scenes }));
+  parts.delete('rigid'); // it is the backend's other half, not a part of its own
   return { written, skipped, parts: [...parts].sort(), engineBytes };
 }

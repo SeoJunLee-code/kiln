@@ -103,7 +103,7 @@ test('edition: a folder is a game, and needs the largest edition of its scenes',
 
 test('edition: the component reference marks what is not Lite', () => {
   const marked = schemaText().split('\n').filter((l) => l.includes('[standard]')).map((l) => l.split(' ')[0]);
-  assert.deepEqual(marked.sort(), ['clip', 'force', 'impulse', 'light', 'quat', 'rigid']);
+  assert.deepEqual(marked.sort(), ['clip', 'force', 'impulse', 'joint', 'light', 'quat', 'rigid']);
 });
 
 // Rule 6 of docs/EDITIONS.md: a Lite feature is drawn by both renderers. The picture check

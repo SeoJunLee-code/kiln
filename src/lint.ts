@@ -25,6 +25,7 @@ const NEEDS: Record<string, string[]> = {
   quat: ['pos', 'box'],
   rigid: ['pos', 'box'],
   button: ['box'],
+  joint: ['rigid'],
   impulse: ['rigid'],
   force: ['rigid'],
 };
@@ -58,6 +59,12 @@ export function lint(scene: Scene, file: string, exists?: (name: string) => bool
       }
     }
     if (w.has(id, 'rigid') && !w.physics) warn('K316', `'${name}' has 'rigid' but the world has no physics backend, so it does nothing`, 'add physics=rapier to the world line');
+    const jt = w.get(id, 'joint');
+    if (jt && jt.to !== 'world') {
+      const to = w.ids.get(jt.to as string);
+      if (to === undefined) warn('K311', `joint on '${name}' refers to '${jt.to}', which matches no entity`, suggest(jt.to as string, w.ids.keys()) ?? 'name an entity, or world');
+      else if (to === id || !w.has(to, 'box') || !['rigid', 'solid', 'vel', 'push'].some((c) => w.has(to, c))) warn('K322', `joint on '${name}' ties it to '${jt.to}', which has no body, so it does nothing`, 'the other end needs pos, box and rigid, solid or vel (or use world)');
+    }
     const sp = w.get(id, 'sprite');
     for (const field of ['image', 'mesh']) {
       const f = sp?.[field] as string | undefined;

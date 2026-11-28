@@ -9,17 +9,27 @@ import { registry } from './world.ts';
 export const TOPICS: Record<string, { about: string; text: string }> = {
   physics: {
     about: 'bodies that fall, tumble, collide',
-    text: `Put physics=rapier on the world line. An entity with rigid + pos + box is a dynamic body.
-solid entities and solid tiles are fixed colliders. Movers (pos+vel+box, such as the ctrl
+    text: `Put physics=rapier on the world line. rigid + pos + box is a dynamic body.
+Shape: rigid box|ball|capsule|cylinder|cone (box gives the size; the last three stand along
+y with radius w/2). solid entities and solid tiles are fixed colliders. Movers (pos+vel+box, such as the ctrl
 character) stop at a body, shove it by their weight, and can stand and ride on it.
 A body that hits a mover moves it a little, more the heavier the body (a mover weighs its
 box's volume); one that a force keeps pushing takes the mover along, never through a solid.
-pos, vel and quat of a rigid show where the backend has it, rounded. A script moves a body
+pos, vel, quat of a rigid show the backend's, rounded. A script moves a body
 by writing them: pos puts it somewhere, vel sets its speed, quat x y z w its turn, sx sy sz
-its spin. What the script does not write keeps its exact value. Or add a push:
+its spin. What it does not write stays exact. Or add a push:
 w.add(id, 'impulse', { x, y, z }), through the centre of mass (no turning force). 3D only.
-Saving a running physics scene as text and loading it does not continue exactly; run it
-from the start with the same input instead.`,
+A physics scene saved as text mid-run does not continue exactly: rerun from the start.
+Joints: "joint KIND TO [x y z]" on a rigid ties it to another entity (rigid, solid or mover)
+or to world. x y z is where it holds, from this centre, as placed at the start.
+  joint hinge world 0 0.5 axis=z       a pendulum; min= max= limit the angle in degrees
+  joint hinge frame -1 axis=y motor=90 power=50     motor: degrees/second, power: most torque
+  joint slider world axis=x min=-2 max=2            slides along an axis (motor in units/second)
+  joint ball link1 0 0.5               a chain link; joint fixed other welds two together
+  joint rope world 0 3                 joint spring world 0 3 stiff=40 damp=2
+rope, spring: from this centre to the other's (or, with world, this one's) moved by x y z;
+length=0 is the distance at the start. Joined bodies do not collide with each other.
+Scripts may change motor, power, min, max, or drop the component.`,
   },
   view: {
     about: 'turning, animation, cameras, labels',
