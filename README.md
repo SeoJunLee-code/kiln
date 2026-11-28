@@ -41,7 +41,7 @@ Kiln is a few days old. The long-term aim is an engine that agents can take from
 | `solve`: automatic search for a winning input | `solve` does not tap buttons |
 | `build`: export to a static web folder; MCP server and CLI | Networking, desktop and mobile export |
 
-Claude Code has built games with Kiln over its MCP server ([proof/lite](proof/lite/RUN.md), [proof/compare](proof/compare/README.md)). A comparison with Godot on held-out specs is under way and has no verdict yet. One known fault: the long-running MCP server does not re-read a game script that has changed. No human has play-tested a game yet. See [HANDOFF.md](HANDOFF.md) (Korean) for the detailed status and known limits.
+Claude Code has built games with Kiln over its MCP server ([proof/lite](proof/lite/RUN.md), [proof/compare](proof/compare/README.md)). A comparison with Godot on held-out specs is under way and has no verdict yet. No human has play-tested a game yet. See [HANDOFF.md](HANDOFF.md) (Korean) for the detailed status and known limits.
 
 ## Try it
 
@@ -58,6 +58,8 @@ node src/cli.ts play examples/platformer.kiln
 For the 3D example, open the printed URL with `?scene=arena3d.kiln` (arrows or WASD to walk, Space to jump).
 
 `play` prints a local URL; add `?scene=cave.kiln` to open another scene from the same folder. What you press there is recorded as an input script, so a play session can be replayed headless with `kiln test SCENE --input FILE` and gives the same state hash.
+
+The same page is where a person checks what an agent did. Step through the run one tick at a time, back as well as forward (`,` and `.`), and click an entity to read its components. `play SCENE --before OLD.kiln` (or `--before HEAD`, any git revision) puts the game as it was beside the game as it is, runs both on the same input and lists what differs.
 
 ## Start a game with an agent
 

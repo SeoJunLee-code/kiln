@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kiln: before and after</title>
+<style>
+  :root { color-scheme: dark; --bg: #14161a; --panel: #1c1f25; --line: #2c313a; --text: #d7dbe2; --dim: #8a919d; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { display: grid; grid-template-rows: auto minmax(0, 3fr) minmax(0, 2fr); background: var(--bg); color: var(--text); font: 13px/1.5 ui-monospace, Consolas, monospace; }
+  header { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  button, input { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 4px 10px; }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--dim); }
+  input { width: 7em; }
+  #tick { margin-left: 8px; }
+  .sides, .report { display: grid; gap: 1px; background: var(--line); min-height: 0; }
+  .sides { grid-template-columns: 1fr 1fr; }
+  .report { grid-template-columns: 2fr 1fr 1fr; border-top: 1px solid var(--line); }
+  .report > div, figure { background: var(--panel); padding: 8px 12px; overflow: auto; min-height: 0; }
+  figure { margin: 0; display: flex; flex-direction: column; padding: 0; }
+  figcaption, h2 { margin: 0; padding: 4px 12px; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+  h2 { padding: 0 0 6px; }
+  iframe { flex: 1; border: 0; width: 100%; }
+  pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  @media (max-width: 760px) { .sides, .report { grid-template-columns: 1fr; } body { height: auto; grid-template-rows: auto 100vh auto; } }
+</style>
+</head>
+<body>
+<header>
+  <button id="play" type="button">Play</button>
+  <button type="button" data-by="-10">-10</button>
+  <button type="button" data-by="-1">-1</button>
+  <button type="button" data-by="1">+1</button>
+  <button type="button" data-by="10">+10</button>
+  <input id="goto" type="number" min="0" placeholder="tick" aria-label="Go to tick">
+  <button id="first" type="button">Next change in what differs</button>
+  <span id="tick"></span>
+</header>
+<div class="sides">
+  <figure><figcaption>Before</figcaption><iframe src="before/?paused" title="before"></iframe></figure>
+  <figure><figcaption>After (now)</figcaption><iframe src="./?paused" title="after"></iframe></figure>
+</div>
+<div class="report">
+  <div><h2>What differs at this tick (- before, + after)</h2><pre id="diff"></pre></div>
+  <div><h2>Expectations before</h2><pre id="was"></pre></div>
+  <div><h2>Expectations after</h2><pre id="is"></pre></div>
+</div>
+<script type="module" src="engine/web/compare.ts"></script>
+</body>
+</html>

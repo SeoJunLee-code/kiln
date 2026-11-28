@@ -53,6 +53,8 @@ node src/cli.ts solve examples/vault.kiln
 node src/cli.ts play examples/platformer.kiln
 ```
 
+`play`가 열어 주는 페이지에서 사람이 에이전트가 한 일을 확인합니다. `,`와 `.`로 실행을 한 틱씩 앞뒤로 넘기고, 개체를 눌러 컴포넌트를 읽습니다. `play SCENE --before OLD.kiln`(또는 `--before HEAD` 같은 git 리비전)은 바꾸기 전 게임을 지금 게임 옆에 놓고 같은 입력으로 돌리며 다른 점을 적어 줍니다.
+
 ## 에이전트로 게임 시작하기
 
 ```

@@ -29,7 +29,7 @@ const toJs = (code: string): string => stripTypeScriptTypes(code).replace(IMPORT
  * Scripts can add components while the game runs, so the test is on what the folder
  * holds, not on what one scene says at tick 0.
  */
-const PARTS: Record<string, string> = { 'web/gpu.ts': '3d', 'web/gl.ts': '3d', 'web/gltf.ts': 'gltf', 'web/audio.ts': 'audio' };
+const PARTS: Record<string, string> = { 'web/gpu.ts': '3d', 'web/gl.ts': '3d', 'web/gltf.ts': 'gltf', 'web/audio.ts': 'audio', 'web/inspect.ts': 'play only' };
 
 /**
  * Write a folder that any static web host can serve: the player, the engine modules it

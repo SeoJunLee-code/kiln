@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { COMMANDS, command } from './commands.ts';
 import type { CmdArgs } from './commands.ts';
 
@@ -14,7 +15,9 @@ const HELP = `kiln <command> [scene] [options]
   guide [TOPIC]          print the manual, sized for an agent to read in one call;
                          with TOPIC: a part only some games need (the guide lists them)
   mcp                    serve these commands as one MCP tool over stdio
-  play SCENE             open the scene in a browser (--port N, default 5207; --input FILE replays it)
+  play SCENE             open the scene in a browser (--port N, default 5207; --input FILE replays it);
+                         step through it tick by tick and look into its entities
+                         (--before OLD.kiln|GITREV: the game as it was beside the game as it is)
   look SCENE             draw the scene in a headless browser and save a picture of the game view
                          (--tick N, --input FILE, --out FILE.png, --size WxH,
                          --renderer webgpu|webgl2 for 3D; needs Chrome or Edge)
@@ -75,8 +78,17 @@ if (cmd === 'mcp') {
 } else if (cmd === 'play' && rest[0] && !rest[0].startsWith('--')) {
   const flag = (name: string): string | undefined => (rest.includes(name) ? rest[rest.indexOf(name) + 1] : undefined);
   const { serve } = await import('./serve.ts');
-  const { port } = await serve(rest[0], flag('--input'), Number(flag('--port') ?? 5207));
-  console.log(`ok play http://localhost:${port}/`);
+  const before = rest.includes('--before') ? flag('--before') ?? '' : undefined;
+  // A comparison of two idle games says little, so it takes the scene's own input if there is one.
+  const own = rest[0].replace(/\.kiln$/, '.input');
+  const input = flag('--input') ?? (before !== undefined && existsSync(own) ? own : undefined);
+  try {
+    const { port } = await serve(rest[0], input, Number(flag('--port') ?? 5207), before);
+    console.log(`ok play http://localhost:${port}/${before === undefined ? '' : 'compare'}`);
+  } catch (e) {
+    console.log((e as Error).message.startsWith('E ') ? (e as Error).message : `E K004 ${(e as Error).message}`);
+    process.exitCode = 2;
+  }
 } else if (!COMMANDS.includes(cmd) || (cmd !== 'schema' && cmd !== 'guide' && (!rest[0] || rest[0].startsWith('--')))) {
   process.stdout.write(HELP);
   process.exitCode = cmd ? 2 : 0;

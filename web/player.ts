@@ -107,6 +107,10 @@ const rgb = (css: string): number[] => {
 
 let world: World, expects: Expect[], script: InputScript;
 let log: string[] = [];
+// The last tick of `log`: after a rewind it lies ahead, and a new press drops what follows.
+let ahead = 0;
+// The supervisor's panel, called after each draw; only `play` has it (see inspect.ts).
+let panel: (() => void) | undefined;
 // Keys held right now. Tracked here because world.pressed only changes on the next tick.
 const held = new Set<string>();
 // What the gamepads held when last asked.
@@ -181,6 +185,7 @@ try {
     expects = parseExpects(s.expects, world, cfg.scene);
     script = replay === null ? new Map() : parseInput(replay, 'input');
     log = [];
+    ahead = 0;
     held.clear();
     tuned = world.query('sound').length > 0;
     padWas = {};
@@ -229,6 +234,11 @@ try {
     // A tap on a button (tap:NAME) is not held: every one counts.
     const tap = action[3] === ':';
     if (replay !== null || (!tap && held.has(action) === down)) return;
+    if (ahead > world.tick) {
+      log = log.filter((l) => parseInt(l) < world.tick);
+      for (const t of script.keys()) if (t >= world.tick) script.delete(t);
+    }
+    ahead = world.tick;
     if (tap) log.push(`${world.tick} ${action.slice(4)} tap`);
     else {
       if (down) held.add(action);
@@ -410,7 +420,26 @@ try {
     }
   };
 
+  // To any tick, back or forward, silently and paused. Going back runs again from the start
+  // with the same input, which gives the same states. It stops where a scene is loaded.
+  const seek = (t: number): void => {
+    paused = true;
+    if (t < world.tick) {
+      const was = log, last = ahead;
+      reset();
+      log = was;
+      ahead = last;
+      if (replay === null) script = parseInput(was.join('\n'), 'input');
+    }
+    const over = (): boolean => world.events.some((e) => e.name === 'load' && !!e.a);
+    while (world.tick < t && !over()) { step(world, script); evalTick(world, expects); }
+    heard = world.events.length;
+    draw();
+    hud();
+  };
+
   const hud = (): void => {
+    panel?.();
     $('state').textContent = `scene ${cfg.scene}\nmode  ${replay === null ? 'live input' : 'replaying input script'}${paused ? ' (paused)' : ''}\ntick  ${world.tick}\nhash  ${hash(world)}`;
     const ex = $('expects');
     ex.replaceChildren(...expects.map((e) => {
@@ -480,12 +509,15 @@ try {
   };
   requestAnimationFrame(frame);
 
+  if (!cfg.built) panel = (await part(import('./inspect.ts')))?.inspect({ world: () => world, seek, rect, canvas });
+
   // For inspection and automated checks from the console.
   Object.assign(window, {
     kiln: {
       get world() { return world; },
       hash: () => hash(world),
       reset,
+      seek,
       /** Step synchronously until the given tick (ignores pause). */
       runTo: (t: number) => { paused = true; pads(); while (world.tick < t) tick(); draw(); hud(); return hash(world); },
       inputLog: () => log.join('\n'),

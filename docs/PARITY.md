@@ -23,14 +23,14 @@ A row whose Kiln cell says **gated** and then names a part in brackets is
 Such a row does not close a gate by itself and is counted apart from the rows
 gated in full (rule added 2026-11-27).
 
-Counted on 2026-11-28, 62 rows: **23 gated in full, 11 gated in part, 6 works,
+Counted on 2026-11-28, 63 rows: **23 gated in full, 12 gated in part, 6 works,
 21 none**, and one row that is a number (platforms). By the edition column of
 the tables:
 
 | Edition | gated in full | gated in part | works | none | number | rows |
 |---|---|---|---|---|---|---|
 | all | 16 | 1 | 6 | 2 | 0 | 25 |
-| Lite | 6 | 6 | 0 | 2 | 0 | 14 |
+| Lite | 6 | 7 | 0 | 2 | 0 | 15 |
 | Lite? | 0 | 0 | 0 | 2 | 0 | 2 |
 | Standard | 1 | 4 | 0 | 8 | 1 | 14 |
 | Ultra | 0 | 0 | 0 | 5 | 0 | 5 |
@@ -152,6 +152,7 @@ Neither engine was built for this; these rows are why Kiln exists.
 | Feature | Edition | Godot | Unity | Unreal | Kiln | Check |
 |---|---|---|---|---|---|---|
 | Editor for people | Lite | yes | yes | yes | none (player page only) | |
+| Tools for the person who supervises: step through, look into, before and after | Lite | yes | yes | yes | **gated** (reading only; no editing) | `tests/supervise.test.ts`, in a browser: `play` steps one or ten ticks back and forward, to the states the headless run has, with a replay or with what was played live; an entity chosen by name or by a click (2D view only) shows its components as scene text, with what the step changed marked; `play --before OLD.kiln` or `--before GITREV` runs the game as it was beside the game as it is and lists what differs by entity and component. A built game carries none of it (`tests/edition.test.ts`). Nothing is edited there, 3D entities are chosen by name only, and the comparison runs the current engine on both |
 | Profiler | Ultra | yes | yes | yes | none | |
 | Web export | all | yes | yes | no | **gated** | build test; live demo |
 | Desktop executable | Standard | yes | yes | yes | none | |

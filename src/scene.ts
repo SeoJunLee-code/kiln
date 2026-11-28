@@ -278,7 +278,7 @@ export function parseScene(text: string, file = 'scene'): Scene {
 }
 
 /** One component as its scene line. */
-function compLine(def: CompDef, c: Comp): string {
+export function compLine(def: CompDef, c: Comp): string {
   const vals = def.fields.map((fd) => (fd.type === 'fx' ? fmtFx(c[fd.name] as number) : String(c[fd.name])));
   let end = vals.length;
   while (end > 0 && def.fields[end - 1].def !== undefined && c[def.fields[end - 1].name] === def.fields[end - 1].def) end--;
