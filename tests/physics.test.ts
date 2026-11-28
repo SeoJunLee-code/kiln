@@ -472,3 +472,80 @@ test('physics: mistakes in joints are errors or warnings', { skip }, async () =>
   assert.match(lint, /^W K311 scene joint on 'a' refers to 'b'/m);
   assert.match(lint, /^W K322 scene joint on 'c' ties it to 'd', which has no body/m);
 });
+
+// --- What was brought over after reading Godot (docs/GODOT-NOTES.md) ---
+
+const BALL = 'entity ball\n  pos -0.5 -2 -0.5\n  box 1 1 1\n  rigid ball\n';
+
+test('physics: a solid that stands turned is a ramp for rigid bodies', { skip }, () => {
+  const flat = 'world hz=60 gravity=0,20 physics=rapier\nentity ramp\n  pos -5 0 -5\n  box 10 1 10\n  solid\n';
+  const level = run(flat + BALL, { ticks: 180 }).world;
+  assert.ok(Math.abs(at(level, 'ball', 'pos', 'z') + 0.5) < 0.01, 'on a level floor the ball stays');
+  // Turned about x, the far side (smaller z) is the high one: the ball rolls towards the camera.
+  const quat = run(flat.replace('  solid\n', '  solid\n  rot -20 axis=x\n') + BALL, { ticks: 180 }).world;
+  assert.ok(at(quat, 'ball', 'pos', 'z') > 1, `the ball rolled down the ramp: z ${at(quat, 'ball', 'pos', 'z')}`);
+  // The same turn written as a quaternion gives the same collider.
+  const s = Math.sin((-20 * Math.PI) / 360), c = Math.cos((-20 * Math.PI) / 360);
+  const asQuat = run(flat.replace('  solid\n', `  solid\n  quat ${s} 0 0 ${c}\n`) + BALL, { ticks: 180 }).world;
+  assert.ok(Math.abs(at(asQuat, 'ball', 'pos', 'z') - at(quat, 'ball', 'pos', 'z')) < 0.05);
+});
+
+test('physics: check says that movers do not see the turn of a solid', { skip }, async () => {
+  const scene = 'world gravity=0,20 physics=rapier\nentity ramp\n  pos 0 0 0\n  box 4 1 4\n  solid\n  rot 20 axis=x\nentity hero\n  pos 0 -1 0\n  vel\n  box 1 1 1\n  ctrl 3\n';
+  assert.match((await command('check', { scene })).text, /^W K334 scene 'ramp' is a turned solid/m);
+  assert.doesNotMatch((await command('check', { scene: scene.replace(/entity hero[^]*$/, BALL) })).text, /K334/);
+});
+
+test('physics: damp slows a body by itself; without it the body keeps its speed', { skip }, () => {
+  const scene = (extra: string): string => `world hz=60 gravity=0,0 physics=rapier\nentity a\n  pos 0 0 0\n  vel 4 0 0\n  box 1 1 1\n  rigid ball${extra}\n`;
+  assert.ok(Math.abs(at(run(scene(''), { ticks: 120 }).world, 'a', 'vel', 'x') - 4) < 0.001);
+  const slowed = at(run(scene(' damp=1'), { ticks: 120 }).world, 'a', 'vel', 'x');
+  assert.ok(slowed > 0.2 && slowed < 1, `after two seconds at damp=1: ${slowed}`);
+  // spin: the same for turning.
+  const spun = (extra: string): number => at(run(scene(extra).replace('  rigid', '  quat 0 0 0 1 0 0 90\n  rigid'), { ticks: 120 }).world, 'a', 'quat', 'sz');
+  assert.ok(Math.abs(spun('') - 90) < 0.5);
+  assert.ok(spun(' spin=1') < 30);
+});
+
+test('physics: an impulse off the centre turns the body, through the centre it does not', { skip }, () => {
+  const scene = (imp: string): string => `world hz=60 gravity=0,0 physics=rapier\nentity a\n  pos 0 0 0\n  box 1 1 1\n  rigid\n  impulse ${imp}\n`;
+  const straight = run(scene('2 0 0'), { ticks: 30 }).world, off = run(scene('2 0 0 oy=0.5'), { ticks: 30 }).world;
+  assert.equal(at(straight, 'a', 'quat', 'sz'), 0);
+  assert.ok(Math.abs(at(off, 'a', 'quat', 'sz')) > 10, `spin ${at(off, 'a', 'quat', 'sz')}`);
+  assert.ok(at(off, 'a', 'vel', 'x') > 1);
+});
+
+test('physics: ccd keeps a fast body from passing a thin wall', { skip }, () => {
+  const scene = (extra: string): string => `world hz=60 gravity=0,0 physics=rapier\nentity wall\n  pos 5 -2 -2\n  box 0.05 4 4\n  solid\nentity a\n  pos 0 -0.1 -0.1\n  vel 400 0 0\n  box 0.2 0.2 0.2\n  rigid ball${extra}\n`;
+  assert.ok(at(run(scene(' ccd=1'), { ticks: 30 }).world, 'a', 'pos', 'x') < 5, 'with ccd the ball is still before the wall');
+});
+
+test('physics: drive lets the keys push a body, up to its top speed', { skip }, () => {
+  const scene = 'world hz=60 gravity=0,20 physics=rapier\n' + FLOOR + 'entity ball\n  pos 0 -1 0\n  box 1 1 1\n  rigid ball damp=0.5\n  drive 20 top=3\n';
+  const still = run(scene, { ticks: 120 }).world;
+  assert.ok(Math.abs(at(still, 'ball', 'vel', 'x')) < 0.01);
+  const pushed = run(scene, { input: '0 right down\n', ticks: 120 }).world;
+  const vx = at(pushed, 'ball', 'vel', 'x');
+  assert.ok(vx > 2 && vx < 3.6, `pushed to about its top speed: ${vx}`);
+  const away = run(scene, { input: '0 up down\n', ticks: 60 }).world;
+  assert.ok(at(away, 'ball', 'vel', 'z') < -1, 'up is away from the camera: smaller z');
+});
+
+test('physics: reset puts a rigid body back at rest where it began, the same way every time', { skip }, () => {
+  const scene = 'world hz=60 gravity=0,20 physics=rapier\n' + FLOOR.replace('-10 0 -10', '-2 0 -2').replace('20 1 20', '4 1 4')
+    + 'entity ball\n  pos 0 -1 0\n  box 1 1 1\n  rigid ball\n  drive 30\nentity pit\n  pos -40 6 -40\n  box 80 1 80\n  trigger ball fell\nentity again\n  when fell reset:ball\nentity falls\n  tally fell\n';
+  const a = run(scene, { input: '0 right down\n', ticks: 400 }), b = run(scene, { input: '0 right down\n', ticks: 400 });
+  assert.equal(a.hash, b.hash);
+  assert.ok((a.world.get(a.world.ids.get('falls')!, 'tally')!.n as number) >= 2, 'it fell, came back and fell again');
+  const first = a.world.events.find((e) => e.name === 'fell')!.tick;
+  const back = run(scene, { input: '0 right down\n', ticks: first }).world;
+  assert.ok(Math.abs(at(back, 'ball', 'pos', 'x')) < 0.01 && at(back, 'ball', 'vel', 'x') === 0, 'at the tick of the fall the ball is back and still');
+});
+
+test('physics: the 3D example with rules is solved and plays to its goal', { skip }, async () => {
+  const file = root('examples/roll3d.kiln');
+  const r = await command('test', { file, inputFile: root('examples/roll3d.input') });
+  assert.equal(r.code, 0, r.text);
+  const solved = await command('solve', { file, budget: 30 });
+  assert.match(solved.text, /^ok solved /m);
+});

@@ -18,9 +18,19 @@ box's volume); one that a force keeps pushing takes the mover along, never throu
 pos, vel, quat of a rigid show the backend's, rounded. A script moves a body
 by writing them: pos puts it somewhere, vel sets its speed, quat x y z w its turn, sx sy sz
 its spin. What it does not write stays exact. Or add a push:
-w.add(id, 'impulse', { x, y, z }), through the centre of mass (no turning force). 3D only.
-A physics scene saved as text mid-run does not continue exactly: rerun from the start.
-Joints: "joint KIND TO [x y z]" on a rigid ties it to another entity (rigid, solid or mover)
+w.add(id, 'impulse', { x, y, z }), through the centre of mass; with ox oy oz it lands that
+far from the centre and turns the body too. 3D only.
+drive 30 on a rigid lets the arrow keys push it (plane=xz: up is -z); top=6 caps the speed.
+rigid ... damp=0.1 spin=0.1 loses that share of speed and of turning each second (a ball
+that comes to rest by itself); 0, the default, never slows in the air. ccd=1 for bullets.
+A ramp is a solid that stands turned: solid + quat, or solid + rot 20 axis=x. Rigid bodies
+roll on it as drawn; movers still meet its unturned box (check warns).
+A physics scene saved as text mid-run does not continue exactly: rerun it.
+Joints (hinge, slider, rope, spring, weld): guide joints.`,
+  },
+  joints: {
+    about: 'hinges, sliders, ropes and springs between bodies',
+    text: `Joints: "joint KIND TO [x y z]" on a rigid ties it to another entity (rigid, solid or mover)
 or to world. x y z is where it holds, from this centre, as placed at the start.
   joint hinge world 0 0.5 axis=z       a pendulum; min= max= limit the angle in degrees
   joint hinge frame -1 axis=y motor=90 power=50     motor: degrees/second, power: most torque
@@ -86,6 +96,32 @@ with what its own file says. keep takes any components, a script's own too: keep
 A scene run by itself starts from its file. test --follow carries values as the player
 does, and both reach the same hash. Check a value with: expect at N score.tally.n == 2`,
   },
+  rules: {
+    about: 'lives, a countdown, starting again: rules without a script',
+    text: `An event is a name. A trigger, a button, a timer or a tally emits one; a when acts on it.
+Falling costs a life; three lives, then the game-over scene; 60 seconds a try:
+entity pit
+  pos -50 6 -50
+  box 100 1 100
+  trigger ball fell               the ball touched the pit
+entity lives
+  tally fell 3 -1 then=dead       n goes 3, 2, 1; reaching hit (0) emits dead
+  keep tally
+entity clock
+  timer 60 fell                   60 seconds without a fall count as one
+entity again
+  when fell reset:all             all as the run of this scene began: the ball at its start,
+                                  pickups back, the clock full, a score that counts coin as
+                                  it came in. A tally that counts fell itself (lives) is left
+entity over
+  when dead load:gameover.kiln
+reset:NAME or reset:#tag puts back only those (reset:ball: back to the start, nothing
+else changes). emit:EVENT turns one event into another: when timeout emit:fell.
+Actions join with +. Rules answer each other within the same tick. A label on the tally or
+timer entity shows its number where it has %. Check them as anything else:
+expect event dead by 900          expect at 300 lives.tally.n == 2
+check and solve read these lines; what a script decides they cannot see.`,
+  },
   ui: {
     about: 'buttons, screen layout',
     text: `pin puts an entity at a place on the screen instead of in the world; it needs no pos and
@@ -105,7 +141,9 @@ A click or tap on a button's box emits its event and does its action; key=a lets
 key (Z, Space, a pad's A) press it too. A button with pos instead of pin is in the world.
 A press is input, so it is recorded and replays headless. In an input file:
 12 start tap              the button's entity name; the event comes in the next tick
-solve never taps: give test an input with the taps. 2D only. Check the picture with look.`,
+solve never taps: give test an input with the taps. Check the picture with look.
+In a 3D scene pinned entities (score, lives, a menu with key=enter) are drawn over the view;
+unpinned labels and buttons are not drawn there.`,
   },
   audio: {
     about: 'samples on events, music',
@@ -208,7 +246,7 @@ expect event NAME by N   a trigger emitted NAME
 expect count NAME OP VALUE at N   NAME events emitted by tick N
 expect at N A.comp.field OP VALUE  OP: < <= > >= == !=
 
-INPUT  one per line: TICK ACTION down|up   actions: left right up down a b   (ui: TICK NAME tap)
+INPUT  one per line: TICK ACTION down|up   actions: left right up down a b enter   (ui: TICK NAME tap)
 
 COMMANDS  (CLI: node src/cli.ts CMD SCENE [options]; MCP: tool kiln, argument cmd)
 check  parse and validate (a folder: every scene). Says the edition needed: lite runs
@@ -217,13 +255,17 @@ test   run, evaluate expects; --input FILE; exit 1 if any fails. A folder: every
        with its NAME.input, then once per NAME.CASE.input. expect lines in an input
        replace the scene's. --follow: go on into the scene a load: opened, with its NAME.input
 run    run without judging; --ticks N
-solve  find an input meeting reach/gone/event, keeping never and count X == 0; --out FILE saves it
+solve  find an input meeting reach/gone/event, keeping never and count X == 0; --out FILE
+       saves it; --budget seconds (60), then its furthest attempt
 schema components only
 look   picture of the game view from a headless browser, with what is in it;
        --tick N --input FILE --out FILE.png (needs Chrome/Edge)
 play   open in a browser (CLI only); what you press is recorded as an input script
-Add to test/run: --view (ASCII picture), --top (3D floor plan), --observe
-(positions), --events.
+apply  ONE call per change (MCP): files=[{path,content}], edits=[{path,old,new}] (exact,
+       once), then check + test of the folder file=
+diff   --against OTHER.input|.kiln: the first tick two runs differ, and in what
+Add to test/run/apply: --view (ASCII picture), --top (3D floor plan), --observe (positions),
+--events, --watch ball.pos,lives.tally.n [--at 0,60] (values during the run).
 
 OUTPUT
 ok ... / fail ...        last line of every command
@@ -232,10 +274,9 @@ E CODE file:line message (hint: ...)   all errors at once; fix all, rerun
 W CODE file message (hint: ...)   check only: runs, but part of it does nothing
 
 WORKFLOW
-1. Write the scene with expects that say what "working" means.
-2. check, then solve. If solve fails, it prints the goal still open and a picture of
-   the furthest attempt: fix the level there.
-3. Save the input with --out and keep test passing as you change things.
+1. apply the scene with expects that say what "working" means; fix what it reports.
+2. solve. If it fails it prints the goal still open and a picture of the furthest
+   attempt: fix the level there. Save the input with --out; keep apply passing.
 
 SCRIPTS  only when components cannot express the rule: use ./file.ts exporting
 (k) => { k.system((w) => { ... }) }. Read \`guide script\` for the API before writing one.

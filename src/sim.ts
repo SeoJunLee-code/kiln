@@ -1,10 +1,11 @@
 import { ONE, fdiv, isqrt, sinCos24, tickShare, wrapDeg } from './fx.ts';
 import { physicsHash, physicsStep, physicsSweep, physicsSync } from './physics.ts';
-import { KilnFail, serialize, suggest } from './scene.ts';
+import { KilnFail, parseScene, serialize, suggest } from './scene.ts';
 import type { Diag } from './scene.ts';
+import { registry } from './world.ts';
 import type { Comp, World } from './world.ts';
 
-export const ACTIONS = ['left', 'right', 'up', 'down', 'a', 'b'];
+export const ACTIONS = ['left', 'right', 'up', 'down', 'a', 'b', 'enter'];
 export type InputScript = Map<number, [string, boolean][]>;
 
 /** Input script: one `TICK ACTION down|up` per line. */
@@ -47,6 +48,7 @@ const ask = (...comps: string[]): Ask => ({ comps, out: [], version: 0 });
 const CTRL = ask('ctrl', 'vel'), PACE = ask('pace', 'pos', 'vel'), ANIM = ask('anim', 'vel'), BODY = ask('body', 'vel');
 const SOLID = ask('solid', 'pos', 'box'), MAPS = ask('tiles', 'pos'), MOVERS = ask('pos', 'vel'), ROT = ask('rot'), QUAT = ask('quat');
 const NAV = ask('nav', 'pos', 'vel'), BUTTON = ask('button'), TRIGGER = ask('trigger', 'pos', 'box'), TAG = ask('tag'), TALLY = ask('tally');
+const TIMER = ask('timer'), WHEN = ask('when');
 
 /** Cut a reused list to `n`. Not by setting `length`: that gives the list's memory back, to be asked for again. */
 function trim(list: unknown[], n: number): void {
@@ -337,8 +339,14 @@ const stopped = (to: number, way: number, size: number, a: number, r: Block): nu
 /** Entities this tick's triggers and buttons despawn, once all of them have run. */
 const DOOMED: number[] = [];
 
-/** Do what a trigger or button says; `who` is named by a load event. */
-function act(w: World, action: string, self: number, other: number | undefined, who: string): void {
+/** Entities and tags this tick's actions put back as the scene began, with the event that asked. */
+const RESETS: string[] = [];
+
+/** The action names `check` accepts, for its hint. */
+export const ACTION_HINT = 'none, despawn-self, despawn-other, despawn:REF, load:FILE, emit:EVENT, reset:REF, reset:all';
+
+/** Do what a trigger, button, timer or `when` says; `who` is named by a load event, `cause` is the event behind it. */
+function act(w: World, action: string, self: number, other: number | undefined, who: string, cause: string): void {
   if (action === 'none') return;
   for (const a of action.split('+')) {
     if (a === 'despawn-self') DOOMED.push(self);
@@ -346,7 +354,66 @@ function act(w: World, action: string, self: number, other: number | undefined, 
     else if (a.startsWith('despawn:')) DOOMED.push(...w.match(a.slice(8)));
     // Headless this is only an event; the player reacts to it by opening the scene.
     else if (a.startsWith('load:')) w.events.push({ tick: w.tick, name: 'load', a: a.slice(5), b: who });
+    else if (a.startsWith('emit:')) w.events.push({ tick: w.tick, name: a.slice(5), a: who, b: '' });
+    else if (a.startsWith('reset:')) RESETS.push(a.slice(6), cause);
   }
+}
+
+/** Does any rule of this world put things back? Then the scene as it began has to be kept. */
+function resets(w: World): boolean {
+  for (const comp of ['trigger', 'button', 'timer', 'when']) {
+    const m = w.comps.get(comp);
+    if (m) for (const c of m.values()) if ((c.action as string).includes('reset:')) return true;
+  }
+  return false;
+}
+
+// Parsed origins, by their text. Not on the World: solve keeps a great many of those.
+const ORIGINS = new Map<string, World>();
+
+/**
+ * Put `ref` (a name, a #tag, or `all`) back to what the scene held when its run began:
+ * every component as it was, and whoever was despawned since is there again. With `all`,
+ * what the scene did not begin with leaves, and a tally that counts `cause` keeps its
+ * number: the life just lost stays lost.
+ */
+function restore(w: World, ref: string, cause: string): void {
+  if (!w.origin) return;
+  let o = ORIGINS.get(w.origin);
+  if (!o) {
+    if (ORIGINS.size >= 8) ORIGINS.clear();
+    ORIGINS.set(w.origin, o = parseScene(w.origin, 'origin').world);
+  }
+  const all = ref === 'all';
+  const from = all ? o.names.map((n, i) => (n == null ? -1 : i)).filter((i) => i >= 0) : o.match(ref);
+  for (const oid of from) {
+    const name = o.names[oid]!;
+    let id = w.ids.get(name);
+    if (id === undefined) id = w.spawn(name);
+    for (const comp of registry.keys()) {
+      const then = o.get(oid, comp), now = w.get(id, comp);
+      if (all && comp === 'tally' && now && then && now.event === cause) continue;
+      if (then) w.add(id, comp, { ...then });
+      // A rigid body gained these two while running; back at its start it is at rest and unturned.
+      else if (now && comp === 'vel' && o.has(oid, 'rigid')) w.add(id, comp, { x: 0, y: 0, z: 0 });
+      else if (now && comp === 'quat' && o.has(oid, 'rigid')) w.add(id, comp, { x: 0, y: 0, z: 0, w: ONE, sx: 0, sy: 0, sz: 0 });
+      else if (now) w.drop(id, comp);
+    }
+    // Whatever it overlapped it may meet again.
+    if (w.overlaps.size) for (const k of [...w.overlaps]) if (k.split(':').includes(name)) w.overlaps.delete(k);
+  }
+  if (all) for (let id = 0; id < w.names.length; id++) {
+    const name = w.names[id];
+    if (name != null && !o.ids.has(name)) w.despawn(id);
+  }
+}
+
+/** Carry out what this tick's actions asked for: despawns first, then what is put back. */
+function settle(w: World): void {
+  for (let n = 0; n < DOOMED.length; n++) w.despawn(DOOMED[n]);
+  trim(DOOMED, 0);
+  for (let n = 0; n < RESETS.length; n += 2) restore(w, RESETS[n], RESETS[n + 1]);
+  trim(RESETS, 0);
 }
 
 // What the physics step needs from this tick to move a mover that a body ran into.
@@ -375,6 +442,8 @@ export const nav: { run?: (w: World, ids: number[]) => void } = {};
 
 /** Advance one fixed tick. System order is fixed: input, ctrl, pace, scripts (pre), gravity, move, physics, turn, triggers, scripts (post). */
 export function step(w: World, script?: InputScript): void {
+  // The scene as its run began, kept only when a rule can ask to go back to it.
+  if (w.origin === undefined) w.origin = w.tick === 0 && resets(w) ? serialize(w) : '';
   // What was tapped or newly pressed this tick: buttons answer to these further down.
   let fresh: string[] | undefined;
   const pressed = script?.get(w.tick);
@@ -535,12 +604,13 @@ export function step(w: World, script?: InputScript): void {
 
   if (w.met.length) w.met = [];
   trim(DOOMED, 0);
+  trim(RESETS, 0);
   if (fresh) for (let n = 0, ids = find(w, BUTTON); n < ids.length; n++) {
     const id = ids[n];
     const b = w.get(id, 'button')!, name = w.names[id]!;
     if (!fresh.includes(`tap:${name}`) && !fresh.includes(b.key as string)) continue;
     w.events.push({ tick: w.tick, name: b.event as string, a: name, b: '' });
-    act(w, b.action as string, id, undefined, name);
+    act(w, b.action as string, id, undefined, name, b.event as string);
   }
   for (let n = 0, triggers = find(w, TRIGGER); n < triggers.length; n++) {
     const t = triggers[n];
@@ -557,17 +627,47 @@ export function step(w: World, script?: InputScript): void {
       w.overlaps.add(key);
       w.met.push({ a: w.names[t]!, at: tagOf(w, t), b: w.names[o]!, bt: tagOf(w, o) });
       w.events.push({ tick: w.tick, name: tr.event as string, a: w.names[t]!, b: w.names[o]! });
-      act(w, tr.action as string, t, o, w.names[o]!);
+      act(w, tr.action as string, t, o, w.names[o]!, tr.event as string);
     }
   }
-  for (let n = 0; n < DOOMED.length; n++) w.despawn(DOOMED[n]);
+  settle(w);
   for (let n = 0; n < w.post.length; n++) w.post[n](w);
-  // A tally counts what this step emitted, scripts included. It is state: saved and hashed.
-  for (let n = 0, ids = find(w, TALLY); n < ids.length; n++) {
+  // A timer counts ticks down; at zero it emits its event once (or, with loop, starts over).
+  for (let n = 0, ids = find(w, TIMER); n < ids.length; n++) {
     const id = ids[n];
-    const t = w.get(id, 'tally')!;
-    for (let i = heard; i < w.events.length; i++) if (w.events[i].name === t.event) t.n = (t.n as number) + (t.by as number);
+    const t = w.get(id, 'timer')!;
+    if (!t.on) continue;
+    if ((t.left as number) < 0) t.left = Math.max(1, Math.round(((t.seconds as number) * w.hz) / ONE));
+    if (t.left === 0) continue;
+    t.left = (t.left as number) - 1;
+    if (t.left !== 0) continue;
+    if (t.loop) t.left = -1;
+    w.events.push({ tick: w.tick, name: t.event as string, a: w.names[id]!, b: '' });
+    act(w, t.action as string, id, undefined, w.names[id]!, t.event as string);
   }
+  // A tally counts what this step emitted, scripts included. It is state: saved and hashed.
+  // A `when` answers the same events with an action. Either may emit, so they go round
+  // until nothing new was said (a rule that keeps answering itself is cut off).
+  for (let from = heard, round = 0; from < w.events.length && round < 16; round++) {
+    const end = w.events.length;
+    for (let n = 0, ids = find(w, TALLY); n < ids.length; n++) {
+      const id = ids[n];
+      const t = w.get(id, 'tally')!;
+      for (let i = from; i < end; i++) {
+        if (w.events[i].name !== t.event) continue;
+        t.n = (t.n as number) + (t.by as number);
+        if (t.then && t.n === t.hit) w.events.push({ tick: w.tick, name: t.then as string, a: w.names[id]!, b: '' });
+      }
+    }
+    for (let n = 0, ids = find(w, WHEN); n < ids.length; n++) {
+      const id = ids[n];
+      const wh = w.get(id, 'when')!;
+      for (let i = from; i < end; i++) if (w.events[i].name === wh.event) act(w, wh.action as string, id, undefined, w.names[id]!, wh.event as string);
+    }
+    settle(w);
+    from = end;
+  }
+  settle(w);
 }
 
 /**

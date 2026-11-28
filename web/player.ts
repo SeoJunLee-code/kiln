@@ -15,7 +15,7 @@ import type { World } from '../src/world.ts';
 
 const KEYS: Record<string, string> = {
   ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down',
-  a: 'left', d: 'right', w: 'up', s: 'down', z: 'a', ' ': 'a', x: 'b',
+  a: 'left', d: 'right', w: 'up', s: 'down', z: 'a', ' ': 'a', x: 'b', Enter: 'enter',
 };
 const $ = (id: string): HTMLElement => document.getElementById(id)!;
 const canvas = $('view') as HTMLCanvasElement;
@@ -220,8 +220,9 @@ try {
       now.down ||= b(13) || y > 0.5;
       now.a ||= b(0);
       now.b ||= b(1);
+      now.enter ||= b(9);
     }
-    for (const k of ['left', 'right', 'up', 'down', 'a', 'b']) {
+    for (const k of ['left', 'right', 'up', 'down', 'a', 'b', 'enter']) {
       if (!now[k] === !padWas[k]) continue;
       if ((padWas[k] = !!now[k])) wake();
       press(k, padWas[k]);
@@ -232,9 +233,13 @@ try {
     const eyeId = world.query('eye', 'pos')[0];
     if (eyeId !== undefined) wantView3();
     const use3 = eyeId !== undefined && !!view3;
+    // Over a 3D view the 2D canvas is the screen's own layer: pinned boxes, buttons and labels.
+    const hud = use3 && world.query('pin').length > 0;
     canvas3.hidden = !use3;
-    canvas.hidden = use3;
-    if (use3) return view3!.draw(world, eyeId);
+    canvas.hidden = use3 && !hud;
+    canvas.style.zIndex = hud ? '1' : '';
+    if (use3) view3!.draw(world, eyeId);
+    if (use3 && !hud) return;
     const dpr = window.devicePixelRatio || 1;
     cw = canvas.clientWidth;
     ch = canvas.clientHeight;
@@ -243,6 +248,8 @@ try {
       canvas.height = Math.round(ch * dpr);
     }
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, cw, ch);
+    if (!hud) {
     g.fillStyle = '#14161a';
     g.fillRect(0, 0, cw, ch);
     // With a camera entity the view is centred on it; otherwise the whole scene is fitted.
@@ -274,8 +281,9 @@ try {
         }
       });
     }
-    // Pinned entities are the screen's own layer, over the world.
-    const placed = (id: number): boolean => world.has(id, 'pos') || world.has(id, 'pin');
+    }
+    // Pinned entities are the screen's own layer, over the world; over a 3D world, they alone.
+    const placed = (id: number): boolean => world.has(id, 'pin') || (!hud && world.has(id, 'pos'));
     const layer = (id: number): number => (world.has(id, 'pin') ? 3 : world.has(id, 'solid') ? 0 : world.has(id, 'vel') ? 2 : 1);
     for (const id of world.query('box').filter(placed).sort((a, b) => layer(a) - layer(b) || a - b)) {
       const sp = world.get(id, 'sprite'), [x, y, w, h] = rect(id);
@@ -321,7 +329,8 @@ try {
       g.font = `600 ${Math.max(11, u * 0.42)}px ui-monospace, Consolas, monospace`;
       g.textAlign = where.includes('left') ? 'left' : where.includes('right') ? 'right' : 'center';
       g.textBaseline = !mid ? 'bottom' : where.includes('top') ? 'top' : where.includes('bottom') ? 'bottom' : 'middle';
-      g.fillText((l.text as string).replace(/_/g, ' ').replace('%', `${world.get(id, 'tally')?.n ?? '%'}`), x + w / 2, mid ? y + h / 2 : y - 3);
+      const tm = world.get(id, 'timer'), shown = world.get(id, 'tally')?.n ?? (tm ? Math.ceil(((tm.left as number) < 0 ? Math.round(((tm.seconds as number) * world.hz) / ONE) : (tm.left as number)) / world.hz) : '%');
+      g.fillText((l.text as string).replace(/_/g, ' ').replace('%', `${shown}`), x + w / 2, mid ? y + h / 2 : y - 3);
     }
   };
 
@@ -441,14 +450,19 @@ try {
         for (let seen = -1; seen !== loading.length;) { seen = loading.length; await Promise.all(loading); draw(); }
         const use3 = !canvas3.hidden;
         const pixels = use3 ? await view3!.read?.() : null;
+        const copy = document.createElement('canvas'), c2 = copy.getContext('2d')!;
         if (pixels) {
-          const copy = document.createElement('canvas');
           copy.width = pixels.width;
           copy.height = pixels.height;
-          copy.getContext('2d')!.putImageData(new ImageData(pixels.rgba, pixels.width, pixels.height), 0, 0);
-          return { renderer: view3!.name, png: copy.toDataURL('image/png') };
-        }
-        return { renderer: use3 ? view3!.name : '2d', png: (use3 ? canvas3 : canvas).toDataURL('image/png') };
+          c2.putImageData(new ImageData(pixels.rgba, pixels.width, pixels.height), 0, 0);
+        } else if (use3 && !canvas.hidden) {
+          copy.width = canvas3.width;
+          copy.height = canvas3.height;
+          c2.drawImage(canvas3, 0, 0);
+        } else return { renderer: use3 ? view3!.name : '2d', png: (use3 ? canvas3 : canvas).toDataURL('image/png') };
+        // The screen's layer of a 3D game goes over the picture, as it does on the page.
+        if (!canvas.hidden) c2.drawImage(canvas, 0, 0, copy.width, copy.height);
+        return { renderer: view3!.name, png: copy.toDataURL('image/png') };
       },
       expects: () => expects.map((e) => `${e.ok === undefined ? 'open' : e.ok ? 'pass' : 'FAIL'} ${e.text}`),
     },

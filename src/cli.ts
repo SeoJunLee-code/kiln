@@ -10,7 +10,13 @@ const HELP = `kiln <command> [scene] [options]
                          with a folder: every scene in it, each with its NAME.input if present,
                          and once more for each NAME.CASE.input (an input with its own expect lines)
   solve SCENE            search for an input script that meets the scene's reach/gone/event expects
-                         (--step N ticks per key choice, --max-states N, --out FILE saves the input)
+                         (--step N ticks per key choice, --max-states N, --budget SECONDS (default 60),
+                         --out FILE saves the input; a search that runs out reports its furthest attempt)
+  apply DIR --json FILE  write, check and test in one go: FILE holds {"files":[{"path","content"}],
+                         "edits":[{"path","old","new"}], "watch", "at", "events", "test"} (what an agent sends over MCP)
+  diff SCENE --input A --against B
+                         the first tick at which two runs differ and what differs: B is another
+                         input for the same scene, or another version of the scene (.kiln)
   schema [SCENE]         print the component reference (with SCENE: including its scripts)
   guide [TOPIC]          print the manual, sized for an agent to read in one call;
                          with TOPIC: a part only some games need (the guide lists them)
@@ -36,6 +42,7 @@ options:
   --view                 print an ASCII picture of the final state
   --top                  the same, looking down on the x/z plane (3D scenes)
   --observe              print one line per entity
+  --watch A.comp[.field],...   print these values during the run (--at 0,60,120: at these ticks)
   --events               print emitted events
   --out FILE             write the final state as a scene file
 `;
@@ -130,10 +137,17 @@ if (cmd === 'mcp') {
     else if (k === '--out') a.out = rest[++i];
     else if (k === '--edition') a.edition = rest[++i] ?? '';
     else if (k === '--ticks') a.ticks = /^\d+$/.test(rest[++i] ?? '') ? +rest[i] : -1;
-    else if (k === '--step' || k === '--max-states') {
+    else if (k === '--watch') a.watch = rest[++i];
+    else if (k === '--at') a.at = rest[++i];
+    else if (k === '--against') a.against = rest[++i];
+    else if (k === '--json') {
+      try { Object.assign(a, JSON.parse((await import('node:fs')).readFileSync(rest[++i], 'utf8'))); }
+      catch (e) { console.log(`E K002 --json: ${(e as Error).message}`); process.exit(2); }
+    }
+    else if (k === '--step' || k === '--max-states' || k === '--budget') {
       const n = /^[1-9]\d*$/.test(rest[++i] ?? '') ? +rest[i] : NaN;
       if (Number.isNaN(n)) { console.log(`E K002 ${k} must be a positive integer`); process.exit(2); }
-      a[k === '--step' ? 'stepTicks' : 'maxStates'] = n;
+      a[k === '--step' ? 'stepTicks' : k === '--budget' ? 'budget' : 'maxStates'] = n;
     }
     else if (k === '--view' || k === '--top' || k === '--observe' || k === '--events' || k === '--follow') a[k.slice(2) as 'view' | 'top' | 'observe' | 'events' | 'follow'] = true;
     else { console.log(`E K002 unknown option '${k}'`); process.exit(2); }

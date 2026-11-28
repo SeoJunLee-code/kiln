@@ -28,6 +28,9 @@ const NEEDS: Record<string, string[]> = {
   joint: ['rigid'],
   nav: ['pos', 'vel', 'box'],
   impulse: ['rigid'],
+  drive: ['rigid'],
+  timer: [],
+  when: [],
   force: ['rigid'],
 };
 
@@ -37,6 +40,17 @@ const NEEDS: Record<string, string[]> = {
  * `exists` answers whether a file next to the scene is there; without it, file checks are skipped.
  * `text` is the scene as written, for what parsing does not keep (comments).
  */
+/** Every event name the scene's own lines can emit. */
+function emitted(w: Scene['world']): Set<string> {
+  const out = new Set<string>(['load']);
+  for (const comp of ['trigger', 'button', 'timer', 'nav']) for (const c of w.comps.get(comp)?.values() ?? []) if (c.event) out.add(c.event as string);
+  for (const c of w.comps.get('tally')?.values() ?? []) if (c.then) out.add(c.then as string);
+  for (const comp of ['trigger', 'button', 'timer', 'when']) for (const c of w.comps.get(comp)?.values() ?? []) {
+    for (const a of (c.action as string).split('+')) if (a.startsWith('emit:')) out.add(a.slice(5));
+  }
+  return out;
+}
+
 export function lint(scene: Scene, file: string, exists?: (name: string) => boolean, text = ''): Diag[] {
   const w = scene.world, out: Diag[] = [];
   const warn = (code: string, msg: string, hint?: string): void => void out.push({ code, file, line: 0, msg, hint });
@@ -89,6 +103,26 @@ export function lint(scene: Scene, file: string, exists?: (name: string) => bool
     for (const k of String(w.get(id, 'keep')?.what ?? '').split(',').filter(Boolean)) {
       if (!w.has(id, k) || k === 'tiles') warn('K324', `'${name}' keeps '${k}', ${k === 'tiles' ? 'which cannot be carried to another scene' : registry.has(k) ? `but has no '${k}'` : 'which is not a component'}, so nothing is carried`, k === 'tiles' ? undefined : registry.has(k) ? `add ${k} to '${name}'` : suggest(k, registry.keys()));
     }
+    // What a timer or a `when` acts on, and whether anything can ever make a `when` act.
+    for (const comp of ['timer', 'when']) {
+      const c = w.get(id, comp);
+      if (!c) continue;
+      for (const a of (c.action as string).split('+')) {
+        const ref = a.startsWith('despawn:') ? a.slice(8) : a.startsWith('reset:') && a !== 'reset:all' ? a.slice(6) : '';
+        if (ref && !w.match(ref).length) warn('K311', `${comp} on '${name}' refers to '${ref}', which matches no entity`, ref.startsWith('#') ? 'no entity has that tag' : suggest(ref, w.ids.keys()));
+        if (a.startsWith('load:') && exists && !exists(a.slice(5))) warn('K312', `${comp} on '${name}' loads '${a.slice(5)}', which is not next to the scene`);
+      }
+      if (comp === 'when' && !scene.uses.length && !emitted(w).has(c.event as string)) {
+        warn('K332', `when on '${name}' waits for event '${c.event}', which nothing in the scene emits, so it never acts`, suggest(c.event as string, emitted(w)) ?? 'events come from trigger, button, timer, tally then=, nav event=, emit:');
+      }
+    }
+    const tal = w.get(id, 'tally');
+    if (tal && tal.then && !tal.by) warn('K333', `tally on '${name}' has then=${tal.then} but by=0, so n never reaches ${tal.hit}`);
+    // A wall that stands turned is turned for rigid bodies only.
+    if (w.physics && w.has(id, 'solid') && !w.has(id, 'vel') && !w.has(id, 'push') && (w.has(id, 'quat') || (w.get(id, 'rot')?.angle ?? 0) !== 0)
+      && w.query('pos', 'vel', 'box').some((m) => !w.has(m, 'rigid') && !w.has(m, 'solid'))) {
+      warn('K334', `'${name}' is a turned solid: rigid bodies meet it as turned, but movers (ctrl, pace, body) still meet its unturned box`, 'keep movers away from it, or build the slope for them from unturned boxes');
+    }
     const bt = w.get(id, 'button'), pn = w.get(id, 'pin');
     if (bt) {
       for (const a of (bt.action as string).split('+')) {
@@ -103,7 +137,7 @@ export function lint(scene: Scene, file: string, exists?: (name: string) => bool
       if (w.has(id, 'pos')) warn('K330', `'${name}' has 'pin' and 'pos': it is drawn where pin says, while collisions and triggers still use pos`, `drop pos from '${name}', or drop pin`);
       if (!w.has(id, 'box') && !w.has(id, 'label')) warn('K310', `'${name}' has 'pin' but no 'box' or 'label', so there is nothing to draw`);
     }
-    if ((bt || pn) && w.query('eye').length) warn('K331', `'${name}' has '${bt ? 'button' : 'pin'}', but the scene is drawn in 3D, where buttons and pinned entities are not drawn`);
+    if (w.has(id, 'label') && !pn && w.query('eye').length) warn('K331', `'${name}' has 'label' but no 'pin', and the scene is drawn in 3D, where only pinned text shows`, `add pin top-left (or another place on the screen) to '${name}'`);
     const so = w.get(id, 'sound');
     if (so) {
       if (id !== w.query('sound')[0]) warn('K327', `'${name}' has 'sound', but '${w.names[w.query('sound')[0]]}' has one already and only the first is used`, 'put every EVENT:FILE pair on one sound line');
@@ -140,8 +174,8 @@ export function lint(scene: Scene, file: string, exists?: (name: string) => bool
       warn('K319', `line ${i + 1}: '#' after '${m![1]}' starts a comment, so ${first.name} is empty`, `for the character '#' write ${first.name}=#; put a comment on its own line`);
     }
   });
-  if (!w.query('ctrl').length && !w.query('button').length && scene.expects.some((e) => /^(reach|gone|event)\b/.test(e.text))) {
-    warn('K314', `nothing has 'ctrl', so input cannot affect the scene and solve has nothing to steer`);
+  if (!w.query('ctrl').length && !w.query('drive').length && !w.query('button').length && scene.expects.some((e) => /^(reach|gone|event)\b/.test(e.text))) {
+    warn('K314', `nothing has 'ctrl' or 'drive', so input cannot affect the scene and solve has nothing to steer`);
   }
   if (!scene.expects.length) warn('K300', `no expect lines: nothing says what "working" means`, 'add e.g. expect reach hero exit by 600');
   return out;

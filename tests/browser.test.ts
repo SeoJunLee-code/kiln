@@ -2,7 +2,9 @@
 // Chrome does them on every push. Without a browser on the machine they are skipped.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { findChrome, launch } from '../src/chrome.ts';
@@ -720,4 +722,23 @@ test('browser: two pages play one game through the relay of play, and stay in st
     assert.ok(watched.b > 6 * 65536, `b is at ${watched.b / 65536}`);
     assert.deepEqual([one.errors(), two.errors()], [[], []]);
   } finally { await other?.close(); site.close(); }
+});
+
+test('browser: over a 3D view the pinned score, lives and timer are drawn, and look shows them', { skip }, async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'kiln-hud-'));
+  const text = readFileSync(ex('roll3d.kiln'), 'utf8');
+  writeFileSync(join(dir, 'with.kiln'), text);
+  // The same game with nothing pinned: the 3D picture alone.
+  writeFileSync(join(dir, 'bare.kiln'), text.replace(/^  (pin|label) .*\n/gm, ''));
+  const hud = await look(join(dir, 'with.kiln'), { browser }), bare = await look(join(dir, 'bare.kiln'), { browser });
+  assert.deepEqual(hud.errors, []);
+  assert.notEqual(hud.renderer, '2d');
+  const d = compare(bare.picture, hud.picture);
+  assert.ok(d.sameSize, 'the picture with the screen layer has the size of the 3D view');
+  assert.ok(d.changed > 0.0005 && d.changed < 0.05, `three short texts changed ${(d.changed * 100).toFixed(3)}% of the pixels`);
+  // The text is in the top strip of the view and nowhere else.
+  const p = hud.picture, q = bare.picture;
+  let below = 0;
+  for (let i = Math.floor(p.height / 4) * p.width * 4; i < p.rgba.length; i += 4) if (Math.abs(p.rgba[i] - q.rgba[i]) > 8) below++;
+  assert.equal(below, 0);
 });

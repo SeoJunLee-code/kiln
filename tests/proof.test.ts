@@ -42,7 +42,7 @@ test('proof game (Lite): the build carries the 2D engine only, inside the Lite b
   try {
     const b = build(at('level1.kiln'), out);
     assert.deepEqual(b.parts, []);
-    assert.ok(b.engineBytes <= 72_000, `engine bytes ${b.engineBytes}`);
+    assert.ok(b.engineBytes <= 74_000, `engine bytes ${b.engineBytes}`);
     for (const f of readdirSync(GAME)) assert.ok(b.written.some((w) => w.replace(/\.js$/, '.ts').endsWith(f)), `${f} is missing from the build`);
   } finally { rmSync(out, { recursive: true, force: true }); }
 });

@@ -41,7 +41,9 @@ const TOOL = {
   description:
     'Kiln game engine. Call cmd=guide first: it returns the manual. cmd: check (validate a scene), run (simulate headless, returns state hash), ' +
     'test (run and evaluate the scene\'s expect lines), solve (search for an input script that meets the expects), ' +
-    'schema (component reference), guide (manual), look (draw the scene in a headless browser and return the picture; ticks = tick to stop at). ' +
+    'schema (component reference), guide (manual), look (draw the scene in a headless browser and return the picture; ticks = tick to stop at), ' +
+    'apply (write files and/or exact edits, then check and test the game folder, all in this one call: use it for every change), ' +
+    'diff (first tick at which two runs differ, and in what). ' +
     'Output is compact text; errors are lines starting with "E CODE file:line".',
   inputSchema: {
     type: 'object',
@@ -60,6 +62,13 @@ const TOOL = {
       observe: { type: 'boolean', description: 'append one line per entity' },
       events: { type: 'boolean', description: 'append emitted events' },
       follow: { type: 'boolean', description: 'test, run: when the scene loads another, go on in it with its NAME.input' },
+      files: { type: 'array', description: 'apply: files to write whole, paths inside the game folder', items: { type: 'object', properties: { path: { type: 'string' }, content: { type: 'string' } }, required: ['path', 'content'] } },
+      edits: { type: 'array', description: 'apply: exact replacements in existing files; old must match once', items: { type: 'object', properties: { path: { type: 'string' }, old: { type: 'string' }, new: { type: 'string' } }, required: ['path', 'old', 'new'] } },
+      test: { type: 'boolean', description: 'apply: false = write and check only' },
+      watch: { type: 'string', description: 'run, test, apply: values to print during the run, e.g. "ball.pos,lives.tally.n"' },
+      at: { type: 'string', description: 'with watch: ticks, e.g. "0,60,120" (default: each second)' },
+      against: { type: 'string', description: 'diff: the other input file (same scene) or scene file (same input)' },
+      budget: { type: 'integer', minimum: 1, description: 'solve: seconds before giving up with the furthest attempt (default 60)' },
     },
     required: ['cmd'],
   },
@@ -111,6 +120,8 @@ async function handle(msg: Msg): Promise<unknown> {
         topic: a.topic as string | undefined,
         edition: a.edition as string | undefined,
         stepTicks: a.step as number | undefined,
+        files: a.files as CmdArgs['files'], edits: a.edits as CmdArgs['edits'], test: a.test as boolean | undefined,
+        watch: a.watch as string | undefined, at: a.at as string | undefined, against: a.against as string | undefined, budget: a.budget as number | undefined,
         view: !!a.view, top: !!a.top, observe: !!a.observe, events: !!a.events, follow: !!a.follow,
       });
       return { content: [{ type: 'text', text: r.text }], isError: r.code === 2 };

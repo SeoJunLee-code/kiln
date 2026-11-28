@@ -235,9 +235,11 @@ test('guide: the core and its topics cover every component and command, and each
   }
   const bad = await command('guide', { topic: 'nope' });
   assert.equal(bad.code, 2);
-  assert.match(bad.text, /^E K003 unknown guide topic 'nope' \(hint: valid: physics nav net view levels ui audio script\)/);
+  assert.match(bad.text, /^E K003 unknown guide topic 'nope' \(hint: valid: physics joints nav net view levels rules ui audio script\)/);
   // Room for the next few core components: adding one must not be what breaks this test.
-  assert.ok(g.length < 5600, `core guide is ${g.length} characters`);
+  // 5,600 until 2026-11-28; 5,900 since apply, diff and watch (the one-call loop) and the
+  // topic lines of rules and joints went in. Raise it only for something an agent needs on every run.
+  assert.ok(g.length < 5900, `core guide is ${g.length} characters`);
   for (const c of COMMANDS.filter((x) => x !== 'guide')) assert.match(g, new RegExp(`^${c} `, 'm'), `command ${c}`);
   // The scene shown in the guide has to be real.
   const sample = 'prefab hero\n  box 0.8 0.8\nprefab coin\n  box 0.5 0.5\n' + g.slice(g.indexOf('entity map'), g.indexOf('A spawned prefab'));
@@ -615,7 +617,9 @@ test('ui: a tap or its key presses a button, as recorded input that replays', as
   assert.match(bad, /^W K310 scene 'b' has 'button' but no 'box', so it does nothing/m);
   assert.match(bad, /^W K310 scene 'b' has 'button' but no 'pos' or 'pin', so it is nowhere to click/m);
   assert.match(bad, /^W K310 scene 'c' has 'pin' but no 'box' or 'label', so there is nothing to draw/m);
-  assert.match(await check('entity a\n  pin top\n  label hi\nentity cam\n  pos 0 0\n  eye 0 -8 9\n'), /^W K331 scene 'a' has 'pin', but the scene is drawn in 3D/m);
+  // Over a 3D view pinned things are drawn; a label with no pin is not, and check says so.
+  assert.doesNotMatch(await check('entity a\n  pin top\n  label hi\nentity cam\n  pos 0 0\n  eye 0 -8 9\n'), /K331/);
+  assert.match(await check('entity a\n  pos 0 0\n  label hi\nentity cam\n  pos 0 0\n  eye 0 -8 9\n'), /^W K331 scene 'a' has 'label' but no 'pin', and the scene is drawn in 3D/m);
 
   // The example: the title's button opens the first level, and the run goes on to the end.
   const followed = await command('test', { file: ex('title.kiln'), inputFile: ex('title.input'), follow: true });

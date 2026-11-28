@@ -1,7 +1,7 @@
 // The work behind physics.ts: keeps the scene's entities and the backend's
 // bodies and joints in step. Loaded with the first backend, so a game without rigid bodies
 // does not carry it. This is the one place in the simulation where floats appear.
-import { ONE } from './fx.ts';
+import { ONE, sinCos24 } from './fx.ts';
 import type { Backend, BodyDesc, JointDesc, Link } from './physics.ts';
 import type { Comp, World } from './world.ts';
 
@@ -12,9 +12,28 @@ const DEG = Math.PI / 180;
 // Tile cells get keys below every entity id: map id and cell index packed into a negative number.
 const cellKey = (map: number, index: number): number => -(map * 1048576 + index) - 1;
 
+/** The turn of a wall that stands turned: its `quat`, or its `rot` about one axis (as the 3D view draws it). */
+function turnOf(w: World, id: number): number[] {
+  const q = w.get(id, 'quat'), r = w.get(id, 'rot');
+  if (q) {
+    const n = Math.sqrt(num(q, 'x') ** 2 + num(q, 'y') ** 2 + num(q, 'z') ** 2 + num(q, 'w') ** 2);
+    return n > 0 ? [num(q, 'x') / n, num(q, 'y') / n, num(q, 'z') / n, num(q, 'w') / n] : [0, 0, 0, 1];
+  }
+  if (!r || !r.angle) return [0, 0, 0, 1];
+  // Half the angle from the integer table, so every machine builds the same collider.
+  const [s, c] = sinCos24((r.angle as number) >> 1);
+  const sin = s / 16777216;
+  return [r.axis === 'x' ? sin : 0, r.axis === 'y' ? sin : 0, r.axis === 'z' ? sin : 0, c / 16777216];
+}
+
 function describe(w: World, id: number, kind: BodyDesc['kind']): BodyDesc {
   const p = w.get(id, 'pos')!, b = w.get(id, 'box')!, r = w.get(id, 'rigid'), q = w.get(id, 'quat'), v = w.get(id, 'vel');
   const half = [num(b, 'w') / 2, num(b, 'h') / 2, num(b, 'd') / 2];
+  // A wall that never moves may stand turned (a ramp). What the fixed-point core moves may not.
+  if (kind === 'fixed') return {
+    kind, shape: 'box', half, at: [num(p, 'x') + half[0], num(p, 'y') + half[1], num(p, 'z') + half[2]],
+    rot: turnOf(w, id), vel: [0, 0, 0], spin: [0, 0, 0], density: 1, bounce: 0, friction: 0.5,
+  };
   return {
     kind, shape: (r?.shape as string | undefined) ?? 'box', half,
     at: [num(p, 'x') + half[0], num(p, 'y') + half[1], num(p, 'z') + half[2]],
@@ -23,6 +42,7 @@ function describe(w: World, id: number, kind: BodyDesc['kind']): BodyDesc {
     vel: kind === 'dynamic' ? [num(v, 'x'), num(v, 'y'), num(v, 'z')] : [0, 0, 0],
     spin: kind === 'dynamic' ? [num(q, 'sx') * DEG, num(q, 'sy') * DEG, num(q, 'sz') * DEG] : [0, 0, 0],
     density: r ? num(r, 'density') : 1, bounce: r ? num(r, 'bounce') : 0, friction: r ? num(r, 'friction') : 0.5,
+    damp: num(r, 'damp'), spinDamp: num(r, 'spin'), ccd: !!r?.ccd,
   };
 }
 
@@ -131,6 +151,9 @@ export function sync(w: World, backend: Backend | null): void {
     // Nothing has touched the backend since the last step wrote the mirror, so what it read then still holds.
     let out = seen.get(id);
     if (!out) world.read(id, out = scratch);
+    // Put back as the scene began (reset:), a body may have lost the mirrors it gained while running: it is at rest, unturned.
+    if (!w.has(id, 'vel')) w.add(id, 'vel', { x: 0, y: 0, z: 0 });
+    if (!w.has(id, 'quat')) w.add(id, 'quat', { x: 0, y: 0, z: 0, w: ONE, sx: 0, sy: 0, sz: 0 });
     const p = w.get(id, 'pos')!, b = w.get(id, 'box')!, q = w.get(id, 'quat'), v = w.get(id, 'vel');
     const hw = (b.w as number) >> 1, hh = (b.h as number) >> 1, hd = (b.d as number) >> 1;
     const at = p.x !== ((toFx(out[0]) - hw) | 0) || p.y !== ((toFx(out[1]) - hh) | 0) || p.z !== ((toFx(out[2]) - hd) | 0)
@@ -178,6 +201,13 @@ export function sync(w: World, backend: Backend | null): void {
 }
 
 const AXES = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+
+/** Where an impulse or a force acts when it names a point off the centre (world axes); else undefined. */
+function spot(w: World, world: Link['world'], id: number, c: Comp): number[] | undefined {
+  if (!c.ox && !c.oy && !c.oz) return undefined;
+  world.read(id, out);
+  return [out[0] + num(c, 'ox'), out[1] + num(c, 'oy'), out[2] + num(c, 'oz')];
+}
 /** The gap a mover keeps to a rigid body, in fixed-point: 1/128 of a unit. */
 const SKIN = ONE >> 7;
 
@@ -222,12 +252,23 @@ export function advance(w: World, nudge: (id: number, a: number, want: number) =
   // Pushes that the scene or a script asked for: a force every tick, an impulse once.
   for (const id of w.query('force')) {
     const f = w.get(id, 'force')!;
-    if (kinds.get(id) === 'dynamic') world.push(id, [num(f, 'x') / w.hz, num(f, 'y') / w.hz, num(f, 'z') / w.hz]);
+    if (kinds.get(id) === 'dynamic') world.push(id, [num(f, 'x') / w.hz, num(f, 'y') / w.hz, num(f, 'z') / w.hz], spot(w, world, id, f));
+  }
+  // Keys that push: a force along what is held, unless the body already goes that fast that way.
+  for (const id of w.query('drive')) {
+    if (kinds.get(id) !== 'dynamic') continue;
+    const d = w.get(id, 'drive')!, pl = d.player as number, v = w.get(id, 'vel')!;
+    const along = (w.on('right', pl) ? 1 : 0) - (w.on('left', pl) ? 1 : 0), across = (w.on('down', pl) ? 1 : 0) - (w.on('up', pl) ? 1 : 0);
+    if (!along && !across) continue;
+    const top = d.top as number, flat = d.plane !== 'xy', f = num(d, 'power') / w.hz;
+    const vx = v.x as number, vo = (flat ? v.z : v.y) as number;
+    const px = along && !(top && vx * along >= top) ? along * f : 0, po = across && !(top && vo * across >= top) ? across * f : 0;
+    if (px || po) world.push(id, flat ? [px, 0, po] : [px, po, 0]);
   }
   for (const id of w.query('impulse')) {
     if (kinds.get(id) !== 'dynamic') continue;
     const j = w.get(id, 'impulse')!;
-    world.push(id, [num(j, 'x'), num(j, 'y'), num(j, 'z')]);
+    world.push(id, [num(j, 'x'), num(j, 'y'), num(j, 'z')], spot(w, world, id, j));
     w.drop(id, 'impulse');
   }
   world.step();
