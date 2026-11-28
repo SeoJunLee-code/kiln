@@ -14,7 +14,7 @@ import { World, registry } from './world.ts';
 /** Independent copy of a world. Script systems are shared, so scripts must keep their state in components. */
 export function cloneWorld(w: World): World {
   const c = new World();
-  c.tick = w.tick; c.hz = w.hz; c.players = w.players; c.gx = w.gx; c.gy = w.gy; c.gz = w.gz; c.seed = w.seed; c.physics = w.physics;
+  c.tick = w.tick; c.hz = w.hz; c.players = w.players; c.gx = w.gx; c.gy = w.gy; c.gz = w.gz; c.seed = w.seed; c.physics = w.physics; c.origin = w.origin;
   c.names = [...w.names];
   c.ids = new Map(w.ids);
   for (const [name, m] of w.comps) {
@@ -56,10 +56,11 @@ const GOALS = ['reach', 'gone', 'event'];
  * searched for (they are checked by `test`).
  *   stepTicks  how long each key choice is held (smaller = finer control, larger search)
  *   maxStates  give up after this many distinct states
+ *   budgetMs   give up after this long; the furthest attempt is reported as with maxStates
  *   physicsCache  bytes of physics snapshots to keep (physics scenes only)
  *   scripts  the text of the scene's `use` files: an action they name ('a', 'b') is tried too
  */
-export function solve(sceneText: string, opts: { file?: string; mods?: Mods; stepTicks?: number; maxStates?: number; physicsCache?: number; scripts?: string } = {}): SolveResult {
+export function solve(sceneText: string, opts: { file?: string; mods?: Mods; stepTicks?: number; maxStates?: number; physicsCache?: number; scripts?: string; budgetMs?: number } = {}): SolveResult {
   const { world, expects: raw } = parseScene(sceneText, opts.file);
   if (opts.mods) { world.pre = opts.mods.pre; world.post = opts.mods.post; }
   const parsed = parseExpects(raw, world, opts.file);
@@ -75,15 +76,16 @@ export function solve(sceneText: string, opts: { file?: string; mods?: Mods; ste
 
   // Key choices: jumping controllers need up combined with a direction; 4-way ones do not.
   const ctrls = world.query('ctrl').map((id) => world.get(id, 'ctrl')!);
-  const jumper = ctrls.some((c) => (c.jump as number) > 0), ground = ctrls.some((c) => c.plane === 'xz');
-  const walk = [[], ['right'], ['left'], ['down'], ['up']];
+  const jumper = ctrls.some((c) => (c.jump as number) > 0), ground = ctrls.some((c) => c.plane === 'xz') || world.query('drive').some((id) => world.get(id, 'drive')!.plane !== 'xy');
+  // A body the keys push is steered on the diagonals too: it has no other way round a corner at speed.
+  const walk = world.query('drive').length ? [[], ['right'], ['left'], ['down'], ['up'], ['up', 'right'], ['up', 'left'], ['down', 'right'], ['down', 'left']] : [[], ['right'], ['left'], ['down'], ['up']];
   const choices = ground
     ? (jumper ? [...walk, ...walk.map((k) => ['a', ...k])] : walk)
     : jumper ? [[], ['right'], ['left'], ['up'], ['up', 'right'], ['up', 'left']] : walk;
   // `a` and `b` do nothing to the engine's own movement (except the 3D jump above), so they are
   // tried only when something reads them: a script that names one, or a button with that key.
   const keyed = world.query('button').map((id) => world.get(id, 'button')!.key);
-  const extra = ['a', 'b'].filter((k) => !(ground && jumper && k === 'a') && (keyed.includes(k) || new RegExp(`['"\`]${k}['"\`]`).test(opts.scripts ?? '')));
+  const extra = ['a', 'b', 'enter'].filter((k) => !(ground && jumper && k === 'a') && (keyed.includes(k) || new RegExp(`['"\`]${k}['"\`]`).test(opts.scripts ?? '')));
   const moves = [...choices];
   for (const k of extra) choices.push(...moves.map((m) => [...m, k]));
 
@@ -326,7 +328,10 @@ export function solve(sceneText: string, opts: { file?: string; mods?: Mods; ste
   // Furthest attempt so far: fewest open goals, then nearest to the next one.
   let best = root, bestF = Infinity, goal: Node | null = root.done === goals ? root : null;
 
+  const deadline = opts.budgetMs ? performance.now() + opts.budgetMs : Infinity;
+  let late = false;
   while (heap.length && !goal && seen.size <= maxStates) {
+    if (performance.now() > deadline) { late = true; break; }
     const n = pop();
     if (n.w.tick >= limit) continue;
     for (const keys of choices) {
@@ -367,7 +372,7 @@ export function solve(sceneText: string, opts: { file?: string; mods?: Mods; ste
 
   if (!goal) {
     const open = best.ex.find((e) => GOALS.includes(e.kind) && !e.ok)!;
-    const why = seen.size > maxStates ? `gave up after ${maxStates} states` : `no input reaches the goals by tick ${limit}`;
+    const why = late ? `gave up after ${Math.round(opts.budgetMs! / 1000)} s (${seen.size} states; --budget SECONDS for longer, --step N for coarser moves)` : seen.size > maxStates ? `gave up after ${maxStates} states` : `no input reaches the goals by tick ${limit}`;
     return { ...fail(`${why}; best run met ${best.done}/${goals}, still open: ${open.text}${open.note ? ` (${open.note})` : ''}`, best.w.tick, seen.size), input: script(best) };
   }
 

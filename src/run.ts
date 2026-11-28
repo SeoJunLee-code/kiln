@@ -37,7 +37,7 @@ export function splitInput(text: string): { input: string; expects: RawExpect[] 
  * Load a scene, run it headless, and evaluate its `expect` lines.
  * A scene is over at the tick a trigger loads another one: the run stops there, as the player does.
  */
-export function run(sceneText: string, opts: { input?: string; ticks?: number; file?: string; inputFile?: string; mods?: Mods; kept?: string } = {}): RunResult {
+export function run(sceneText: string, opts: { input?: string; ticks?: number; file?: string; inputFile?: string; mods?: Mods; kept?: string; each?: (w: World) => void } = {}): RunResult {
   const { world, expects: raw, uses } = parseScene(sceneText, opts.file);
   if (opts.kept) take(world, opts.kept);
   if (opts.mods) { world.pre = opts.mods.pre; world.post = opts.mods.post; }
@@ -55,11 +55,13 @@ export function run(sceneText: string, opts: { input?: string; ticks?: number; f
   }
   const end = world.tick + (opts.ticks ?? Math.max(lastTick(expects) - world.tick, 0));
   evalTick(world, expects);
+  opts.each?.(world);
   let load: string | undefined;
   while (world.tick < end && load === undefined) {
     const heard = world.events.length;
     step(world, script);
     evalTick(world, expects);
+    opts.each?.(world);
     for (let i = heard; i < world.events.length && load === undefined; i++) if (world.events[i].name === 'load' && world.events[i].a) load = world.events[i].a;
   }
   finish(expects, world, load);

@@ -67,6 +67,10 @@ function wrap(world: any, handles: Map<number, number>, fresh: Set<number>, join
         .setTranslation(b.at[0], b.at[1], b.at[2])
         .setRotation({ x: b.rot[0], y: b.rot[1], z: b.rot[2], w: b.rot[3] });
       if (b.kind === 'dynamic') desc.setSoftCcdPrediction(1).setLinvel(b.vel[0], b.vel[1], b.vel[2]).setAngvel({ x: b.spin[0], y: b.spin[1], z: b.spin[2] });
+      // Set only when asked for: a body described without them is built exactly as before.
+      if (b.damp) desc.setLinearDamping(b.damp);
+      if (b.spinDamp) desc.setAngularDamping(b.spinDamp);
+      if (b.ccd) desc.setCcdEnabled(true);
       const made = world.createRigidBody(desc);
       const shape = colliderOf(b);
       // The bouncier of two touching things decides: `bounce=0.8` then means what it says on any floor.
@@ -140,8 +144,9 @@ function wrap(world: any, handles: Map<number, number>, fresh: Set<number>, join
       }
       return found;
     },
-    push(key: number, impulse: number[]): void {
-      body(key).applyImpulse({ x: impulse[0], y: impulse[1], z: impulse[2] }, true);
+    push(key: number, impulse: number[], at?: number[]): void {
+      if (at) body(key).applyImpulseAtPoint({ x: impulse[0], y: impulse[1], z: impulse[2] }, { x: at[0], y: at[1], z: at[2] }, true);
+      else body(key).applyImpulse({ x: impulse[0], y: impulse[1], z: impulse[2] }, true);
     },
     place(key: number, at: number[] | null, rot: number[] | null, vel: number[] | null, spin: number[] | null): void {
       const b = body(key);

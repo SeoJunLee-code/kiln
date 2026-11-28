@@ -15,6 +15,7 @@ patrol.kiln tick=240 hash=54f1c06c expects=pass
 platformer.kiln tick=300 hash=3777b941 expects=pass
 quest.kiln tick=1800 hash=7e76f34d expects=pass
 rig3d.kiln tick=300 hash=01fcc988 expects=pass
+roll3d.kiln tick=900 hash=cf9dbaa0 expects=pass
 sokoban.kiln tick=1200 hash=6bca2c72 expects=pass
 stroll.kiln tick=240 hash=a204c96a expects=pass
 title.kiln tick=11 hash=c66f1a6f expects=pass

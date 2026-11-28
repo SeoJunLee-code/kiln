@@ -1,5 +1,5 @@
-import { existsSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs';
-import { basename, dirname, join, resolve } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs';
+import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { EDITIONS, isEdition, lowest, needs, over, why } from './edition.ts';
 import { fmtWarn, lint } from './lint.ts';
@@ -14,6 +14,10 @@ import { observe, run, view } from './run.ts';
 import type { RunResult } from './run.ts';
 import { KilnFail, fmtDiag, parseScene, schemaText, serialize } from './scene.ts';
 import { solve } from './solve.ts';
+import { fmtFx } from './fx.ts';
+import { hash } from './sim.ts';
+import { registry } from './world.ts';
+import type { World } from './world.ts';
 
 /** --follow gives up after this many scenes: a scene that loads itself would go on for ever. */
 const FOLLOW_MAX = 64;
@@ -25,7 +29,7 @@ function tally(path: string[]): string {
   return [...n].map(([name, times]) => `${name} x${times}`).join(', ');
 }
 
-export const COMMANDS = ['check', 'run', 'test', 'solve', 'schema', 'guide'];
+export const COMMANDS = ['check', 'run', 'test', 'solve', 'schema', 'guide', 'apply', 'diff'];
 
 export interface CmdArgs {
   /** scene path; `use` paths resolve relative to it */
@@ -51,6 +55,54 @@ export interface CmdArgs {
   topic?: string;
   /** check: the largest edition the game may need (lite, standard, ultra); more is an error */
   edition?: string;
+  /** solve: seconds before it gives up and reports the furthest attempt (default 60) */
+  budget?: number;
+  /** run, test, apply: values to print as the run goes: "ball.pos,lives.tally.n" */
+  watch?: string;
+  /** with watch: the ticks to print them at, "0,60,120" (default: every second, ten at most, and the end) */
+  at?: string;
+  /** diff: the other run: an input file (same scene) or a scene file (same input) */
+  against?: string;
+  /** apply: files to write whole, and exact replacements in files that exist; paths inside the game folder */
+  files?: { path: string; content: string }[];
+  edits?: { path: string; old: string; new: string }[];
+  /** apply: false writes and checks without running the tests */
+  test?: boolean;
+}
+
+/** One line of watched values: `watch TICK a.pos=1,2,0 lives.tally.n=3`. An entity that is not there reads `gone`. */
+function watched(w: World, paths: string[]): string {
+  const part = (path: string): string => {
+    const [name, comp, field] = path.split('.');
+    const id = w.ids.get(name);
+    if (id === undefined) return `${path}=gone`;
+    const c = comp ? w.get(id, comp) : undefined, def = registry.get(comp ?? '');
+    if (!c || !def) return `${path}=none`;
+    const show = (f: { name: string; type: string }): string => (f.type === 'fx' ? fmtFx(c[f.name] as number) : String(c[f.name]));
+    if (field === undefined) return `${path}=${def.fields.map(show).join(',')}`;
+    const fd = def.fields.find((f) => f.name === field);
+    return `${path}=${fd ? show(fd) : 'none'}`;
+  };
+  return `watch ${w.tick} ${paths.map(part).join(' ')}`;
+}
+
+/** Where two worlds differ, as `name.comp.field a -> b` lines. */
+function differences(a: World, b: World, most = 12): string[] {
+  const out: string[] = [];
+  for (const name of new Set([...a.ids.keys(), ...b.ids.keys()])) {
+    const ia = a.ids.get(name), ib = b.ids.get(name);
+    if (ia === undefined || ib === undefined) { out.push(`${name}: only in the ${ia === undefined ? 'second' : 'first'}`); continue; }
+    for (const def of registry.values()) {
+      const ca = a.get(ia, def.name), cb = b.get(ib, def.name);
+      if (!ca && !cb) continue;
+      if (!ca || !cb) { out.push(`${name}.${def.name}: only in the ${ca ? 'first' : 'second'}`); continue; }
+      for (const f of def.fields) if (ca[f.name] !== cb[f.name]) {
+        const show = (v: number | string): string => (f.type === 'fx' ? fmtFx(v as number) : String(v));
+        out.push(`${name}.${def.name}.${f.name} ${show(ca[f.name])} -> ${show(cb[f.name])}`);
+      }
+    }
+  }
+  return out.length > most ? [...out.slice(0, most), `(${out.length - most} more)`] : out;
 }
 
 /** What a scene run threw, as an error line that says where: in the game's script when the
@@ -90,13 +142,13 @@ export async function command(cmd: string, a: CmdArgs): Promise<{ text: string; 
       const extra = cmd === 'test' ? all.filter((x) => x.startsWith(`${stem}.`) && x.endsWith('.input') && x !== `${stem}.input` && !scenes.includes(x.replace(/\.input$/, '.kiln'))) : [];
       for (const inp of [`${stem}.input`, ...extra]) {
         const input = join(a.file, inp), label = inp === `${stem}.input` ? f : inp;
-        const r = await command(cmd, cmd === 'test' ? { file: join(a.file, f), inputFile: existsSync(input) ? input : undefined } : { file: join(a.file, f), edition: a.edition });
+        const r = await command(cmd, cmd === 'test' ? { file: join(a.file, f), inputFile: existsSync(input) ? input : undefined, watch: a.watch, at: a.at, events: a.events, follow: a.follow, ticks: a.ticks } : { file: join(a.file, f), edition: a.edition });
         const lines = r.text.trimEnd().split('\n');
         runs++;
         if (label !== f) cases++;
         if (r.code === 0) passed++;
         // `test`: one line per run when it passes; everything it said when it does not. `check` is short already.
-        if (r.code === 0 && cmd === 'test') out.push(`${label} ${lines.at(-1)}`);
+        if (r.code === 0 && cmd === 'test') out.push(...lines.slice(0, -1).filter((l) => /^(watch|event) /.test(l)).map((l) => `${label} ${l}`), `${label} ${lines.at(-1)}`);
         else out.push(...lines.map((l) => `${label} ${l}`));
         edition = Math.max(edition, EDITIONS.indexOf((/ edition=(\w+)/.exec(lines.at(-1)!)?.[1] ?? 'lite') as never));
         worst = Math.max(worst, r.code);
@@ -105,6 +157,43 @@ export async function command(cmd: string, a: CmdArgs): Promise<{ text: string; 
     // A game is its folder, so its edition is the largest any of its scenes needs.
     out.push(`${worst ? 'fail' : 'ok'} scenes=${scenes.length}${cases ? ` cases=${cases}` : ''} passed=${passed} failed=${runs - passed}${cmd === 'check' && !worst ? ` edition=${EDITIONS[edition]}` : ''}`);
     return done(worst);
+  }
+
+  // `apply`: write, check and test in one call, so that a change and its verdict are one turn.
+  if (cmd === 'apply') {
+    const target = a.file ?? '.';
+    const base = resolve(existsSync(target) && statSync(target).isDirectory() ? target : dirname(target));
+    const inside = (p: string): string | null => {
+      const full = resolve(base, p);
+      return full === base || !full.startsWith(base + sep) ? null : full;
+    };
+    let wrote = 0, edited = 0, bad = 0;
+    for (const f of a.files ?? []) {
+      const full = typeof f?.path === 'string' && typeof f.content === 'string' ? inside(f.path) : null;
+      if (!full) { out.push(`E K006 apply: '${f?.path}' is not a path inside the game folder with content`); bad++; continue; }
+      mkdirSync(dirname(full), { recursive: true });
+      writeFileSync(full, f.content);
+      wrote++;
+    }
+    for (const e of a.edits ?? []) {
+      const full = typeof e?.path === 'string' && typeof e.old === 'string' && typeof e.new === 'string' ? inside(e.path) : null;
+      if (!full || !existsSync(full)) { out.push(`E K006 apply: cannot edit '${e?.path}': ${full ? 'no such file' : 'not a path inside the game folder with old and new'}`); bad++; continue; }
+      const now = readFileSync(full, 'utf8'), n = e.old ? now.split(e.old).length - 1 : 0;
+      if (n !== 1) { out.push(`E K007 apply: edit of '${e.path}' ${n ? `matches ${n} places` : 'matches nothing'} (hint: ${n ? 'give more of the surrounding text in old' : 'old must be the exact text now in the file; write the whole file with files instead'})`); bad++; continue; }
+      writeFileSync(full, now.replace(e.old, () => e.new));
+      edited++;
+    }
+    out.push(`wrote ${wrote} file${wrote === 1 ? '' : 's'}${edited ? `, edited ${edited}` : ''}`);
+    if (!existsSync(target)) return out.push(`E K001 apply: nothing at '${target}' to check (hint: file is the game folder or one of its scenes)`, 'fail errors=1'), done(2);
+    const checked = await command('check', { file: target, edition: a.edition });
+    const lines = checked.text.trimEnd().split('\n');
+    // Of a check that passes, only what it warns about and its verdict are worth reading again.
+    out.push(...lines.slice(0, -1).filter((l) => checked.code !== 0 || /(^| )[WE] K\d/.test(l)), `check ${lines.at(-1)}`);
+    if (checked.code === 2 || bad) return out.push(`fail ${bad ? `apply errors=${bad}` : 'check'}`), done(2);
+    if (a.test === false) return out.push('ok applied, not tested'), done(0);
+    const tested = await command('test', { file: target, inputFile: a.inputFile, follow: a.follow, watch: a.watch, at: a.at, events: a.events, ticks: a.ticks });
+    out.push(...tested.text.trimEnd().split('\n').map((l) => `test ${l}`));
+    return done(tested.code);
   }
 
   const file = a.file ?? 'scene';
@@ -147,6 +236,15 @@ export async function command(cmd: string, a: CmdArgs): Promise<{ text: string; 
       // The edition is worked out from what the scene uses. Over the ceiling, each use is an error.
       const need = needs(s), above = a.edition ? over(need, a.edition as Edition, file) : [];
       if (above.length) return out.push(...above.map(fmtDiag), `fail errors=${above.length}`), done(2);
+      // A script is tried for a second of game time, so a method that does not exist or a field
+      // left out is found here, with its line, and not in the middle of the first test.
+      if (s.uses.length) {
+        try { run(text, { file, mods, ticks: Math.min(60, s.world.hz) }); }
+        catch (e) {
+          if (e instanceof KilnFail) throw e;
+          return out.push(runtimeError(e as Error, dirname(file)), 'fail errors=1'), done(2);
+        }
+      }
       out.push(...why(need));
       out.push(`ok entities=${s.world.ids.size} expects=${s.expects.length} scripts=${s.uses.length} edition=${lowest(need)} warnings=${warnings.length}`);
       return done(0);
@@ -154,7 +252,7 @@ export async function command(cmd: string, a: CmdArgs): Promise<{ text: string; 
     if (cmd === 'solve') {
       // The scripts say which of the other buttons the game reads (already loaded, so they can be read).
       const scripts = parseScene(text, file).uses.map((u) => readFileSync(join(dirname(file), u), 'utf8')).join('\n');
-      const s = solve(text, { file, mods, stepTicks: a.stepTicks, maxStates: a.maxStates, scripts });
+      const s = solve(text, { file, mods, stepTicks: a.stepTicks, maxStates: a.maxStates, scripts, budgetMs: (a.budget ?? 60) * 1000 });
       if (!s.ok) {
         out.push(`fail ${s.note}`);
         // Show where the furthest attempt ended, so the level can be fixed without guessing.
@@ -174,7 +272,38 @@ export async function command(cmd: string, a: CmdArgs): Promise<{ text: string; 
       out.push(s.input.trimEnd(), `ok solved tick=${s.tick} states=${s.states}${a.out ? ` wrote=${a.out}` : ''}`);
       return done(0);
     }
-    let r = run(text, { input, file, inputFile: a.inputFile, ticks: a.ticks, mods });
+    if (cmd === 'diff') {
+      if (!a.against || !existsSync(a.against)) return out.push(`E K002 diff needs against: an input file (the same scene played another way) or a scene file (another version, the same input)`), done(2);
+      const other = readFileSync(a.against, 'utf8'), scene2 = a.against.endsWith('.kiln');
+      const text2 = scene2 ? other : text, input2 = scene2 ? input : other, file2 = scene2 ? a.against : file;
+      const mods2 = scene2 ? await loadMods(text2, file2) : mods;
+      if (scene2) await loadBackend(physicsOf(text2), file2);
+      const trace = (t: string, i: string | undefined, f: string, m: typeof mods, ticks?: number): { hashes: string[]; world: World } => {
+        const hashes: string[] = [];
+        const r = run(t, { input: i, file: f, mods: m, ticks, each: (w) => void hashes.push(hash(w)) });
+        return { hashes, world: r.world };
+      };
+      const one = trace(text, input, file, mods, a.ticks), two = trace(text2, input2, file2, mods2, a.ticks ?? one.hashes.length - 1);
+      const n = Math.min(one.hashes.length, two.hashes.length);
+      let t = 0;
+      while (t < n && one.hashes[t] === two.hashes[t]) t++;
+      if (t === n) return out.push(`ok same ticks=${n - 1} hash=${one.hashes[n - 1]}`), done(0);
+      const wa = trace(text, input, file, mods, t).world, wb = trace(text2, input2, file2, mods2, t).world;
+      const start = wa.tick - t;
+      out.push(`differ first at tick ${start + t}${t ? ` (same through tick ${start + t - 1})` : ' (from the start)'}`, ...differences(wa, wb));
+      const said = (w: World): string => w.events.filter((e) => e.tick === w.tick).map((e) => e.name).join(',') || 'none';
+      out.push(`events at that tick: first ${said(wa)}; second ${said(wb)}`, `fail differ tick=${start + t}`);
+      return done(1);
+    }
+    const paths = a.watch ? a.watch.split(',').map((x) => x.trim()).filter(Boolean) : [];
+    const ats = a.at ? new Set(a.at.split(',').map((x) => +x)) : null, samples: string[] = [];
+    let last = '';
+    const each = !paths.length ? undefined : (w: World): void => {
+      last = '';
+      if (ats ? ats.has(w.tick) : w.tick % w.hz === 0 && samples.length < 10) samples.push(watched(w, paths));
+      else last = watched(w, paths);
+    };
+    let r = run(text, { input, file, inputFile: a.inputFile, ticks: a.ticks, mods, each });
     const report = (r: RunResult, file: string): void => {
       if (cmd !== 'test') return;
       // Following a game through its scenes, only what failed is worth a line.
@@ -202,6 +331,7 @@ export async function command(cmd: string, a: CmdArgs): Promise<{ text: string; 
       report(r, next);
       path.push(basename(next));
     }
+    if (paths.length) out.push(...samples, ...(last ? [last] : []));
     if (a.events) for (const ev of r.world.events) out.push(`event ${ev.tick} ${ev.name} ${ev.a} ${ev.b}`.trimEnd());
     if (a.observe) out.push(observe(r.world).trimEnd());
     if (a.view) out.push(view(r.world).trimEnd());

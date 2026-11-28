@@ -1,6 +1,6 @@
 import { fmtFx, parseFx } from './fx.ts';
 import { JOINTS, SHAPES, World, registry } from './world.ts';
-import type { Comp, CompDef } from './world.ts';
+import type { Comp, CompDef, Field } from './world.ts';
 
 export interface Diag { code: string; file: string; line: number; msg: string; hint?: string }
 export const fmtDiag = (d: Diag): string =>
@@ -133,7 +133,8 @@ export function parseScene(text: string, file = 'scene'): Scene {
           const [k, v = ''] = kv.split('=');
           if (k === 'pressed') for (const a of v.split(',').filter(Boolean)) world.pressed.add(a);
           else if (k === 'overlaps') for (const o of v.split(',').filter(Boolean)) world.overlaps.add(o);
-          else err('K103', line, `unknown state entry '${k}'`, 'valid: pressed, overlaps');
+          else if (k === 'origin') world.origin = decodeURIComponent(v);
+          else err('K103', line, `unknown state entry '${k}'`, 'valid: pressed, overlaps, origin');
         }
       } else if (tok[0] === 'use') {
         if (tok.length !== 2) return err('K100', line, `expected 'use PATH' (script path relative to the scene file)`);
@@ -223,10 +224,10 @@ export function parseScene(text: string, file = 'scene'): Scene {
       err('K104', line, `ctrl player must be 1 to 64`);
       bad = true;
     }
-    if (def.name === 'trigger' && !bad) {
+    if (['trigger', 'button', 'timer', 'when'].includes(def.name) && !bad) {
       for (const act of (data.action as string).split('+')) {
-        if (!/^(none|despawn-self|despawn-other|despawn:#?[A-Za-z_][\w-]*|load:[\w.-]+\.kiln)$/.test(act)) {
-          err('K104', line, `unknown trigger action '${act}'`, suggest(act, ['none', 'despawn-self', 'despawn-other']) ?? 'valid: none, despawn-self, despawn-other, despawn:NAME, despawn:#tag, load:FILE.kiln; join with +');
+        if (!/^(none|despawn-self|despawn-other|despawn:#?[A-Za-z_][\w-]*|load:[\w.-]+\.kiln|emit:[A-Za-z_][\w-]*|reset:(all|#?[A-Za-z_][\w-]*))$/.test(act)) {
+          err('K104', line, `unknown ${def.name} action '${act}'`, suggest(act, ['none', 'despawn-self', 'despawn-other', 'reset:all']) ?? 'valid: none, despawn-self, despawn-other, despawn:NAME, despawn:#tag, load:FILE.kiln, emit:EVENT, reset:NAME, reset:#tag, reset:all; join with +');
           bad = true;
         }
       }
@@ -294,14 +295,16 @@ export function parseScene(text: string, file = 'scene'): Scene {
 
 /** One component as its scene line. */
 export function compLine(def: CompDef, c: Comp): string {
-  const vals = def.fields.map((fd) => (fd.type === 'fx' ? fmtFx(c[fd.name] as number) : String(c[fd.name])));
+  // A field a script left out when it added the component reads as its default.
+  const of = (fd: Field): number | string => c[fd.name] ?? fd.def ?? (fd.type === 'str' ? '' : 0);
+  const vals = def.fields.map((fd) => (fd.type === 'fx' ? fmtFx(of(fd) as number) : String(of(fd))));
   let end = vals.length;
-  while (end > 0 && def.fields[end - 1].def !== undefined && c[def.fields[end - 1].name] === def.fields[end - 1].def) end--;
+  while (end > 0 && def.fields[end - 1].def !== undefined && of(def.fields[end - 1]) === def.fields[end - 1].def) end--;
   // Positional until the first empty string, then name=value for what is not default.
   const gap = vals.findIndex((v, i) => i < end && v === '');
   const parts = gap < 0 ? vals.slice(0, end) : [
     ...vals.slice(0, gap),
-    ...def.fields.slice(gap, end).filter((fd) => c[fd.name] !== fd.def).map((fd) => `${fd.name}=${vals[def.fields.indexOf(fd)]}`),
+    ...def.fields.slice(gap, end).filter((fd) => of(fd) !== fd.def).map((fd) => `${fd.name}=${vals[def.fields.indexOf(fd)]}`),
   ];
   return `  ${[def.name, ...parts].join(' ')}`;
 }
@@ -354,8 +357,8 @@ export function serialize(w: World, expects: RawExpect[] = [], uses: string[] = 
       if (def.name === 'tiles') for (const r of (c.rows as string).split('\n')) out.push(`    ${r}`);
     }
   });
-  if (w.pressed.size || w.overlaps.size) {
-    out.push(`state${w.pressed.size ? ` pressed=${[...w.pressed].sort()}` : ''}${w.overlaps.size ? ` overlaps=${[...w.overlaps].sort()}` : ''}`);
+  if (w.pressed.size || w.overlaps.size || w.origin) {
+    out.push(`state${w.pressed.size ? ` pressed=${[...w.pressed].sort()}` : ''}${w.overlaps.size ? ` overlaps=${[...w.overlaps].sort()}` : ''}${w.origin ? ` origin=${encodeURIComponent(w.origin)}` : ''}`);
   }
   for (const e of expects) out.push(`expect ${e.text}`);
   return out.join('\n') + '\n';

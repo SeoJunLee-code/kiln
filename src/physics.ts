@@ -25,6 +25,11 @@ export interface BodyDesc {
   density: number;
   bounce: number;
   friction: number;
+  /** Share of its speed, and of its spin, a dynamic body loses each second. */
+  damp?: number;
+  spinDamp?: number;
+  /** Full continuous collision detection for a fast dynamic body. */
+  ccd?: boolean;
 }
 
 /** A tie between two bodies. Anchors and frames are in each body's own space. */
@@ -61,7 +66,8 @@ export interface BackendWorld {
    */
   cast(half: number[], at: number[], dir: number[], max: number): { dist: number; key: number } | null;
   /** Change a dynamic body's motion by an impulse through its centre of mass. */
-  push(key: number, impulse: number[]): void;
+  /** `at`: the world point it acts on; left out, the centre of mass (no turning). */
+  push(key: number, impulse: number[], at?: number[]): void;
   /**
    * Put a dynamic body somewhere, turn it, or change its speed or spin, at once; null leaves
    * that part exactly as it is. `cast` has to see the body in its new place straight away.
