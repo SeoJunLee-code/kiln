@@ -721,3 +721,30 @@ test('browser: two pages play one game through the relay of play, and stay in st
     assert.deepEqual([one.errors(), two.errors()], [[], []]);
   } finally { await other?.close(); site.close(); }
 });
+
+// A built game is for players: the developer's panel is there only if asked for, and an
+// error still shows.
+test('browser: a built game hides the side panel unless asked for', { skip }, async () => {
+  const { build } = await import('../src/build.ts');
+  const { mkdtempSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const plain = mkdtempSync(join(tmpdir(), 'kiln-bare-')), kept = mkdtempSync(join(tmpdir(), 'kiln-panel-'));
+  build(ex('platformer.kiln'), plain);
+  build(ex('platformer.kiln'), kept, { panel: true });
+  const sites = [await host(plain), await host(kept)];
+  const panel = `({ shown: getComputedStyle(document.querySelector('aside')).display !== 'none', width: document.getElementById('view').clientWidth })`;
+  try {
+    const look = async (url: string): Promise<{ shown: boolean; width: number }> => {
+      const page = await browser.open(url, { width: 960, height: 600 });
+      await page.eval(`(async () => { while (!window.kiln) await new Promise((r) => setTimeout(r, 20)); kiln.runTo(1); })()`);
+      return page.eval(panel);
+    };
+    assert.deepEqual(await look(`${sites[0].url}?paused`), { shown: false, width: 960 });
+    assert.equal((await look(`${sites[0].url}?paused&panel`)).shown, true);
+    assert.equal((await look(`${sites[1].url}?paused`)).shown, true);
+    const broken = await browser.open(`${sites[0].url}?scene=none.kiln`, { width: 960, height: 600 });
+    await broken.eval(`(async () => { for (let i = 0; i < 300 && !document.getElementById('error').textContent; i++) await new Promise((r) => setTimeout(r, 20)); })()`);
+    assert.equal((await broken.eval<{ shown: boolean }>(panel)).shown, true);
+  } finally { for (const s of sites) s.close(); }
+});

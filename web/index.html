@@ -31,6 +31,9 @@
   button:focus-visible { outline: 2px solid var(--ok); outline-offset: 1px; }
   .row { display: flex; gap: 8px; flex-wrap: wrap; }
   #error { color: var(--bad); }
+  body.bare { grid-template-columns: minmax(0, 1fr); grid-template-rows: 100%; }
+  body.bare aside { display: none; }
+  #note { position: absolute; top: 8px; left: 12px; pointer-events: none; }
   @media (max-width: 760px) { body { grid-template-columns: 1fr; grid-template-rows: 60vh auto; } aside { border-left: 0; border-top: 1px solid var(--line); } }
 </style>
 </head>
@@ -38,6 +41,7 @@
 <div id="stage">
   <canvas id="view" aria-label="Game view"></canvas>
   <canvas id="view3d" aria-label="Game view, 3D" hidden></canvas>
+  <div id="note" role="status"></div>
   <div id="pad" hidden>
     <div class="dirs">
       <button type="button" data-action="up" aria-label="Up" style="grid-area:1/2">&#9650;</button>
