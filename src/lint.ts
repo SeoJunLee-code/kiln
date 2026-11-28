@@ -18,6 +18,7 @@ const NEEDS: Record<string, string[]> = {
   tiles: ['pos'],
   sprite: ['pos', 'box'],
   anim: ['sprite'],
+  particles: ['pos'],
   label: ['pos'],
   camera: ['pos'],
   eye: ['pos'],
@@ -77,6 +78,15 @@ export function lint(scene: Scene, file: string, exists?: (name: string) => bool
     for (const field of ['image', 'mesh']) {
       const f = sp?.[field] as string | undefined;
       if (f && exists && !exists(f)) warn('K312', `sprite on '${name}' uses ${field} '${f}', which is not next to the scene`);
+    }
+    const pt = w.get(id, 'particles');
+    if (pt) {
+      const on = pt.on as string;
+      const heard = new Set(['load', ...w.query('trigger').map((t) => w.get(t, 'trigger')!.event as string), ...w.query('button').map((t) => w.get(t, 'button')!.event as string)]);
+      if ((pt.rate as number) <= 0 && !on) warn('K332', `particles on '${name}' have neither rate= nor on=, so there are none`, 'e.g. particles rate=20, or particles on=coin');
+      else if ((pt.life as number) <= 0 || (pt.size as number) <= 0 || (on && (pt.count as number) < 1)) warn('K332', `particles on '${name}' need life, size and count above 0`);
+      else if (on && !scene.uses.length && !heard.has(on)) warn('K326', `particles on '${name}' burst on '${on}', which no trigger or button here emits`, suggest(on, heard));
+      if (w.query('eye').length) warn('K323', `'${name}' has 'particles', which are not drawn in 3D`);
     }
     const an = w.get(id, 'anim');
     if (an && sp) {

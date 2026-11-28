@@ -70,7 +70,13 @@ Animation (2D): draw the frames in one image, side by side, all the same size an
 right (PNG, or SVG with a viewBox), and give the entity sprite image=walk.png + anim 4.
 The frame comes from the tick alone: tick*fps/hz, so a replay draws the same pictures.
 anim 4 idle=1 keeps frame 0 for standing and loops 1..3 while vel is not zero.
-Looking left mirrors the picture; face is saved with the scene and is part of the hash.`,
+Looking left mirrors the picture; face is saved with the scene and is part of the hash.
+Particles (2D) are only drawn: no collision, no dot in the game state, the same on every replay.
+  particles rate=20 angle=90 spread=20 color=skyblue    a steady drip
+  particles on=coin count=16 gravity=6 color=gold       a burst
+on=EVENT bursts when the event names this entity, as the trigger or as what touched it;
+an event a script emits with no names bursts every listener. An entity that despawns on
+that event still bursts.`,
   },
   levels: {
     about: 'a score or lives, kept across scenes',

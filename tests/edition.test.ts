@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -195,11 +195,19 @@ test('edition: a built game carries only the parts it uses, within the byte budg
   // of `play`: named here, never written into a build and never asked for by a built game.
   // nav.js and netplay.js are asked for only by games that use them.
   const player = readFileSync(join(flat.out, 'engine/web/player.js'), 'utf8');
-  assert.deepEqual([...player.matchAll(/import\('(\.[^']+)'\)/g)].map((m) => m[1]).sort(), ['../src/nav.js', './audio.js', './inspect.js', './netplay.js', './view3.js']);
+  assert.deepEqual([...player.matchAll(/import\('(\.[^']+)'\)/g)].map((m) => m[1]).sort(), ['../src/nav.js', './audio.js', './inspect.js', './netplay.js', './particles.js', './view3.js']);
 
   const solid = built(game(['arena3d.kiln', 'gem.obj']), 'arena3d.kiln');
   assert.deepEqual([solid.parts, solid.web], [['3d'], ['gl.js', 'gpu.js', 'mesh.js', 'player.js', 'view3.js']]);
   assert.ok(solid.engineBytes <= BUDGET.lite3d, `3D Lite engine is ${solid.engineBytes} bytes, budget ${BUDGET.lite3d}`);
+
+  const sparks = built(game(['level1.kiln', 'level2.kiln']), 'level1.kiln');
+  assert.ok(!sparks.written.includes('engine/web/particles.js'), 'no particles, no particle part');
+  const dusty = game(['level1.kiln', 'level2.kiln']);
+  appendFileSync(join(dusty, 'level2.kiln'), 'entity dust\n  pos 1 1\n  particles rate=5\n');
+  const spark = built(dusty, 'level1.kiln');
+  assert.deepEqual([spark.parts.includes('particles'), spark.web.includes('particles.js')], [true, true]);
+  assert.ok(spark.engineBytes <= BUDGET.lite2d, `2D Lite engine with particles is ${spark.engineBytes} bytes`);
 
   // Samples and music are a part too: a scene with `sound` brings it, and its files go along.
   const loud = built(game(['level1.kiln', 'level2.kiln', 'coin.wav', 'door.wav', 'tune.wav']), 'level1.kiln');
