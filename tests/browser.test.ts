@@ -748,3 +748,60 @@ test('browser: a built game hides the side panel unless asked for', { skip }, as
     assert.equal((await broken.eval<{ shown: boolean }>(panel)).shown, true);
   } finally { for (const s of sites) s.close(); }
 });
+
+test('browser: particles burst where an entity was, drip at a rate, and a rewind draws them the same', { skip }, async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = mkdtempSync(join(tmpdir(), 'kiln-dots-'));
+  // The coin goes the tick the hero reaches it; its burst has to come from where it was.
+  writeFileSync(join(dir, 's.kiln'), `world hz=60
+entity hero
+  pos 0 5
+  box 1 1
+  vel
+  ctrl 4
+entity coin
+  pos 4 5
+  box 1 1
+  trigger hero coin despawn-self
+  particles on=coin count=40 speed=3 size=0.3 color=#ff00ff
+entity tap
+  pos 8 1
+  box 1 1
+  particles rate=30 angle=90 spread=0 speed=4 size=0.3 color=#00ffff
+`);
+  writeFileSync(join(dir, 's.input'), '0 right down\n');
+  const player = await openPlayer(join(dir, 's.kiln'), { inputFile: join(dir, 's.input'), browser, query: 'paused' });
+  try {
+    // The hero's box meets the coin's after tick 45 (3 units at 4 a second).
+    const shots = await player.page.eval<string[]>(`(async () => {
+      const out = [];
+      const take = async () => out.push((await kiln.shot()).png);
+      kiln.runTo(40); await take();
+      kiln.runTo(52); await take();
+      kiln.runTo(120); await take();
+      kiln.seek(52); await take();
+      return out;
+    })()`);
+    const count = (url: string, r: number, g: number, b: number): number => {
+      const p = decodePng(Buffer.from(url.slice(url.indexOf(',') + 1), 'base64'));
+      let n = 0;
+      // A dot fades into the dark ground, so it is told by which channels lead.
+      for (let i = 0; i < p.rgba.length; i += 4) {
+        const c = [p.rgba[i], p.rgba[i + 1], p.rgba[i + 2]], want = [r, g, b];
+        if (want.every((w, k) => (w ? c[k] > 110 : c[k] < 60))) n++;
+      }
+      return n;
+    };
+    const burst = shots.map((s) => count(s, 1, 0, 1)), drip = shots.map((s) => count(s, 0, 1, 1));
+    assert.equal(burst[0], 0, 'nothing before the coin is reached');
+    assert.ok(burst[1] > 50, `a burst where the coin was: ${burst[1]} pixels`);
+    assert.equal(burst[2], 0, 'the burst is over');
+    assert.ok(drip.every((n) => n > 20), `the drip goes on: ${drip}`);
+    const raw = (url: string) => decodePng(Buffer.from(url.slice(url.indexOf(',') + 1), 'base64'));
+    assert.ok(compare(raw(shots[1]), raw(shots[3])).changed < 0.001, 'the same tick after a rewind looks the same');
+  } finally {
+    await player.close();
+  }
+});

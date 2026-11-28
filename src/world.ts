@@ -64,6 +64,8 @@ defineComponent('light', '3D: point light at the middle of the entity, reaching 
   [f('color', 'str', 'white'), f('range', 'fx', 6 * 65536), f('power', 'fx', 65536)], 'view', ['drawing', 'standard']);
 defineComponent('clip', '3D: play glTF animation NAME from tick FROM; speed<0 reverses',
   [f('name', 'str'), f('speed', 'fx', 65536), f('from', 'int', 0), f('loop', 'int', 1)], 'view', ['drawing', 'standard']);
+defineComponent('particles', '2D: small squares from the middle of the box, rate a second and/or count at once on EVENT. angle: degrees, 0 right, 90 down',
+  [f('rate', 'int', 0), f('on', 'str', ''), f('count', 'int', 12), f('life', 'fx', 39322), f('speed', 'fx', 3 * 65536), f('angle', 'fx', 270 * 65536), f('spread', 'fx', 360 * 65536), f('gravity', 'fx', 0), f('size', 'fx', 9830), f('color', 'str', 'white')], 'view');
 defineComponent('anim', '2D: the sprite image is FRAMES pictures side by side, shown in turn. idle=N: the first N while still, the rest while moving. face: 1 right, -1 left (drawn mirrored); the engine sets it from vel x',
   [f('frames', 'int'), f('fps', 'int', 8), f('idle', 'int', 0), f('face', 'int', 1)], 'view');
 defineComponent('label','text drawn above the entity in 2D; _ is a space', [f('text', 'str'), f('color', 'str', 'white')], 'view');
