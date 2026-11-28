@@ -500,12 +500,14 @@ B의 (b)다. 설계는 **내가 정했다**(사용자 확인 없음). 새 expect
   - `78e4535` 애니메이션·스킨: `clip NAME [speed] [from] [loop]`(틱의 함수, 시뮬레이션에 영향 없음), `check`가 없는 이름을 K315로, 장면 `rig3d`. CPU에서 포즈를 만들고 화면의 서로 다른 순간마다 한 번. 블렌딩·IK·모프 타깃 없음, 캐릭터 수 한계는 재지 않았다. 3D 화면 코드를 `web/view3.ts`(3d 부품)로 옮겨 2D Lite 빌드가 71,828 → 68,427바이트.
   - `5f3a559` 점광원: `light [color] [range] [power]`, WebGPU만, 시점에서 가까운 32개, 그림자 없음, 장면 `lamps3d`. 3D Lite 바이트 예산 102,000 → 104,000(이유는 `tests/edition.test.ts` 주석).
   - 새 장면의 기준 이미지는 CI의 `images` 작업이 한 번 실패한 뒤 그 산출물(`gh run download ID -n images`)을 눈으로 보고 `tests/images/`에 넣었다.
+- **2026-11-28 네 번째 엔진 세션(Standard 게이트 4~6, CI 셋 초록)**:
+  - `4461117` 강체 모양 capsule·cylinder·cone, `joint KIND TO [x y z]`(fixed·ball·hinge·slider·rope·spring, 한계·모터). 물리의 엔진 쪽은 `src/rigid.ts`로 옮겨 첫 백엔드와 함께 읽는다(2D Lite 빌드가 강체 코드를 싣지 않는다). 원기둥을 3칸 위에서 떨어뜨리면 넘어지는 경우가 있다(Rapier 솔버, 고치지 않음). 볼록 껍질·삼각 메시 충돌체, 부서지는 조인트 없음.
+  - `a2aa2d7` `nav TO speed [reach]`(`src/nav.ts`, 정수 A*, 한 칸씩 다시 계획, 상태는 구성요소 필드). `nav`를 쓰는 게임만 싣는다. 내비메시·서로 피하기·옆에서 보는 점프 게임은 안 된다. 개체 수 한계는 재지 않았다.
+  - `1eac1bf` 네트워크: `world players=N`, `ctrl ... player=N`, 입력 `2:left`, `src/net.ts`(롤백 세션, 30틱마다 해시 비교), `src/relay.ts`(의존성 없는 WebSocket 중계, `play`에 붙어 있고 `kiln relay`로도 뜬다), `web/netplay.ts`(`?net`). 두 브라우저가 `play` 중계로 대전하는 테스트가 있다. 로비·재접속·권위 서버 없음, 버튼 탭은 안 보낸다, 64명·지연이 큰 실제 회선·강체가 많은 장면의 저장 비용은 재지 않았다. `solve`는 1번 플레이어만 누른다.
+  - 점수판 63행: 전부 gated 23, 부분 16, works 6, none 17.
 - **다음에 집을 일(엔진, 순서대로)**: Standard 게이트의 남은 것(`docs/EDITIONS.md` "Order of work" 6). 설계부터, 덩어리 하나씩:
-  1. 강체 모양·조인트(Rapier 백엔드 `backends/rapier/index.ts`, `src/physics.ts`. 지금 `rigid shape`는 box·ball. 해시 고정).
-  2. 내비게이션(고정소수 격자·경로, 해시).
-  3. 네트워크(재생·롤백 위의 세션).
-  4. 엔티티 10만 개, 틱당 할당 0(`step`의 남은 약 0.8KB부터 확인: 배열 for-of 반복자로 추정, 확인 안 함. 물리·스크립트 장면은 재지 않았다).
-  5. 데스크톱 실행 파일.
+  1. 엔티티 10만 개, 틱당 할당 0(`step`의 남은 약 0.8KB부터 확인: 배열 for-of 반복자로 추정, 확인 안 함. 물리·스크립트 장면은 재지 않았다).
+  2. 데스크톱 실행 파일.
   - 그 뒤: Standard 증명 게임과 에이전트 비용. 조명·애니메이션의 남은 것(캐스케이드 그림자, 블렌딩·IK, 환경 맵)은 점수판에 부분으로 남아 있다.
   - 남은 `solve` 한계: 키 조합을 정한 틱 수만큼 누른다(`--step`), 버튼은 누르지 않는다, 거리 추정은 중력을 보지 않는다, 스크립트가 `'a'`를 문자열이 아닌 방식으로 만들면 못 알아본다.
 - **사용자 몫**: Khronos glTF 샘플을 내려받아 시험해도 되는지, 화면 판정·녹화(H1·H2·H3 각 9개 + Gem Vault 10개, 결과물은 저장소 옆 `_archive/kiln-compare/`), H2 심은 결함 셋 화면 확인, `tugcantopaloglu/godot-mcp`를 대신 쓸지, 라이선스, 기준 휴대폰, Ultra 기준 기계, Lite 게이트의 Godot 데모 3개, 홍보 글 게시.

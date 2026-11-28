@@ -26,20 +26,22 @@ Kiln is a few days old. The long-term aim is an engine that agents can take from
 
 | Works today | Not yet |
 |---|---|
-| Text scenes, 26 built-in components, levels drawn as character grids with prefabs | Skeletal animation, custom shaders, more than one light |
+| Text scenes, 30 built-in components, levels drawn as character grids with prefabs | Custom shaders, animation blending and IK, shadows from point lights |
 | Fixed-point simulation on x, y and z; swept box collision; triggers that emit events and remove things (keys, doors, pickups); pacing guards; pushable crates; moving platforms that carry what stands on them | Circle or polygon collision, collision that follows rotation |
 | Rotation as fixed-point state: an angle (`rot`) or a quaternion (`quat`), drawn in 2D and by WebGPU | Parent-child transforms |
-| Rigid bodies (boxes and balls) through an optional backend, Rapier's deterministic build: same hash on Linux, macOS and Windows, they block and shove the character, and `solve` searches through them | 2D rigid bodies, joints, other shapes |
+| Rigid bodies (box, ball, capsule, cylinder, cone) and joints (fixed, ball, hinge, slider, rope, spring) through an optional backend, Rapier's deterministic build: same hash on Linux, macOS and Windows, they block and shove the character, and `solve` searches through them | 2D rigid bodies, mesh colliders, breakable joints |
+| Path finding on a grid (`nav`): movers walk around what is solid | Navigation meshes, avoidance between movers |
+| Network play by rollback (`world players=2`), with a relay | Lobbies, rejoining, authoritative servers |
 | 2D: sprites and sprite-sheet animation, a color or an image per tile character, labels, buttons, entities pinned to the screen | Particles, layout containers, text input |
 | Sound files on events and one looping music track | Positional sound, fades |
 | Keyboard, touch and gamepad | Remapping, analog values |
 | Several levels (a trigger loads the next scene) and a score or lives that go along (`tally`, `keep`) | Saving to disk |
 | `expect` checks with explanations on failure; TypeScript scripts with a determinism check | Asset pipeline |
 | Browser player: Canvas 2D, and lit, shadowed boxes and OBJ meshes for 3D scenes, drawn with WebGPU (WebGL2 where the browser has none) | Images, glyphs and labels in 3D |
-| glTF 2.0 models (.glb, .gltf) with metallic-roughness materials and textures, on WebGPU | glTF animation and skins; files from other exporters are untested; environment lighting |
+| glTF 2.0 models (.glb, .gltf) with metallic-roughness materials and textures, on WebGPU | Morph targets; environment lighting; files from exporters other than Godot are untested |
 | `look`: the scene drawn in a headless browser, returned to the agent as a picture | An editor for people, a profiler |
 | `solve`: automatic search for a winning input | `solve` does not tap buttons |
-| `build`: export to a static web folder; MCP server and CLI | Networking, desktop and mobile export |
+| `build`: export to a static web folder; MCP server and CLI | Desktop and mobile export |
 
 Claude Code has built games with Kiln over its MCP server ([proof/lite](proof/lite/RUN.md), [proof/compare](proof/compare/README.md)). A comparison with Godot on held-out specs is under way and has no verdict yet. No human has play-tested a game yet. See [HANDOFF.md](HANDOFF.md) (Korean) for the detailed status and known limits.
 
