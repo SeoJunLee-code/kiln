@@ -379,6 +379,25 @@ test('mcp: look answers with a line of text and the picture itself', { skip }, a
   } finally { child.kill(); }
 });
 
+test('mcp: look draws scene text too, and leaves no file behind', { skip }, async () => {
+  const child = spawn(process.execPath, [fileURLToPath(new URL('../src/cli.ts', import.meta.url)), 'mcp'], { stdio: ['pipe', 'pipe', 'inherit'] });
+  try {
+    const reply = new Promise<any>((done) => {
+      let seen = '';
+      child.stdout.on('data', (chunk) => {
+        seen += chunk;
+        const end = seen.indexOf(String.fromCharCode(10));
+        if (end >= 0) done(JSON.parse(seen.slice(0, end)));
+      });
+    });
+    const scene = ['world hz=60', 'entity a', '  pos 1 1', '  box 2 2'].join(String.fromCharCode(10));
+    child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'kiln', arguments: { cmd: 'look', scene } } }) + String.fromCharCode(10));
+    const { result } = await reply;
+    assert.match(result.content[0].text, /^ok look scene.kiln tick=0 /);
+    assert.equal(result.content[1].mimeType, 'image/png');
+  } finally { child.kill(); }
+});
+
 test('browser: a load trigger opens the next level', { skip }, async () => {
   const player = await openPlayer(ex('level1.kiln'), { inputFile: ex('level1.input'), browser });
   try {

@@ -4,6 +4,9 @@ import { createInterface } from 'node:readline';
 import { Worker } from 'node:worker_threads';
 import { COMMANDS, command } from './commands.ts';
 import type { CmdArgs } from './commands.ts';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 // A client gives up on a call after some minutes and drops the server with it, so the
 // server gives up first and says why.
@@ -82,13 +85,19 @@ async function handle(msg: Msg): Promise<unknown> {
       const a = (msg.params.arguments ?? {}) as Record<string, unknown>;
       // look answers with the picture itself, so the agent sees the frame without a second call.
       if (a.cmd === 'look') {
-        if (typeof a.file !== 'string') return { content: [{ type: 'text', text: 'E K002 look needs file (hint: look draws a .kiln file; write the scene to one first)\n' }], isError: true };
+        if (typeof a.file !== 'string' && typeof a.scene !== 'string') return { content: [{ type: 'text', text: 'E K002 look needs file or scene\n' }], isError: true };
         const { look, describe } = await import('./look.ts');
+        // Scene text is drawn from a file of its own, outside the game: a use or an image path in it finds nothing.
+        const dir = typeof a.file === 'string' ? undefined : mkdtempSync(join(tmpdir(), 'kiln-look-'));
+        const file = dir ? join(dir, 'scene.kiln') : a.file as string;
         try {
-          const seen = await look(a.file, { tick: a.ticks as number | undefined, inputFile: a.input_file as string | undefined });
-          return { content: [{ type: 'text', text: describe(a.file, seen) }, { type: 'image', data: seen.png.toString('base64'), mimeType: 'image/png' }] };
+          if (dir) writeFileSync(file, a.scene as string);
+          const seen = await look(file, { tick: a.ticks as number | undefined, inputFile: a.input_file as string | undefined });
+          return { content: [{ type: 'text', text: describe(file, seen) }, { type: 'image', data: seen.png.toString('base64'), mimeType: 'image/png' }] };
         } catch (e) {
           return { content: [{ type: 'text', text: `E K400 look failed: ${(e as Error).message.split('\n')[0]}\n` }], isError: true };
+        } finally {
+          if (dir) rmSync(dir, { recursive: true, force: true });
         }
       }
       const cmd = String(a.cmd);
