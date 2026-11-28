@@ -508,10 +508,12 @@ B의 (b)다. 설계는 **내가 정했다**(사용자 확인 없음). 새 expect
 - **2026-11-28 다섯 번째 엔진 세션(틱당 할당, 데스크톱)**:
   - `d13c5e7` 엔진의 틱은 아무것도 할당하지 않는다(가만히 있는 틱 약 1바이트, 입력 있는 틱 20~65, 해시 불변). 원인은 for-of 반복자, 캐시 없는 쿼리, `length=0`(목록 메모리를 버렸다), 32비트를 넘는 격자 칸 번호, 움직이는 solid의 색인 재생성. `World.version`(구성요소를 얻고 잃은 횟수)이 쿼리 캐시를 무효화한다: `w.comps`를 직접 바꾸는 코드는 올려야 한다. `bench/crowd.ts` → `bench/CROWD.md`: 10만 개 이동만 약 14ms(60Hz에 든다), 10만 개 충돌하는 낙하 물체는 약 50ms(안 든다). 남은 병목은 흩어진 객체의 메모리 접근으로 보인다(`Map` 대신 배열은 빨라지지 않았다. 구조를 배열-의-필드로 바꾸는 것은 안 해 봤다). 강체 장면은 틱당 약 24KB(대부분 Rapier 바인딩과 `src/rigid.ts`), nav·네트워크 스냅샷·스크립트의 `w.query`는 할당한다.
   - `8e8523c` `kiln desktop SCENE --out FILE`(`src/desktop.ts`, `src/launcher.cjs`): Node 25.5+의 `--build-sea` 단일 실행 파일, 설치된 Chrome·Edge 창에서 연다. 이 PC는 Node 24라 실행 파일은 CI의 `desktop` 작업(Node 26, 세 OS)만 만든다. 런처는 이 PC에서 헤드리스 Chrome으로 게임이 그려지는 것을 봤다. 한계: 서명 없음, Chromium 브라우저 필요, 네트워크 대전 안 됨, 플레이어의 개발용 옆 패널이 그대로 보인다.
+- **2026-11-28 여섯 번째 엔진 세션**:
+  - `1a98bd7` 빌드한 게임(웹·데스크톱)은 개발용 옆 패널을 숨긴다. `--panel`로 빌드하거나 `?panel`로 열면 보인다. 오류가 나면 패널이 다시 나타난다. 공개 데모(Pages)는 `--panel`로 빌드한다.
+  - `23d0034` `test|run SCENE --before OLD.kiln|리비전`(MCP `before`): 같은 입력으로 돌려 처음 달라지는 틱과 그 차이를 장면 글로 보고(`src/before.ts`).
 - **다음에 집을 일(엔진, 순서대로)**:
-  1. 데스크톱·웹 빌드의 게임 화면에서 개발용 패널을 숨기는 선택(`web/player.ts`, `config.json`).
-  2. Standard 증명 게임과 에이전트 비용(`docs/EDITIONS.md` "The proof games": 3인칭 3D + 물리를 고른다).
-  3. `docs/PARITY.md`의 남은 none·부분 행(조명·애니메이션: 캐스케이드 그림자, 블렌딩·IK, 환경 맵 등).
+  1. 파티클(PARITY "Particles", 2D). 2. 원·다각형 충돌(2D). 3. `docs/PARITY.md`의 남은 none·부분 행(2D 강체·조인트, 프로파일러, 캐스케이드 그림자, 블렌딩·IK 등)과 10만 개 충돌 틱 약 50ms.
+  - Standard 증명 게임·에이전트 비용과 `PLAN-NEXT.ko.md`의 A~C(`PRETEST-RESULT.ko.md` "사용자가 정할 것")는 사용자가 정한 뒤에 한다.
   - 남은 `solve` 한계: 키 조합을 정한 틱 수만큼 누른다(`--step`), 버튼은 누르지 않는다, 거리 추정은 중력을 보지 않는다, 스크립트가 `'a'`를 문자열이 아닌 방식으로 만들면 못 알아본다.
 - **사용자 몫**: Khronos glTF 샘플을 내려받아 시험해도 되는지, 화면 판정·녹화(H1·H2·H3 각 9개 + Gem Vault 10개, 결과물은 저장소 옆 `_archive/kiln-compare/`; 판정 명령 `node scripts/judge.ts ../_archive/kiln-compare`, 집계는 뒤에 `--report`; 보류 명세의 Kiln 실행은 엔진 `1f50d8d`라 그 커밋의 체크아웃이 있으면 `--engine DIR`), H2 심은 결함 셋 화면 확인, `tugcantopaloglu/godot-mcp`를 대신 쓸지, 라이선스, 기준 휴대폰, Ultra 기준 기계, Lite 게이트의 Godot 데모 3개, 홍보 글 게시.
 
