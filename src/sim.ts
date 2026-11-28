@@ -1,8 +1,7 @@
 import { ONE, fdiv, isqrt, sinCos24, tickShare, wrapDeg } from './fx.ts';
 import { physicsHash, physicsStep, physicsSweep, physicsSync } from './physics.ts';
-import { KilnFail, parseScene, serialize, suggest } from './scene.ts';
+import { KilnFail, serialize, suggest } from './scene.ts';
 import type { Diag } from './scene.ts';
-import { registry } from './world.ts';
 import type { Comp, World } from './world.ts';
 
 export const ACTIONS = ['left', 'right', 'up', 'down', 'a', 'b', 'enter'];
@@ -44,11 +43,11 @@ const P = ['x', 'y', 'z'], S = ['w', 'h', 'd'];
 
 /** A query asked every tick: the component names, and the list it was last answered with. */
 interface Ask { comps: string[]; out: number[]; world?: World; version: number }
-const ask = (...comps: string[]): Ask => ({ comps, out: [], version: 0 });
+export const ask = (...comps: string[]): Ask => ({ comps, out: [], version: 0 });
 const CTRL = ask('ctrl', 'vel'), PACE = ask('pace', 'pos', 'vel'), ANIM = ask('anim', 'vel'), BODY = ask('body', 'vel');
 const SOLID = ask('solid', 'pos', 'box'), MAPS = ask('tiles', 'pos'), MOVERS = ask('pos', 'vel'), ROT = ask('rot'), QUAT = ask('quat');
 const NAV = ask('nav', 'pos', 'vel'), BUTTON = ask('button'), TRIGGER = ask('trigger', 'pos', 'box'), TAG = ask('tag'), TALLY = ask('tally');
-const TIMER = ask('timer'), WHEN = ask('when');
+export const TIMER = ask('timer'), WHEN = ask('when');
 
 /** Cut a reused list to `n`. Not by setting `length`: that gives the list's memory back, to be asked for again. */
 function trim(list: unknown[], n: number): void {
@@ -56,7 +55,7 @@ function trim(list: unknown[], n: number): void {
 }
 
 /** The same ids as w.query, in the same order. Valid until the same question is asked again. */
-function find(w: World, q: Ask): number[] {
+export function find(w: World, q: Ask): number[] {
   const out = q.out;
   // Nobody has gained or lost a component since this was last asked: the answer stands.
   if (q.world === w && q.version === w.version) return out;
@@ -110,6 +109,21 @@ function pairKey(a: string, b: string): string {
   of.set(b, (key = `${a}:${b}`));
   pairCount++;
   return key;
+}
+
+/** Filled in by round.ts when a game that has something `round` loads it. */
+export const round: {
+  meets?: (w: World, a: number, b: number) => boolean;
+  stop?: (to: number, way: number, cur: number[], size: number[], a: number, r: Block, mr: boolean, rr: boolean) => number;
+} = {};
+
+/**
+ * Do two entities with pos and box overlap? As boxes, unless one is `round`: then its
+ * outline in x and y is the circle inside its box.
+ */
+export function meets(w: World, a: number, b: number): boolean {
+  if (round.meets && w.comps.get('round')?.size) return round.meets(w, a, b);
+  return overlap(w.get(a, 'pos')!, w.get(a, 'box')!, w.get(b, 'pos')!, w.get(b, 'box')!);
 }
 
 /** Do two boxes overlap on all three axes? (Every box has depth 1 at z 0 unless the scene says otherwise.) */
@@ -336,6 +350,34 @@ const tagOf = (w: World, id: number): string => (w.get(id, 'tag')?.name as strin
 const stopped = (to: number, way: number, size: number, a: number, r: Block): number =>
   way > 0 ? Math.min(to, r[a] - size) : Math.max(to, r[a] + r[a + 3]);
 
+/**
+ * A ledge in the way of a walking body: up by no more than `step`, across at that height,
+ * and down again onto it, each a swept move like any other. True, with `cur` moved on
+ * `a` and y, when that takes the body further than `got`, where staying down left it.
+ */
+function climb(w: World, id: number, index: SolidIndex, maps: number[], cur: number[], size: number[], a: number, want: number, got: number, step: number): boolean {
+  // Where a move of `cur` along `on` towards `to` ends, among what is solid.
+  const reach = (on: number, to: number, way: number): number => {
+    swept(cur, size, on, to, SHOVE_LO, SHOVE_HI);
+    const hits = blockers(w, id, index, maps, SHOVE_LO, SHOVE_HI, SHOVE_HITS);
+    for (let n = 0; n < hits.length; n++) to = stopped(to, way, size[on], on, hits[n]);
+    return to;
+  };
+  const from = cur[a], y0 = cur[1], up = reach(1, (y0 - step) | 0, -1);
+  if (up >= y0) return false;
+  cur[1] = up;
+  let to = reach(a, (from + want) | 0, want);
+  if (w.physics && to !== from) {
+    const hit = physicsSweep(w, cur, size, a, to - from, want);
+    if (hit) to = from + hit.go;
+  }
+  if (want > 0 ? to <= got : to >= got) { cur[1] = y0; return false; }
+  cur[a] = to;
+  // Down onto the ledge, and never lower than it stood.
+  cur[1] = reach(1, y0, 1);
+  return true;
+}
+
 /** Entities this tick's triggers and buttons despawn, once all of them have run. */
 const DOOMED: number[] = [];
 
@@ -346,7 +388,7 @@ const RESETS: string[] = [];
 export const ACTION_HINT = 'none, despawn-self, despawn-other, despawn:REF, load:FILE, emit:EVENT, reset:REF, reset:all';
 
 /** Do what a trigger, button, timer or `when` says; `who` is named by a load event, `cause` is the event behind it. */
-function act(w: World, action: string, self: number, other: number | undefined, who: string, cause: string): void {
+export function act(w: World, action: string, self: number, other: number | undefined, who: string, cause: string): void {
   if (action === 'none') return;
   for (const a of action.split('+')) {
     if (a === 'despawn-self') DOOMED.push(self);
@@ -359,60 +401,12 @@ function act(w: World, action: string, self: number, other: number | undefined, 
   }
 }
 
-/** Does any rule of this world put things back? Then the scene as it began has to be kept. */
-function resets(w: World): boolean {
-  for (const comp of ['trigger', 'button', 'timer', 'when']) {
-    const m = w.comps.get(comp);
-    if (m) for (const c of m.values()) if ((c.action as string).includes('reset:')) return true;
-  }
-  return false;
-}
-
-// Parsed origins, by their text. Not on the World: solve keeps a great many of those.
-const ORIGINS = new Map<string, World>();
-
-/**
- * Put `ref` (a name, a #tag, or `all`) back to what the scene held when its run began:
- * every component as it was, and whoever was despawned since is there again. With `all`,
- * what the scene did not begin with leaves, and a tally that counts `cause` keeps its
- * number: the life just lost stays lost.
- */
-function restore(w: World, ref: string, cause: string): void {
-  if (!w.origin) return;
-  let o = ORIGINS.get(w.origin);
-  if (!o) {
-    if (ORIGINS.size >= 8) ORIGINS.clear();
-    ORIGINS.set(w.origin, o = parseScene(w.origin, 'origin').world);
-  }
-  const all = ref === 'all';
-  const from = all ? o.names.map((n, i) => (n == null ? -1 : i)).filter((i) => i >= 0) : o.match(ref);
-  for (const oid of from) {
-    const name = o.names[oid]!;
-    let id = w.ids.get(name);
-    if (id === undefined) id = w.spawn(name);
-    for (const comp of registry.keys()) {
-      const then = o.get(oid, comp), now = w.get(id, comp);
-      if (all && comp === 'tally' && now && then && now.event === cause) continue;
-      if (then) w.add(id, comp, { ...then });
-      // A rigid body gained these two while running; back at its start it is at rest and unturned.
-      else if (now && comp === 'vel' && o.has(oid, 'rigid')) w.add(id, comp, { x: 0, y: 0, z: 0 });
-      else if (now && comp === 'quat' && o.has(oid, 'rigid')) w.add(id, comp, { x: 0, y: 0, z: 0, w: ONE, sx: 0, sy: 0, sz: 0 });
-      else if (now) w.drop(id, comp);
-    }
-    // Whatever it overlapped it may meet again.
-    if (w.overlaps.size) for (const k of [...w.overlaps]) if (k.split(':').includes(name)) w.overlaps.delete(k);
-  }
-  if (all) for (let id = 0; id < w.names.length; id++) {
-    const name = w.names[id];
-    if (name != null && !o.ids.has(name)) w.despawn(id);
-  }
-}
-
 /** Carry out what this tick's actions asked for: despawns first, then what is put back. */
 function settle(w: World): void {
   for (let n = 0; n < DOOMED.length; n++) w.despawn(DOOMED[n]);
   trim(DOOMED, 0);
-  for (let n = 0; n < RESETS.length; n += 2) restore(w, RESETS[n], RESETS[n + 1]);
+  if (RESETS.length && !rules.restore) throw missing("'timer', 'when' or 'reset:'");
+  for (let n = 0; n < RESETS.length; n += 2) rules.restore!(w, RESETS[n], RESETS[n + 1]);
   trim(RESETS, 0);
 }
 
@@ -437,13 +431,23 @@ function nudge(id: number, a: number, want: number): number {
   return to - from;
 }
 
+/** Filled in by rules.ts when a game that uses `timer`, `when` or `reset:` loads it. */
+export const rules: {
+  begin?: (w: World) => string;
+  timers?: (w: World) => void;
+  answer?: (w: World, from: number, end: number) => void;
+  restore?: (w: World, ref: string, cause: string) => void;
+} = {};
+/** A game uses a part its build left out: the build looks for these names in scenes and scripts. */
+const missing = (what: string): Error => new Error(`${what} is used but its part was not loaded: name it in a scene or a script of the game`);
+
 /** Filled in by nav.ts when a game that uses `nav` loads it. */
 export const nav: { run?: (w: World, ids: number[]) => void } = {};
 
 /** Advance one fixed tick. System order is fixed: input, ctrl, pace, scripts (pre), gravity, move, physics, turn, triggers, scripts (post). */
 export function step(w: World, script?: InputScript): void {
   // The scene as its run began, kept only when a rule can ask to go back to it.
-  if (w.origin === undefined) w.origin = w.tick === 0 && resets(w) ? serialize(w) : '';
+  if (w.origin === undefined) w.origin = w.tick === 0 && rules.begin ? rules.begin(w) : '';
   // What was tapped or newly pressed this tick: buttons answer to these further down.
   let fresh: string[] | undefined;
   const pressed = script?.get(w.tick);
@@ -480,7 +484,7 @@ export function step(w: World, script?: InputScript): void {
 
   const walkers = find(w, NAV);
   if (walkers.length) {
-    if (!nav.run) throw new Error(`'nav' is used but navigation was not loaded: name nav in the scene or a script of the game`);
+    if (!nav.run) throw missing("'nav'");
     nav.run(w, walkers);
   }
 
@@ -506,6 +510,9 @@ export function step(w: World, script?: InputScript): void {
 
   const index = solidIndex(w, find(w, SOLID));
   const maps = find(w, MAPS);
+  // Round things, if the scene has any: most have none and pay nothing for them.
+  const rounds = w.comps.get('round')?.size ? w.comps.get('round') : undefined;
+  if (rounds && !round.stop) throw missing("'round'");
   if (w.physics) physicsSync(w);
   for (let n = 0, ids = find(w, MOVERS); n < ids.length; n++) {
     const id = ids[n];
@@ -533,6 +540,7 @@ export function step(w: World, script?: InputScript): void {
       }
     }
     let grounded = 0, ride = -1;
+    const mr = !!rounds && rounds.has(id);
     for (let a = 0; a < 3; a++) {
       if (d[a] === 0) continue;
       let under = -1;
@@ -546,6 +554,7 @@ export function step(w: World, script?: InputScript): void {
       for (let i = 0; i < hits.length; i++) {
         const r = hits[i];
         if (!(a === 1 && w.gy !== 0) && r[6] >= 0 && w.has(r[6], 'push')) (crates ??= []).push(r);
+        else if (rounds && a < 2 && (mr || (r[6] >= 0 && rounds.has(r[6])))) to = round.stop!(to, d[a], cur, size, a, r, mr, !!(r[6] >= 0 && rounds.has(r[6])));
         else to = stopped(to, d[a], size[a], a, r);
       }
       if (crates) {
@@ -562,6 +571,8 @@ export function step(w: World, script?: InputScript): void {
         const hit = physicsSweep(w, cur, size, a, to - from, d[a]);
         if (hit) { to = from + hit.go; under = hit.id; }
       }
+      // A body that stood on the ground and has `step` walks up a ledge no higher than that.
+      if (to !== free && a !== 1 && !crates && under < 0 && body && body.step && body.grounded && w.gy > 0 && climb(w, id, index, maps, cur, size, a, d[a], to, body.step as number)) to = cur[a];
       if (to !== free) {
         v[P[a]] = 0;
         if (a === 1 && d[a] > 0) {
@@ -619,7 +630,7 @@ export function step(w: World, script?: InputScript): void {
       const o = others[m];
       const op = w.get(o, 'pos'), ob = w.get(o, 'box');
       if (o === t || !op || !ob) continue;
-      const touching = overlap(tp, tb, op, ob);
+      const touching = overlap(tp, tb, op, ob) && (!rounds || meets(w, t, o));
       if (!touching && !w.overlaps.size) continue;
       const key = pairKey(w.names[t]!, w.names[o]!);
       if (!touching) { w.overlaps.delete(key); continue; }
@@ -632,19 +643,8 @@ export function step(w: World, script?: InputScript): void {
   }
   settle(w);
   for (let n = 0; n < w.post.length; n++) w.post[n](w);
-  // A timer counts ticks down; at zero it emits its event once (or, with loop, starts over).
-  for (let n = 0, ids = find(w, TIMER); n < ids.length; n++) {
-    const id = ids[n];
-    const t = w.get(id, 'timer')!;
-    if (!t.on) continue;
-    if ((t.left as number) < 0) t.left = Math.max(1, Math.round(((t.seconds as number) * w.hz) / ONE));
-    if (t.left === 0) continue;
-    t.left = (t.left as number) - 1;
-    if (t.left !== 0) continue;
-    if (t.loop) t.left = -1;
-    w.events.push({ tick: w.tick, name: t.event as string, a: w.names[id]!, b: '' });
-    act(w, t.action as string, id, undefined, w.names[id]!, t.event as string);
-  }
+  if (rules.timers) rules.timers(w);
+  else if (find(w, TIMER).length || find(w, WHEN).length) throw missing("'timer', 'when' or 'reset:'");
   // A tally counts what this step emitted, scripts included. It is state: saved and hashed.
   // A `when` answers the same events with an action. Either may emit, so they go round
   // until nothing new was said (a rule that keeps answering itself is cut off).
@@ -659,11 +659,7 @@ export function step(w: World, script?: InputScript): void {
         if (t.then && t.n === t.hit) w.events.push({ tick: w.tick, name: t.then as string, a: w.names[id]!, b: '' });
       }
     }
-    for (let n = 0, ids = find(w, WHEN); n < ids.length; n++) {
-      const id = ids[n];
-      const wh = w.get(id, 'when')!;
-      for (let i = from; i < end; i++) if (w.events[i].name === wh.event) act(w, wh.action as string, id, undefined, w.names[id]!, wh.event as string);
-    }
+    if (rules.answer) rules.answer(w, from, end);
     settle(w);
     from = end;
   }

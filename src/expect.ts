@@ -1,7 +1,7 @@
 import { fmtFx, parseFx } from './fx.ts';
 import { KilnFail, suggest } from './scene.ts';
 import type { Diag, RawExpect } from './scene.ts';
-import { overlap } from './sim.ts';
+import { meets, overlap } from './sim.ts';
 import { registry } from './world.ts';
 import type { World } from './world.ts';
 
@@ -89,7 +89,8 @@ export const lastTick = (es: Expect[]): number => es.reduce((m, e) => (Number.is
 export function gap(w: World, a: number, b: number): number | null {
   const ap = w.get(a, 'pos'), ab = w.get(a, 'box'), bp = w.get(b, 'pos'), bb = w.get(b, 'box');
   if (!ap || !ab || !bp || !bb) return null;
-  if (overlap(ap, ab, bp, bb)) return -1;
+  // Boxes that overlap around circles that do not are as near as can be without touching.
+  if (overlap(ap, ab, bp, bb)) return meets(w, a, b) ? -1 : 1;
   let g = 0;
   for (const [p, s] of [['x', 'w'], ['y', 'h'], ['z', 'd']]) {
     g += Math.max(0, (ap[p] as number) - (bp[p] as number) - (bb[s] as number), (bp[p] as number) - (ap[p] as number) - (ab[s] as number));

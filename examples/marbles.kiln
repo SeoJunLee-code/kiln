@@ -1,0 +1,62 @@
+# Round things, no script: a marble walks over round pegs and takes round coins.
+# `round` makes the outline the circle inside the box, for blocking, triggers and reach.
+world hz=60 gravity=0,30
+
+entity marble
+  pos 1 7
+  box 1 1
+  round
+  vel
+  body
+  ctrl 4 11
+  camera 16 9
+  sprite o gold
+
+entity floor
+  pos 0 8
+  box 16 1
+  solid
+  sprite = slategray
+
+entity peg1
+  pos 4 7
+  box 2 2
+  round
+  solid
+  sprite O steelblue
+
+entity peg2
+  pos 8.5 6
+  box 3 3
+  round
+  solid
+  sprite O steelblue
+
+entity coin1
+  pos 4.75 5.6
+  box 0.5 0.5
+  round
+  tag coin
+  trigger marble got despawn-self
+  sprite c orange
+
+entity coin2
+  pos 9.75 4.4
+  box 0.5 0.5
+  round
+  tag coin
+  trigger marble got despawn-self
+  sprite c orange
+
+entity score
+  pos 2 0.5
+  tally got
+  label coins_% white
+
+entity flag
+  pos 14 7
+  box 1 1
+  sprite F limegreen
+
+expect gone #coin by 600
+expect reach marble flag by 600

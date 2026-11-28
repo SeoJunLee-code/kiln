@@ -9,6 +9,7 @@ lamps3d.kiln tick=300 hash=d78e4303 expects=pass
 level1.kiln tick=187 hash=3104e5da expects=pass
 level2.kiln tick=600 hash=af2c6fcc expects=pass
 lift.kiln tick=900 hash=c818a260 expects=pass
+marbles.kiln tick=600 hash=c6b8627c expects=pass
 maze.kiln tick=240 hash=3015b961 expects=pass
 orrery3d.kiln tick=600 hash=de1c9785 expects=pass
 patrol.kiln tick=240 hash=54f1c06c expects=pass

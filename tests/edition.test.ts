@@ -135,7 +135,17 @@ test('edition: the scenes only WebGPU draws are exactly the ones whose drawing i
 // With the particle part, which arrived from another session the same day, a 2D game that
 // uses everything is 77,038 bytes: 78,000. The rules could become a part a game brings only
 // when it uses them, as `nav` is; that would give most of this back and is not done yet.
-const BUDGET = { lite2d: 78_000, lite3d: 109_000, standard: 4_630_000 };
+// Done later that day: `timer`, `when` and `reset:` are the part `rules` (2,468 bytes, src/rules.ts),
+// and `build` leaves out of world.ts the sentence that says what each component is for,
+// which only `guide` reads. Measured 67,556 (2D), 102,842 (3D), 71,093 (2D with particles
+// and sound): the budgets are back at 72,000 and 104,000.
+// A body's `step` (walking up stairs, in the mover's sweep in sim.ts) is in every build: about
+// 930 bytes. Measured 68,490 (2D), 103,776 (3D), 72,027 (2D with particles and sound): the 2D
+// budget is 73,000, the 3D one stays.
+// Circles (`round`) are a part (src/round.ts, about 1,900 bytes); what every build carries of
+// them is the places sim.ts calls it from and the circle the 2D player draws: about 700 bytes.
+// Measured 69,248 (2D), 104,534 (3D), 72,785 (2D with particles and sound): 74,000 and 105,000.
+const BUDGET = { lite2d: 74_000, lite3d: 105_000, standard: 4_630_000 };
 
 test('squeeze: comments, indentation and blank lines go; strings, templates and regular expressions stay', async () => {
   const { squeeze } = await import('../src/squeeze.ts');
@@ -200,9 +210,13 @@ test('edition: a built game carries only the parts it uses, within the byte budg
   assert.ok(flat.engineBytes <= BUDGET.lite2d, `2D Lite engine is ${flat.engineBytes} bytes, budget ${BUDGET.lite2d}`);
   // The player asks for its parts by the names a static host will have. inspect.js is the panel
   // of `play`: named here, never written into a build and never asked for by a built game.
-  // nav.js and netplay.js are asked for only by games that use them.
+  // nav.js, rules.js and netplay.js are asked for only by games that use them.
+  assert.ok(!flat.written.includes('engine/src/rules.js') && !flat.written.includes('engine/src/round.js'));
+  // What each component is for is said in the source for `guide`; a built game does not carry the words.
+  const defs = [...readFileSync(join(flat.out, 'engine/src/world.js'), 'utf8').matchAll(/^defineComponent\('[\w-]+',\s*(''|.)/gm)];
+  assert.ok(defs.length > 30 && defs.every((m) => m[1] === "''"), 'a component still carries its description');
   const player = readFileSync(join(flat.out, 'engine/web/player.js'), 'utf8');
-  assert.deepEqual([...player.matchAll(/import\('(\.[^']+)'\)/g)].map((m) => m[1]).sort(), ['../src/nav.js', './audio.js', './inspect.js', './netplay.js', './particles.js', './view3.js']);
+  assert.deepEqual([...player.matchAll(/import\('(\.[^']+)'\)/g)].map((m) => m[1]).sort(), ['../src/nav.js', '../src/round.js', '../src/rules.js', './audio.js', './inspect.js', './netplay.js', './particles.js', './view3.js']);
 
   const solid = built(game(['arena3d.kiln', 'gem.obj']), 'arena3d.kiln');
   assert.deepEqual([solid.parts, solid.web], [['3d'], ['gl.js', 'gpu.js', 'mesh.js', 'player.js', 'view3.js']]);
@@ -229,6 +243,6 @@ test('edition: a built game carries only the parts it uses, within the byte budg
 
   if (!existsSync(root('backends/rapier/node_modules'))) return; // the optional backend is not installed
   const all = built(root('examples'), 'tumble3d.kiln');
-  assert.deepEqual(all.parts, ['3d', 'audio', 'gltf', 'rapier']);
+  assert.deepEqual(all.parts, ['3d', 'audio', 'gltf', 'rapier', 'round', 'rules']);
   assert.ok(all.engineBytes <= BUDGET.standard, `Standard engine is ${all.engineBytes} bytes, budget ${BUDGET.standard}`);
 });

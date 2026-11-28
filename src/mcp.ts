@@ -68,7 +68,7 @@ const TOOL = {
       test: { type: 'boolean', description: 'apply: false = write and check only' },
       watch: { type: 'string', description: 'run, test, apply: values to print during the run, e.g. "ball.pos,lives.tally.n"' },
       at: { type: 'string', description: 'with watch: ticks, e.g. "0,60,120" (default: each second)' },
-      against: { type: 'string', description: 'diff: the other input file (same scene) or scene file (same input)' },
+      against: { type: 'string', description: 'diff: the other input file (same scene), or another version with the same input: a scene file or a git revision' },
       budget: { type: 'integer', minimum: 1, description: 'solve: seconds before giving up with the furthest attempt (default 60)' },
     },
     required: ['cmd'],

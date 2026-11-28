@@ -23,15 +23,15 @@ A row whose Kiln cell says **gated** and then names a part in brackets is
 Such a row does not close a gate by itself and is counted apart from the rows
 gated in full (rule added 2026-11-27).
 
-Counted on 2026-11-28, 63 rows: **23 gated in full, 20 gated in part, 7 works,
-12 none**, and one row that is a number (platforms). By the edition column of
+Counted on 2026-11-28, 64 rows: **23 gated in full, 22 gated in part, 7 works,
+11 none**, and one row that is a number (platforms). By the edition column of
 the tables:
 
 | Edition | gated in full | gated in part | works | none | number | rows |
 |---|---|---|---|---|---|---|
 | all | 16 | 3 | 6 | 0 | 0 | 25 |
-| Lite | 6 | 7 | 0 | 2 | 0 | 15 |
-| Lite? | 0 | 1 | 0 | 1 | 0 | 2 |
+| Lite | 6 | 8 | 0 | 2 | 0 | 16 |
+| Lite? | 0 | 2 | 0 | 0 | 0 | 2 |
 | Standard | 1 | 9 | 1 | 2 | 1 | 14 |
 | Ultra | 0 | 0 | 0 | 5 | 0 | 5 |
 | — | 0 | 0 | 0 | 2 | 0 | 2 |
@@ -92,7 +92,7 @@ Neither engine was built for this; these rows are why Kiln exists.
 |---|---|---|---|
 | Scene as plain text, round-trips exactly | all | **gated** | tests |
 | Every error at once, with codes and hints | all | **gated** | tests |
-| Headless run with the same result as the browser | all | **gated** | all 21 examples replay in a browser to the headless hash, on 3 OSes |
+| Headless run with the same result as the browser | all | **gated** | all 22 examples replay in a browser to the headless hash, on 3 OSes |
 | `solve`: the engine finds the input that wins a level | all | **gated** | tests, including a level won by pushing a rigid body, and one with gems in a maze, a door that opens last and guards that must not be touched (`count NAME == 0`). Distance follows the walls on 2D tile maps, several maps side by side too (gravity is not looked at: a way through the air counts); 3D still uses the straight line. `a` and `b` are tried when a script names them or a button has that key; a platform that moves, a wall a script changes or removes and gravity a script turns are part of the state searched (`tests/solvemoves.test.ts`). `solve` still holds each choice for a fixed number of ticks (`--step`) and does not tap buttons |
 | A scene ends headless where it loads another; `--follow` plays a game through its scenes | all | **gated** | `tests/cases.test.ts`: the run stops at the tick of the load and names the scene; counts asked for later are final; `--follow` replays the Lite proof game from level 1 to its ending in one command, stops at a failing scene, and gives up on a scene that loads itself. `solve` does not walk on through a load. Nothing is carried from one scene to the next |
 | One scene checked for several things without copying it | all | **gated** | `tests/cases.test.ts`: `expect` lines in an input replace the scene's; `test DIR` runs each `NAME.CASE.input`; the three checks the first agent needed copied levels for pass against the levels themselves |
@@ -110,8 +110,9 @@ Neither engine was built for this; these rows are why Kiln exists.
 |---|---|---|---|---|---|
 | Sprites, tile maps, camera | Lite | yes | yes | **gated** | reference images of 11 2D scenes |
 | Box collision, swept movement | Lite | yes | yes | **gated** | tests, hashes |
+| Character walks up stairs; slopes | Lite | yes | yes | **gated** (stairs: `body step=H`; no slopes for movers, no snapping down) | `tests/step.test.ts`: stairs of boxes and of solid tiles in 2D, both floor axes in 3D, a ledge higher than the step and a ceiling stop it, nothing is climbed from the air; a scene without `step` saves and hashes as before |
 | Rotation | Lite | yes | yes | **gated** (drawn only) | angle is hashed state on 3 OSes; reference image (`windmill`). Collision ignores it |
-| Circle and polygon collision | Lite? | yes | yes | none | |
+| Circle and polygon collision | Lite? | yes | yes | **gated** (circles: `round`; no polygons, no rolling or bouncing, pushed crates and rigid bodies stay boxes) | `tests/round.test.ts`: where a circle stops against a corner, a side and another circle, worked by hand, in both directions on x and y; a stop is never an overlap; triggers and `reach` go by the circle; a part only games with `round` ship; example `marbles` in `examples/HASHES` on 3 OSes and replayed in a browser |
 | Rigid bodies, joints | Standard | yes | yes | none in 2D (3D backend only). 3D has joints, see the row below | |
 | Sprite animation | Lite | yes | yes | **gated** (one row of frames) | `anim FRAMES [fps] [idle]` on a sprite whose image is a row of frames: the frame is a function of the tick and the state (headless test), a browser test reads the frame color at six ticks and sees the mirror when the entity looks left; the facing is hashed state; reference image (`stroll`). No named clips, no atlas with rows, no per-frame timing, no events on a frame |
 | Per-tile color and image | Lite | yes | yes | **gated** | `tiles paint=CHAR:COLOR,CHAR:IMAGE`: reference image (`garden`); browser test counts each painted color's cells in 2D and sees painted walls in both 3D renderers (colors only there); `check` rejects a malformed entry and warns about a character in no row, a missing image, an image in a 3D scene (K317, K312, K318). One image per character: no atlas, no auto-tiling, no animated tiles |

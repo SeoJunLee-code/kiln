@@ -27,7 +27,7 @@ Kiln is a few days old. The long-term aim is an engine that agents can take from
 | Works today | Not yet |
 |---|---|
 | Text scenes, 30 built-in components, levels drawn as character grids with prefabs | Custom shaders, animation blending and IK, shadows from point lights |
-| Fixed-point simulation on x, y and z; swept box collision; triggers that emit events and remove things (keys, doors, pickups); pacing guards; pushable crates; moving platforms that carry what stands on them | Circle or polygon collision, collision that follows rotation |
+| Fixed-point simulation on x, y and z; swept box collision; triggers that emit events and remove things (keys, doors, pickups); pacing guards; pushable crates; moving platforms that carry what stands on them; circles (`round`) for blocking and overlap; a body that walks up stairs (`body step=H`) | Polygon collision, collision that follows rotation, rolling and bouncing circles, slopes for walkers |
 | Rotation as fixed-point state: an angle (`rot`) or a quaternion (`quat`), drawn in 2D and by WebGPU | Parent-child transforms |
 | Rigid bodies (box, ball, capsule, cylinder, cone) and joints (fixed, ball, hinge, slider, rope, spring) through an optional backend, Rapier's deterministic build: same hash on Linux, macOS and Windows, they block and shove the character, and `solve` searches through them | 2D rigid bodies, mesh colliders, breakable joints |
 | Path finding on a grid (`nav`): movers walk around what is solid | Navigation meshes, avoidance between movers |

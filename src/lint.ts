@@ -126,12 +126,14 @@ export function lint(scene: Scene, file: string, exists?: (name: string) => bool
         warn('K335', `when on '${name}' waits for event '${c.event}', which nothing in the scene emits, so it never acts`, suggest(c.event as string, emitted(w)) ?? 'events come from trigger, button, timer, tally then=, nav event=, emit:');
       }
     }
+    const rb = w.has(id, 'round') ? w.get(id, 'box') : undefined;
+    if (rb && rb.w !== rb.h) warn('K337', `'${name}' is round in a box that is not square: the circle is as wide as the shorter side, in the middle`, 'give it a square box');
     const tal = w.get(id, 'tally');
     if (tal && tal.then && !tal.by) warn('K336', `tally on '${name}' has then=${tal.then} but by=0, so n never reaches ${tal.hit}`);
     // A wall that stands turned is turned for rigid bodies only.
     if (w.physics && w.has(id, 'solid') && !w.has(id, 'vel') && !w.has(id, 'push') && (w.has(id, 'quat') || (w.get(id, 'rot')?.angle ?? 0) !== 0)
       && w.query('pos', 'vel', 'box').some((m) => !w.has(m, 'rigid') && !w.has(m, 'solid'))) {
-      warn('K334', `'${name}' is a turned solid: rigid bodies meet it as turned, but movers (ctrl, pace, body) still meet its unturned box`, 'keep movers away from it, or build the slope for them from unturned boxes');
+      warn('K334', `'${name}' is a turned solid: rigid bodies meet it as turned, but movers (ctrl, pace, body) still meet its unturned box`, 'keep movers away from it, or build stairs of unturned boxes and give the mover body step=H');
     }
     const bt = w.get(id, 'button'), pn = w.get(id, 'pin');
     if (bt) {

@@ -187,6 +187,11 @@ test('before: the first tick where a change makes the game differ, and what diff
     assert.match(r.text, /differs from before=.+ first at tick 0\r?\n~ ball\r?\n    - vel 1\r?\n    \+ vel 2\r?\n/);
     assert.doesNotMatch(r.text, /rock/);
   }
+  // `diff --against` is the same comparison, said its own way; it takes the revision too.
+  const d = await command('diff', { file, against: 'HEAD' });
+  assert.equal(d.code, 1, d.text);
+  assert.match(d.text, /^differ first at tick 0 \(from the start\)\r?\nball\.vel\.x 2 -> 1$/m);
+  assert.match((await command('diff', { file, against: 'nothing' })).text, /neither a scene file nor a git revision/);
   assert.match((await command('test', { file, before: 'nothing' })).text, /neither a scene file nor a git revision/);
   assert.match((await command('test', { scene: scene(1), before: 'HEAD' })).text, /^E K002 /m);
 });
