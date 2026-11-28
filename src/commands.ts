@@ -15,7 +15,6 @@ import type { RunResult } from './run.ts';
 import { KilnFail, fmtDiag, parseScene, schemaText, serialize } from './scene.ts';
 import { solve } from './solve.ts';
 import { fmtFx } from './fx.ts';
-import { hash } from './sim.ts';
 import { registry } from './world.ts';
 import type { World } from './world.ts';
 
@@ -275,27 +274,21 @@ export async function command(cmd: string, a: CmdArgs): Promise<{ text: string; 
       return done(0);
     }
     if (cmd === 'diff') {
-      if (!a.against || !existsSync(a.against)) return out.push(`E K002 diff needs against: an input file (the same scene played another way) or a scene file (another version, the same input)`), done(2);
-      const other = readFileSync(a.against, 'utf8'), scene2 = a.against.endsWith('.kiln');
-      const text2 = scene2 ? other : text, input2 = scene2 ? input : other, file2 = scene2 ? a.against : file;
-      const mods2 = scene2 ? await loadMods(text2, file2) : mods;
-      if (scene2) await loadBackend(physicsOf(text2), file2);
-      const trace = (t: string, i: string | undefined, f: string, m: typeof mods, ticks?: number): { hashes: string[]; world: World } => {
-        const hashes: string[] = [];
-        const r = run(t, { input: i, file: f, mods: m, ticks, each: (w) => void hashes.push(hash(w)) });
-        return { hashes, world: r.world };
-      };
-      const one = trace(text, input, file, mods, a.ticks), two = trace(text2, input2, file2, mods2, a.ticks ?? one.hashes.length - 1);
-      const n = Math.min(one.hashes.length, two.hashes.length);
-      let t = 0;
-      while (t < n && one.hashes[t] === two.hashes[t]) t++;
-      if (t === n) return out.push(`ok same ticks=${n - 1} hash=${one.hashes[n - 1]}`), done(0);
-      const wa = trace(text, input, file, mods, t).world, wb = trace(text2, input2, file2, mods2, t).world;
-      const start = wa.tick - t;
-      out.push(`differ first at tick ${start + t}${t ? ` (same through tick ${start + t - 1})` : ' (from the start)'}`, ...differences(wa, wb));
-      const said = (w: World): string => w.events.filter((e) => e.tick === w.tick).map((e) => e.name).join(',') || 'none';
-      out.push(`events at that tick: first ${said(wa)}; second ${said(wb)}`, `fail differ tick=${start + t}`);
-      return done(1);
+      if (!a.against) return out.push(`E K002 diff needs against: an input file (the same scene played another way), a scene file or a git revision (another version, the same input)`), done(2);
+      const { against, parting } = await import('./before.ts');
+      const one = { file, text, input, inputFile: a.inputFile };
+      const other = against(a.against, one);
+      try {
+        const p = await parting(one, other.side, a.ticks);
+        const start = parseScene(text, file).world.tick;
+        if (!p.a && !p.ends) return out.push(`ok same ticks=${p.n - 1} hash=${p.last}`), done(0);
+        if (!p.a) return out.push(`differ: the same through tick ${start + p.n - 1}, then the ${p.ends === 1 ? 'first' : 'second'} run ends`, `fail differ tick=${start + p.n}`), done(1);
+        const lines = differences(p.a, p.b!);
+        out.push(`differ first at tick ${start + p.at}${p.at ? ` (same through tick ${start + p.at - 1})` : ' (from the start)'}`, ...(lines.length ? lines : ['(only state the scene text does not hold differs)']));
+        const said = (w: World): string => w.events.filter((e) => e.tick === w.tick).map((e) => e.name).join(',') || 'none';
+        out.push(`events at that tick: first ${said(p.a)}; second ${said(p.b!)}`, `fail differ tick=${start + p.at}`);
+        return done(1);
+      } finally { other.drop(); }
     }
     const paths = a.watch ? a.watch.split(',').map((x) => x.trim()).filter(Boolean) : [];
     const ats = a.at ? new Set(a.at.split(',').map((x) => +x)) : null, samples: string[] = [];

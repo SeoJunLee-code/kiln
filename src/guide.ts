@@ -270,7 +270,7 @@ look   picture of the game view from a headless browser, with what is in it;
 play   open in a browser (CLI only); what you press is recorded as an input script
 apply  ONE call per change (MCP): files=[{path,content}], edits=[{path,old,new}] (exact,
        once), then check + test of the folder file=
-diff   --against B.input|B.kiln: first tick two runs differ
+diff   --against B.input|B.kiln|REV: first tick two runs part
 Add to test/run/apply: --view (ASCII picture), --top (3D floor plan), --observe (positions),
 --events, --watch ball.pos,lives.tally.n [--at 0,60].
 

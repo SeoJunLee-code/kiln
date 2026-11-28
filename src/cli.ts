@@ -16,7 +16,8 @@ const HELP = `kiln <command> [scene] [options]
                          "edits":[{"path","old","new"}], "watch", "at", "events", "test"} (what an agent sends over MCP)
   diff SCENE --input A --against B
                          the first tick at which two runs differ and what differs: B is another
-                         input for the same scene, or another version of the scene (.kiln)
+                         input for the same scene, or another version of the scene (a .kiln file, or a git
+                         revision as with test --before, which is this with the input kept)
   schema [SCENE]         print the component reference (with SCENE: including its scripts)
   guide [TOPIC]          print the manual, sized for an agent to read in one call;
                          with TOPIC: a part only some games need (the guide lists them)
