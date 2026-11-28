@@ -132,7 +132,7 @@ The last column is the present state, not the hope.
 | Weakness | Kiln's answer | State |
 |---|---|---|
 | Unreal: hard to learn, many modules | One text format; a guide with a size budget; errors all at once with hints | Gated. The budget will be under pressure as editions grow; topic guides are the outlet |
-| Unreal: heavy editor and renderer | Editions; no editor needed to run or test | Lite is light today; the byte budget is checked, memory and start-up time are not |
+| Unreal: heavy editor and renderer | Editions; no editor needed to run or test | Lite is light today; the byte budget is checked; memory and start-up time are measured on the PC ([`START.md`](../proof/lite/START.md)), not gated |
 | Unreal: slow compile, shader compile, cook | No build step; assets are read as they are | True today. **Ultra geometry will need offline processing of meshes.** It must be incremental and keyed by content |
 | Unreal: Blueprint overhead | One script language, no second visual layer | True today. Script speed in JavaScript has not been measured |
 | Unreal: Nanite and Lumen are costly | Only Ultra pays for them | Not built |

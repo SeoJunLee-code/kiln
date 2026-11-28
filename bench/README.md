@@ -3,6 +3,7 @@
 - `size.ts`: text size against Godot (below).
 - `perf.ts`, `physics.ts`: simulation speed (`PERF.md`, `PHYSICS.md`).
 - `frames.ts`: frame rate of the Lite proof game in a browser window, by `PROTOCOL.md`. Result in `proof/lite/FPS.md`, per-frame times in `raw/`; `--summary raw/FILE.json.gz` recomputes a row.
+- `start.ts`: time to the first frame and memory after loading, for the built proof game. Result in `proof/lite/START.md`.
 
 # Size benchmark: Kiln vs Godot
 
