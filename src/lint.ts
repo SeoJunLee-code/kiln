@@ -126,6 +126,8 @@ export function lint(scene: Scene, file: string, exists?: (name: string) => bool
         warn('K335', `when on '${name}' waits for event '${c.event}', which nothing in the scene emits, so it never acts`, suggest(c.event as string, emitted(w)) ?? 'events come from trigger, button, timer, tally then=, nav event=, emit:');
       }
     }
+    const rb = w.has(id, 'round') ? w.get(id, 'box') : undefined;
+    if (rb && rb.w !== rb.h) warn('K337', `'${name}' is round in a box that is not square: the circle is as wide as the shorter side, in the middle`, 'give it a square box');
     const tal = w.get(id, 'tally');
     if (tal && tal.then && !tal.by) warn('K336', `tally on '${name}' has then=${tal.then} but by=0, so n never reaches ${tal.hit}`);
     // A wall that stands turned is turned for rigid bodies only.

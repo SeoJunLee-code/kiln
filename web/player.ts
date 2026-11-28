@@ -118,6 +118,7 @@ try {
   if (cfg.nav !== false) await import('../src/nav.ts');
   // Nor does one without `timer`, `when` or `reset:` carry those.
   if (cfg.rules !== false) await import('../src/rules.ts');
+  if (cfg.round !== false) await import('../src/round.ts');
   // Particles are a part too, wanted from the first tick on.
   const dots = cfg.particles === false ? null : await part(import('./particles.ts').then((m) => m.makeParticles()));
 
@@ -317,7 +318,11 @@ try {
         g.drawImage(im!, x - frameOf(world, id) * w, y, Math.max(1, an.frames as number) * w, h);
       } else if (im) g.drawImage(im, x, y, w, h);
       else {
-        g.fillRect(x, y, w, h);
+        if (world.has(id, 'round')) {
+          g.beginPath();
+          g.arc(x + w / 2, y + h / 2, Math.min(w, h) / 2, 0, 2 * Math.PI);
+          g.fill();
+        } else g.fillRect(x, y, w, h);
         if (sp?.glyph) {
           g.fillStyle = '#14161a';
           g.font = `600 ${Math.min(w, h) * 0.7}px ui-monospace, Consolas, monospace`;

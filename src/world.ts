@@ -33,6 +33,7 @@ defineComponent('vel', 'velocity in units/second', [f('x', 'fx', 0), f('y', 'fx'
 defineComponent('box', 'axis-aligned size on x, y and (3D) z; for collision and triggers', [f('w', 'fx'), f('h', 'fx'), f('d', 'fx', 65536)]);
 defineComponent('solid', 'blocks entities that have pos+vel+box');
 defineComponent('push', 'on a solid: movers shove it instead of stopping (one at a time; not along y under gravity)');
+defineComponent('round', 'its outline is the circle inside its box: for blocking, triggers and reach; x and y only');
 defineComponent('body', 'gets world gravity; rides what it stands on. step=H: climbs ledges up to H. Engine-set: grounded, ride',
   [f('grounded', 'int', 0), f('ride', 'str', ''), f('step', 'fx', 0)]);
 defineComponent('ctrl', 'input-driven. jump=0: 4-way (a body under gravity only walks). jump>0: platformer, up jumps when grounded. plane=xz (3D): up/down walk along z, `a` jumps. player: whose keys',

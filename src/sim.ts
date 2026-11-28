@@ -111,6 +111,21 @@ function pairKey(a: string, b: string): string {
   return key;
 }
 
+/** Filled in by round.ts when a game that has something `round` loads it. */
+export const round: {
+  meets?: (w: World, a: number, b: number) => boolean;
+  stop?: (to: number, way: number, cur: number[], size: number[], a: number, r: Block, mr: boolean, rr: boolean) => number;
+} = {};
+
+/**
+ * Do two entities with pos and box overlap? As boxes, unless one is `round`: then its
+ * outline in x and y is the circle inside its box.
+ */
+export function meets(w: World, a: number, b: number): boolean {
+  if (round.meets && w.comps.get('round')?.size) return round.meets(w, a, b);
+  return overlap(w.get(a, 'pos')!, w.get(a, 'box')!, w.get(b, 'pos')!, w.get(b, 'box')!);
+}
+
 /** Do two boxes overlap on all three axes? (Every box has depth 1 at z 0 unless the scene says otherwise.) */
 export function overlap(ap: Comp, ab: Comp, bp: Comp, bb: Comp): boolean {
   for (let a = 0; a < 3; a++) {
@@ -390,7 +405,7 @@ export function act(w: World, action: string, self: number, other: number | unde
 function settle(w: World): void {
   for (let n = 0; n < DOOMED.length; n++) w.despawn(DOOMED[n]);
   trim(DOOMED, 0);
-  if (RESETS.length && !rules.restore) throw new Error(RULES_MISSING);
+  if (RESETS.length && !rules.restore) throw missing("'timer', 'when' or 'reset:'");
   for (let n = 0; n < RESETS.length; n += 2) rules.restore!(w, RESETS[n], RESETS[n + 1]);
   trim(RESETS, 0);
 }
@@ -423,7 +438,8 @@ export const rules: {
   answer?: (w: World, from: number, end: number) => void;
   restore?: (w: World, ref: string, cause: string) => void;
 } = {};
-const RULES_MISSING = "'timer', 'when' or 'reset:' is used but the rules were not loaded: name one in a scene or a script of the game";
+/** A game uses a part its build left out: the build looks for these names in scenes and scripts. */
+const missing = (what: string): Error => new Error(`${what} is used but its part was not loaded: name it in a scene or a script of the game`);
 
 /** Filled in by nav.ts when a game that uses `nav` loads it. */
 export const nav: { run?: (w: World, ids: number[]) => void } = {};
@@ -468,7 +484,7 @@ export function step(w: World, script?: InputScript): void {
 
   const walkers = find(w, NAV);
   if (walkers.length) {
-    if (!nav.run) throw new Error(`'nav' is used but navigation was not loaded: name nav in the scene or a script of the game`);
+    if (!nav.run) throw missing("'nav'");
     nav.run(w, walkers);
   }
 
@@ -494,6 +510,9 @@ export function step(w: World, script?: InputScript): void {
 
   const index = solidIndex(w, find(w, SOLID));
   const maps = find(w, MAPS);
+  // Round things, if the scene has any: most have none and pay nothing for them.
+  const rounds = w.comps.get('round')?.size ? w.comps.get('round') : undefined;
+  if (rounds && !round.stop) throw missing("'round'");
   if (w.physics) physicsSync(w);
   for (let n = 0, ids = find(w, MOVERS); n < ids.length; n++) {
     const id = ids[n];
@@ -521,6 +540,7 @@ export function step(w: World, script?: InputScript): void {
       }
     }
     let grounded = 0, ride = -1;
+    const mr = !!rounds && rounds.has(id);
     for (let a = 0; a < 3; a++) {
       if (d[a] === 0) continue;
       let under = -1;
@@ -534,6 +554,7 @@ export function step(w: World, script?: InputScript): void {
       for (let i = 0; i < hits.length; i++) {
         const r = hits[i];
         if (!(a === 1 && w.gy !== 0) && r[6] >= 0 && w.has(r[6], 'push')) (crates ??= []).push(r);
+        else if (rounds && a < 2 && (mr || (r[6] >= 0 && rounds.has(r[6])))) to = round.stop!(to, d[a], cur, size, a, r, mr, !!(r[6] >= 0 && rounds.has(r[6])));
         else to = stopped(to, d[a], size[a], a, r);
       }
       if (crates) {
@@ -609,7 +630,7 @@ export function step(w: World, script?: InputScript): void {
       const o = others[m];
       const op = w.get(o, 'pos'), ob = w.get(o, 'box');
       if (o === t || !op || !ob) continue;
-      const touching = overlap(tp, tb, op, ob);
+      const touching = overlap(tp, tb, op, ob) && (!rounds || meets(w, t, o));
       if (!touching && !w.overlaps.size) continue;
       const key = pairKey(w.names[t]!, w.names[o]!);
       if (!touching) { w.overlaps.delete(key); continue; }
@@ -623,7 +644,7 @@ export function step(w: World, script?: InputScript): void {
   settle(w);
   for (let n = 0; n < w.post.length; n++) w.post[n](w);
   if (rules.timers) rules.timers(w);
-  else if (find(w, TIMER).length || find(w, WHEN).length) throw new Error(RULES_MISSING);
+  else if (find(w, TIMER).length || find(w, WHEN).length) throw missing("'timer', 'when' or 'reset:'");
   // A tally counts what this step emitted, scripts included. It is state: saved and hashed.
   // A `when` answers the same events with an action. Either may emit, so they go round
   // until nothing new was said (a rule that keeps answering itself is cut off).

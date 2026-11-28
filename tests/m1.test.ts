@@ -239,7 +239,8 @@ test('guide: the core and its topics cover every component and command, and each
   // Room for the next few core components: adding one must not be what breaks this test.
   // 5,600 until 2026-11-28; 5,900 since apply, diff and watch (the one-call loop) and the
   // topic lines of rules and joints went in. Raise it only for something an agent needs on every run.
-  assert.ok(g.length < 5900, `core guide is ${g.length} characters`);
+  // 6,000 since `round` (a shape of the core list, the same day).
+  assert.ok(g.length < 6000, `core guide is ${g.length} characters`);
   for (const c of COMMANDS.filter((x) => x !== 'guide')) assert.match(g, new RegExp(`^${c} `, 'm'), `command ${c}`);
   // The scene shown in the guide has to be real.
   const sample = 'prefab hero\n  box 0.8 0.8\nprefab coin\n  box 0.5 0.5\n' + g.slice(g.indexOf('entity map'), g.indexOf('A spawned prefab'));

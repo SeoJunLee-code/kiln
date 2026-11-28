@@ -43,6 +43,7 @@ export async function measure(sceneFile: string): Promise<Alloc> {
   if (physics) await loadBackend(physics[1], sceneFile);
   if (/^\s*nav\b/m.test(text)) await import('../src/nav.ts');
   if (/^\s*(timer|when)\b|reset:/m.test(text)) await import('../src/rules.ts');
+  if (/^\s*round\b/m.test(text)) await import('../src/round.ts');
   const mods = await loadMods(text, sceneFile);
   const open = (): World => {
     const w = parseScene(text, sceneFile).world;
