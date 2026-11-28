@@ -43,4 +43,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 26
+      # The examples folder is built whole, and one of its scenes names the backend.
+      - run: npm ci --prefix backends/rapier --ignore-scripts --no-audit --no-fund
       - run: node --test tests/desktop.test.ts

@@ -505,12 +505,15 @@ B의 (b)다. 설계는 **내가 정했다**(사용자 확인 없음). 새 expect
   - `a2aa2d7` `nav TO speed [reach]`(`src/nav.ts`, 정수 A*, 한 칸씩 다시 계획, 상태는 구성요소 필드). `nav`를 쓰는 게임만 싣는다. 내비메시·서로 피하기·옆에서 보는 점프 게임은 안 된다. 개체 수 한계는 재지 않았다.
   - `1eac1bf` 네트워크: `world players=N`, `ctrl ... player=N`, 입력 `2:left`, `src/net.ts`(롤백 세션, 30틱마다 해시 비교), `src/relay.ts`(의존성 없는 WebSocket 중계, `play`에 붙어 있고 `kiln relay`로도 뜬다), `web/netplay.ts`(`?net`). 두 브라우저가 `play` 중계로 대전하는 테스트가 있다. 로비·재접속·권위 서버 없음, 버튼 탭은 안 보낸다, 64명·지연이 큰 실제 회선·강체가 많은 장면의 저장 비용은 재지 않았다. `solve`는 1번 플레이어만 누른다.
   - 점수판 63행: 전부 gated 23, 부분 16, works 6, none 17.
-- **다음에 집을 일(엔진, 순서대로)**: Standard 게이트의 남은 것(`docs/EDITIONS.md` "Order of work" 6). 설계부터, 덩어리 하나씩:
-  1. 엔티티 10만 개, 틱당 할당 0(`step`의 남은 약 0.8KB부터 확인: 배열 for-of 반복자로 추정, 확인 안 함. 물리·스크립트 장면은 재지 않았다).
-  2. 데스크톱 실행 파일.
-  - 그 뒤: Standard 증명 게임과 에이전트 비용. 조명·애니메이션의 남은 것(캐스케이드 그림자, 블렌딩·IK, 환경 맵)은 점수판에 부분으로 남아 있다.
+- **2026-11-28 다섯 번째 엔진 세션(틱당 할당, 데스크톱)**:
+  - `d13c5e7` 엔진의 틱은 아무것도 할당하지 않는다(가만히 있는 틱 약 1바이트, 입력 있는 틱 20~65, 해시 불변). 원인은 for-of 반복자, 캐시 없는 쿼리, `length=0`(목록 메모리를 버렸다), 32비트를 넘는 격자 칸 번호, 움직이는 solid의 색인 재생성. `World.version`(구성요소를 얻고 잃은 횟수)이 쿼리 캐시를 무효화한다: `w.comps`를 직접 바꾸는 코드는 올려야 한다. `bench/crowd.ts` → `bench/CROWD.md`: 10만 개 이동만 약 14ms(60Hz에 든다), 10만 개 충돌하는 낙하 물체는 약 50ms(안 든다). 남은 병목은 흩어진 객체의 메모리 접근으로 보인다(`Map` 대신 배열은 빨라지지 않았다. 구조를 배열-의-필드로 바꾸는 것은 안 해 봤다). 강체 장면은 틱당 약 24KB(대부분 Rapier 바인딩과 `src/rigid.ts`), nav·네트워크 스냅샷·스크립트의 `w.query`는 할당한다.
+  - `8e8523c` `kiln desktop SCENE --out FILE`(`src/desktop.ts`, `src/launcher.cjs`): Node 25.5+의 `--build-sea` 단일 실행 파일, 설치된 Chrome·Edge 창에서 연다. 이 PC는 Node 24라 실행 파일은 CI의 `desktop` 작업(Node 26, 세 OS)만 만든다. 런처는 이 PC에서 헤드리스 Chrome으로 게임이 그려지는 것을 봤다. 한계: 서명 없음, Chromium 브라우저 필요, 네트워크 대전 안 됨, 플레이어의 개발용 옆 패널이 그대로 보인다.
+- **다음에 집을 일(엔진, 순서대로)**:
+  1. 데스크톱·웹 빌드의 게임 화면에서 개발용 패널을 숨기는 선택(`web/player.ts`, `config.json`).
+  2. Standard 증명 게임과 에이전트 비용(`docs/EDITIONS.md` "The proof games": 3인칭 3D + 물리를 고른다).
+  3. `docs/PARITY.md`의 남은 none·부분 행(조명·애니메이션: 캐스케이드 그림자, 블렌딩·IK, 환경 맵 등).
   - 남은 `solve` 한계: 키 조합을 정한 틱 수만큼 누른다(`--step`), 버튼은 누르지 않는다, 거리 추정은 중력을 보지 않는다, 스크립트가 `'a'`를 문자열이 아닌 방식으로 만들면 못 알아본다.
-- **사용자 몫**: Khronos glTF 샘플을 내려받아 시험해도 되는지, 화면 판정·녹화(H1·H2·H3 각 9개 + Gem Vault 10개, 결과물은 저장소 옆 `_archive/kiln-compare/`), H2 심은 결함 셋 화면 확인, `tugcantopaloglu/godot-mcp`를 대신 쓸지, 라이선스, 기준 휴대폰, Ultra 기준 기계, Lite 게이트의 Godot 데모 3개, 홍보 글 게시.
+- **사용자 몫**: Khronos glTF 샘플을 내려받아 시험해도 되는지, 화면 판정·녹화(H1·H2·H3 각 9개 + Gem Vault 10개, 결과물은 저장소 옆 `_archive/kiln-compare/`; 판정 명령 `node scripts/judge.ts ../_archive/kiln-compare`, 집계는 뒤에 `--report`; 보류 명세의 Kiln 실행은 엔진 `1f50d8d`라 그 커밋의 체크아웃이 있으면 `--engine DIR`), H2 심은 결함 셋 화면 확인, `tugcantopaloglu/godot-mcp`를 대신 쓸지, 라이선스, 기준 휴대폰, Ultra 기준 기계, Lite 게이트의 Godot 데모 3개, 홍보 글 게시.
 
 **2026-11-27 계획 변경(사용자 승인). 아래 A~E보다 이 목록이 먼저다.** 규칙 전문은 `docs/EDITIONS.md`의 "Winning, not only matching"과 "Order of work"다. 이 절은 문서만 고쳤고 실험·코드는 0이다.
 
