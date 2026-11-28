@@ -19,6 +19,7 @@ export interface Need { axis: Axis; edition: Edition; what: string; line: number
  * A component names its axis and edition where it is defined. The rest are features of a
  * value or of a combination, so they are listed here:
  *   - a physics backend (megabytes a Lite game must not carry),
+ *   - more than one player (network sessions),
  *   - a glTF model (drawn only by the WebGPU renderer),
  *   - `rot` in a scene drawn in 3D (the WebGL2 renderer, which is Lite's, does not turn boxes).
  */
@@ -26,6 +27,7 @@ export function needs(scene: Scene): Need[] {
   const w = scene.world, out: Need[] = [];
   const add = (axis: Axis, edition: Edition, what: string, key: string): void => void out.push({ axis, edition, what, line: scene.at.get(key) ?? 0 });
   if (w.physics) add('physics', 'standard', `physics=${w.physics}`, 'physics');
+  if (w.players > 1) add('network', 'standard', `players=${w.players}`, 'players');
   for (const def of registry.values()) {
     if (def.needs) for (const id of w.query(def.name)) add(def.needs[0], def.needs[1], `'${def.name}'`, `${id} ${def.name}`);
   }

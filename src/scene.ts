@@ -112,6 +112,9 @@ export function parseScene(text: string, file = 'scene'): Scene {
           if (k === 'hz' || k === 'tick') {
             if (!/^\d+$/.test(v ?? '') || (k === 'hz' && +v < 1)) err('K104', line, `world ${k} must be a positive integer`);
             else world[k] = +v;
+          } else if (k === 'players') {
+            if (!/^\d+$/.test(v ?? '') || +v < 1 || +v > 64) err('K104', line, `world players must be 1 to 64`);
+            else { world.players = +v; at.set('players', line); }
           } else if (k === 'seed') {
             if (!/^-?\d+$/.test(v ?? '')) err('K104', line, `world seed must be an integer`);
             else world.seed = +v | 0;
@@ -122,7 +125,7 @@ export function parseScene(text: string, file = 'scene'): Scene {
           } else if (k === 'physics') {
             if (v !== 'rapier') err('K104', line, `unknown physics backend '${v ?? ''}'`, 'valid: physics=rapier');
             else { world.physics = v; at.set('physics', line); }
-          } else err('K103', line, `unknown world setting '${k}'`, 'valid: hz, gravity, seed, tick, physics');
+          } else err('K103', line, `unknown world setting '${k}'`, 'valid: hz, gravity, seed, tick, physics, players');
         }
       } else if (tok[0] === 'state') {
         // Written by serialize: run-time state that is not a component.
@@ -214,6 +217,10 @@ export function parseScene(text: string, file = 'scene'): Scene {
     }
     if (def.name === 'nav' && !bad && (!['xy', 'xz'].includes(data.plane as string) || (data.cell as number) < 4096)) {
       err('K104', line, `nav plane must be xy or xz, and cell at least 1/16`, 'e.g. nav hero 3 plane=xz');
+      bad = true;
+    }
+    if (def.name === 'ctrl' && !bad && ((data.player as number) < 1 || (data.player as number) > 64)) {
+      err('K104', line, `ctrl player must be 1 to 64`);
       bad = true;
     }
     if (def.name === 'trigger' && !bad) {
@@ -336,7 +343,7 @@ export function take(w: World, text: string): void {
 /** Canonical scene text for the current state. Parsing it back gives the same world. */
 export function serialize(w: World, expects: RawExpect[] = [], uses: string[] = []): string {
   const out = [...uses.map((u) => `use ${u}`),
-    `world hz=${w.hz} gravity=${fmtFx(w.gx)},${fmtFx(w.gy)}${w.gz ? `,${fmtFx(w.gz)}` : ''}${w.seed ? ` seed=${w.seed}` : ''}${w.physics ? ` physics=${w.physics}` : ''}${w.tick ? ` tick=${w.tick}` : ''}`];
+    `world hz=${w.hz} gravity=${fmtFx(w.gx)},${fmtFx(w.gy)}${w.gz ? `,${fmtFx(w.gz)}` : ''}${w.seed ? ` seed=${w.seed}` : ''}${w.players > 1 ? ` players=${w.players}` : ''}${w.physics ? ` physics=${w.physics}` : ''}${w.tick ? ` tick=${w.tick}` : ''}`];
   w.names.forEach((name, id) => {
     if (name == null) return;
     out.push(`entity ${name}`);

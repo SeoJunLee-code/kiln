@@ -21,6 +21,8 @@ const HELP = `kiln <command> [scene] [options]
   look SCENE             draw the scene in a headless browser and save a picture of the game view
                          (--tick N, --input FILE, --out FILE.png, --size WxH,
                          --renderer webgpu|webgl2 for 3D; needs Chrome or Edge)
+  relay                  pass the inputs of a network game between its players (--port N, default 8787;
+                         --host 0.0.0.0 to be reached from other machines). play has one built in
   new DIR                start a game: starter scene, agent instructions, MCP config
   build SCENE --out DIR  write a folder any static web host can serve (player, engine, the scene's folder)
 options:
@@ -43,6 +45,17 @@ process.on('warning', (w) => { if (w.name !== 'ExperimentalWarning') console.err
 const [cmd, ...rest] = process.argv.slice(2);
 if (cmd === 'mcp') {
   await import('./mcp.ts');
+} else if (cmd === 'relay') {
+  const flag = (name: string, other: string): string => (rest.includes(name) ? rest[rest.indexOf(name) + 1] : other);
+  const { relay } = await import('./relay.ts');
+  try {
+    const host = flag('--host', '127.0.0.1');
+    const { port } = await relay(Number(flag('--port', '8787')), host);
+    console.log(`ok relay ws://${host}:${port}/relay`);
+  } catch (e) {
+    console.log(`E K004 ${(e as Error).message}`);
+    process.exitCode = 2;
+  }
 } else if (cmd === 'new' && rest[0] && !rest[0].startsWith('--')) {
   const { newGame } = await import('./new.ts');
   try {

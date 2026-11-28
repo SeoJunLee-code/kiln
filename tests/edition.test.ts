@@ -193,9 +193,9 @@ test('edition: a built game carries only the parts it uses, within the byte budg
   assert.ok(flat.engineBytes <= BUDGET.lite2d, `2D Lite engine is ${flat.engineBytes} bytes, budget ${BUDGET.lite2d}`);
   // The player asks for its parts by the names a static host will have. inspect.js is the panel
   // of `play`: named here, never written into a build and never asked for by a built game.
-  // nav.js is asked for only by games that use it (config.json says so).
+  // nav.js and netplay.js are asked for only by games that use them.
   const player = readFileSync(join(flat.out, 'engine/web/player.js'), 'utf8');
-  assert.deepEqual([...player.matchAll(/import\('(\.[^']+)'\)/g)].map((m) => m[1]).sort(), ['../src/nav.js', './audio.js', './inspect.js', './view3.js']);
+  assert.deepEqual([...player.matchAll(/import\('(\.[^']+)'\)/g)].map((m) => m[1]).sort(), ['../src/nav.js', './audio.js', './inspect.js', './netplay.js', './view3.js']);
 
   const solid = built(game(['arena3d.kiln', 'gem.obj']), 'arena3d.kiln');
   assert.deepEqual([solid.parts, solid.web], [['3d'], ['gl.js', 'gpu.js', 'mesh.js', 'player.js', 'view3.js']]);

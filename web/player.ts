@@ -44,6 +44,8 @@ const wantView3 = (): void => {
 // shows the fallback box of a mesh or image that simply had not arrived yet.
 const loading: Promise<unknown>[] = [];
 let world: World, expects: Expect[], script: InputScript;
+// Set when the page was opened with ?net: a network session runs the ticks.
+let net: import('./netplay.ts').Net | null = null;
 let log: string[] = [];
 // The last tick of `log`: after a rewind it lies ahead, and a new press drops what follows.
 let ahead = 0;
@@ -147,7 +149,10 @@ try {
   };
 
   const tick = (): void => {
-    step(world, script);
+    if (!net) step(world, script);
+    else if (!net.step()) return;
+    // A rollback takes events back.
+    else heard = Math.min(heard, world.events.length);
     evalTick(world, expects);
     for (; heard < world.events.length; heard++) {
       const ev = world.events[heard];
@@ -340,7 +345,7 @@ try {
 
   const hud = (): void => {
     panel?.();
-    $('state').textContent = `scene ${cfg.scene}\nmode  ${replay === null ? 'live input' : 'replaying input script'}${paused ? ' (paused)' : ''}\ntick  ${world.tick}\nhash  ${hash(world)}`;
+    $('state').textContent = `scene ${cfg.scene}\nmode  ${replay === null ? 'live input' : 'replaying input script'}${paused ? ' (paused)' : ''}\ntick  ${world.tick}\nhash  ${hash(world)}${net ? `\nnet   ${net.status()}` : ''}`;
     const ex = $('expects');
     ex.replaceChildren(...expects.map((e) => {
       const d = document.createElement('div');
@@ -360,8 +365,12 @@ try {
   }
 
   reset();
+  if (asked.has('net') && world.players > 1 && replay === null) {
+    // A session is driven from the start and cannot be restarted or stepped back by one side.
+    net = (await part(import('./netplay.ts')))?.join(asked.get('net')!, asked.get('room') ?? cfg.scene, world.players, () => world, held) ?? null;
+  }
   addEventListener('keydown', (e) => {
-    if (e.key === 'r' || e.key === 'R') return reset();
+    if (e.key === 'r' || e.key === 'R') return void (net || reset());
     if (e.key === 'p' || e.key === 'P') return void (paused = !paused);
     if (e.key === 'm' || e.key === 'M') return void sounds?.mute((muted = !muted));
     wake();
@@ -391,7 +400,7 @@ try {
     for (const up of ['pointerup', 'pointercancel', 'pointerleave']) b.addEventListener(up, set(false));
   }
 
-  $('restart').onclick = reset;
+  $('restart').onclick = () => void (net || reset());
   $('pause').onclick = () => void (paused = !paused);
   $('copy').onclick = () => navigator.clipboard.writeText(log.join('\n') + '\n');
 
@@ -416,6 +425,7 @@ try {
     kiln: {
       get world() { return world; },
       hash: () => hash(world),
+      net: () => net?.session(),
       reset,
       seek,
       /** Step synchronously until the given tick (ignores pause). */

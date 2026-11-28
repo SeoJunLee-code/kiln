@@ -19,7 +19,12 @@ export function parseInput(text: string, file = 'input'): InputScript {
     if (tok.length !== 3 || !/^\d+$/.test(tok[0])) return err(`expected 'TICK ACTION down|up' or 'TICK BUTTON tap'`);
     // A click or tap on a button is input too, written with the button's entity name.
     if (tok[2] === 'tap') tok.splice(1, 2, `tap:${tok[1]}`, 'down');
-    else if (!ACTIONS.includes(tok[1])) return err(`unknown action '${tok[1]}'`, suggest(tok[1], ACTIONS) ?? `valid: ${ACTIONS.join(' ')}`);
+    else {
+      // 2:left is player 2's left; player 1's actions are the plain ones.
+      const [, player, action] = /^(?:([1-9]\d?):)?(.*)$/.exec(tok[1])!;
+      if (!ACTIONS.includes(action)) return err(`unknown action '${tok[1]}'`, suggest(action, ACTIONS) ?? `valid: ${ACTIONS.join(' ')}, with N: before it for player N`);
+      if (player === '1') tok[1] = action;
+    }
     if (tok[2] !== 'down' && tok[2] !== 'up') return err(`state must be 'down' or 'up', got '${tok[2]}'`);
     const t = +tok[0];
     if (!script.has(t)) script.set(t, []);
@@ -290,7 +295,7 @@ export function spinQuat(q: Comp, tx: number, ty: number, tz: number): void {
   q.x = Math.round((px * ONE) / len); q.y = Math.round((py * ONE) / len); q.z = Math.round((pz * ONE) / len); q.w = Math.round((pw * ONE) / len);
 }
 
-const held = (w: World, action: string): number => (w.pressed.has(action) ? 1 : 0);
+const held = (w: World, action: string, player: number): number => (w.on(action, player) ? 1 : 0);
 const tagOf = (w: World, id: number): string => (w.get(id, 'tag')?.name as string | undefined) ?? '';
 
 /** Where a mover going `way` along axis `a` has to stop for `r`, if that is before `to`. */
@@ -351,15 +356,15 @@ export function step(w: World, script?: InputScript): void {
 
   for (const id of find(w, CTRL)) {
     const c = w.get(id, 'ctrl')!, v = w.get(id, 'vel')!;
-    const speed = c.speed as number, jump = c.jump as number;
-    v.x = (held(w, 'right') - held(w, 'left')) * speed;
+    const speed = c.speed as number, jump = c.jump as number, p = c.player as number;
+    v.x = (held(w, 'right', p) - held(w, 'left', p)) * speed;
     if (c.plane === 'xz') {
       // Ground plane is x/z: up/down walk along z, and `a` jumps.
-      v.z = (held(w, 'down') - held(w, 'up')) * speed;
-      if (jump > 0 && held(w, 'a') && w.get(id, 'body')?.grounded) v.y = -jump;
+      v.z = (held(w, 'down', p) - held(w, 'up', p)) * speed;
+      if (jump > 0 && held(w, 'a', p) && w.get(id, 'body')?.grounded) v.y = -jump;
     } else if (jump > 0) {
-      if (held(w, 'up') && w.get(id, 'body')?.grounded) v.y = -jump;
-    } else if (!w.gy || !w.has(id, 'body')) v.y = (held(w, 'down') - held(w, 'up')) * speed;
+      if (held(w, 'up', p) && w.get(id, 'body')?.grounded) v.y = -jump;
+    } else if (!w.gy || !w.has(id, 'body')) v.y = (held(w, 'down', p) - held(w, 'up', p)) * speed;
     // A body under gravity with no jump walks: its fall is gravity's, not the keys'.
   }
 

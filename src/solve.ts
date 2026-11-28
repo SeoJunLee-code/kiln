@@ -14,7 +14,7 @@ import { World, registry } from './world.ts';
 /** Independent copy of a world. Script systems are shared, so scripts must keep their state in components. */
 export function cloneWorld(w: World): World {
   const c = new World();
-  c.tick = w.tick; c.hz = w.hz; c.gx = w.gx; c.gy = w.gy; c.gz = w.gz; c.seed = w.seed; c.physics = w.physics;
+  c.tick = w.tick; c.hz = w.hz; c.players = w.players; c.gx = w.gx; c.gy = w.gy; c.gz = w.gz; c.seed = w.seed; c.physics = w.physics;
   c.names = [...w.names];
   c.ids = new Map(w.ids);
   for (const [name, m] of w.comps) {

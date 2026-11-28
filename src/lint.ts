@@ -60,6 +60,8 @@ export function lint(scene: Scene, file: string, exists?: (name: string) => bool
       }
     }
     if (w.has(id, 'rigid') && !w.physics) warn('K316', `'${name}' has 'rigid' but the world has no physics backend, so it does nothing`, 'add physics=rapier to the world line');
+    const player = (w.get(id, 'ctrl')?.player as number | undefined) ?? 1;
+    if (player > w.players) warn('K324', `'${name}' is steered by player ${player}, but the world has ${w.players}`, `add players=${player} to the world line`);
     const nv = w.get(id, 'nav');
     if (nv) {
       if (!w.match(nv.to as string).length) warn('K311', `nav on '${name}' walks to '${nv.to}', which matches no entity`, (nv.to as string).startsWith('#') ? 'no entity has that tag' : suggest(nv.to as string, w.ids.keys()));

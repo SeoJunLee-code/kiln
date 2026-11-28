@@ -231,11 +231,11 @@ test('guide: the core and its topics cover every component and command, and each
     const t = await command('guide', { topic });
     assert.equal(t.code, 0);
     assert.ok(t.text.length < 2500, `guide ${topic} is ${t.text.length} characters`);
-    if (topic !== 'script') assert.ok([...registry.values()].some((c) => c.topic === topic), `topic ${topic} has no component`); // script is the API
+    if (topic !== 'script' && topic !== 'net') assert.ok([...registry.values()].some((c) => c.topic === topic), `topic ${topic} has no component`); // the API, and the world setting players
   }
   const bad = await command('guide', { topic: 'nope' });
   assert.equal(bad.code, 2);
-  assert.match(bad.text, /^E K003 unknown guide topic 'nope' \(hint: valid: physics nav view levels ui audio script\)/);
+  assert.match(bad.text, /^E K003 unknown guide topic 'nope' \(hint: valid: physics nav net view levels ui audio script\)/);
   // Room for the next few core components: adding one must not be what breaks this test.
   assert.ok(g.length < 5600, `core guide is ${g.length} characters`);
   for (const c of COMMANDS.filter((x) => x !== 'guide')) assert.match(g, new RegExp(`^${c} `, 'm'), `command ${c}`);

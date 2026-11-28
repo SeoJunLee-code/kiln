@@ -679,3 +679,43 @@ test('browser: a built game with navigation walks the same way as headless', { s
     assert.deepEqual(page.errors(), []);
   } finally { site.close(); }
 });
+
+test('browser: two pages play one game through the relay of play, and stay in step', { skip }, async () => {
+  const { serve } = await import('../src/serve.ts');
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = mkdtempSync(join(tmpdir(), 'kiln-net-'));
+  writeFileSync(join(dir, 'duel.kiln'), 'world players=2\nentity a\n  pos 0 0\n  box 1 1\n  vel\n  ctrl 3\nentity b\n  pos 5 0\n  box 1 1\n  vel\n  ctrl 3 player=2\n');
+  const site = await serve(join(dir, 'duel.kiln'), undefined, 0);
+  let other: Awaited<ReturnType<typeof launch>> | undefined;
+  try {
+    const url = `http://127.0.0.1:${site.port}/?net&offscreen`;
+    // A second browser: a tab behind another one does not run its frames.
+    other = await launch({ args: GPU_SWITCHES });
+    const one = await browser.open(url, { width: 640, height: 400 });
+    const two = await other.open(url, { width: 640, height: 400 });
+    // Player 2 holds right for a while: player 1 sees it move.
+    const PLAY2 = `(async () => {
+      const wait = async (ok) => { for (let i = 0; i < 600 && !ok(); i++) await new Promise((r) => setTimeout(r, 20)); };
+      await wait(() => window.kiln?.net());
+      dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
+      await wait(() => kiln.world.tick > 60);
+      dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight' }));
+      await wait(() => kiln.world.tick > 120 && kiln.net().confirmed > 100);
+      const s = kiln.net();
+      return { desync: s.desync, text: s.inputText(), tick: kiln.world.tick };
+    })()`;
+    const WATCH = `(async () => {
+      for (let i = 0; i < 900 && !(window.kiln?.net() && kiln.world.tick > 120 && kiln.net().confirmed > 100); i++) await new Promise((r) => setTimeout(r, 20));
+      const s = kiln.net();
+      return { desync: s.desync, text: s.inputText(), tick: kiln.world.tick, b: kiln.world.get(kiln.world.ids.get('b'), 'pos').x };
+    })()`;
+    const [watched, played] = await Promise.all([one.eval<{ desync: number | null; text: string; tick: number; b: number }>(WATCH), two.eval<{ desync: number | null; text: string; tick: number }>(PLAY2)]);
+    assert.deepEqual([watched.desync, played.desync], [null, null]);
+    assert.match(watched.text, /^\d+ 2:right down\n\d+ 2:right up\n$/);
+    assert.equal(watched.text, played.text);
+    assert.ok(watched.b > 6 * 65536, `b is at ${watched.b / 65536}`);
+    assert.deepEqual([one.errors(), two.errors()], [[], []]);
+  } finally { await other?.close(); site.close(); }
+});

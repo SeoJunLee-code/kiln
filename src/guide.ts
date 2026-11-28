@@ -46,6 +46,22 @@ not cut, the mover's own size counts. It re-plans at every cell, so moved target
 opened doors are noticed; movers do not avoid each other. With no way through it goes as
 close as it can. Not for side-view jumping. Scripts retarget with w.get(id,'nav').to.`,
   },
+  net: {
+    about: 'two or more playing over a network',
+    text: `world players=2 (to 64) and ctrl ... player=N, one entity per player:
+  world players=2
+  entity red
+    ctrl 6 player=1
+  entity blue
+    ctrl 6 player=2
+Input files name other players' actions 2:left, 3:a; scripts read w.on('left', 2). So run,
+test and replay work on a network game without a network. Playing: open the game on each
+machine with ?net (the relay of \`play\` itself) or ?net=ws://HOST:8787/relay after
+"kiln relay"; &room=NAME separates games. The first to join is player 1.
+Peers send only inputs and roll back (src/net.ts), so scripts must keep what matters in the
+world, never in variables. Taps on buttons are not sent. No lobby, no rejoin, no hiding of
+state from a cheating peer; solve only presses for player 1.`,
+  },
   view: {
     about: 'turning, animation, cameras, labels',
     text: `None of these change collision, triggers or solve: they see the unturned box.
@@ -145,7 +161,8 @@ ${comps}`}`;
 function topicIndex(): string {
   return Object.entries(TOPICS).flatMap(([name, t]) => {
     const comps = [...registry.values()].filter((c) => c.topic === name).map((c) => c.name).join(' ');
-    return comps ? [`${name}: ${comps}  -- ${t.about}`] : [];
+    const named = comps || (name === 'net' ? 'world players=N' : '');
+    return named ? [`${name}: ${named}  -- ${t.about}`] : [];
   }).join('\n');
 }
 
@@ -158,7 +175,7 @@ export function guideText(): string {
 A scene is a text file, NAME.kiln. Run it headless; same scene + same input = same result.
 
 SCENE
-world hz=60 gravity=X,Y[,Z] [seed=N] [physics=rapier]   once, optional
+world hz=60 gravity=X,Y[,Z] [seed=N] [physics=rapier] [players=N]   once, optional
 entity NAME                         then components, indented 2 spaces
   COMPONENT value value name=value  positional or by name; [x=..] below marks optional
 prefab NAME                         a component list without pos, used by tiles spawn

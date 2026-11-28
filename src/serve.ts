@@ -4,6 +4,7 @@ import { createServer } from 'node:http';
 import { stripTypeScriptTypes } from 'node:module';
 import { basename, dirname, resolve, sep } from 'node:path';
 import { ASSETS, sidecars } from './build.ts';
+import { attachRelay } from './relay.ts';
 import { fileURLToPath } from 'node:url';
 
 const TYPES: Record<string, string> = {
@@ -91,8 +92,10 @@ export function serve(sceneFile: string, inputFile: string | undefined, port: nu
     }
     send(res, 404, 'text/plain', 'not found');
   });
+  // Two tabs of this server can play together: web/netplay.ts joins here.
+  const drop = attachRelay(server);
   return new Promise((ok, fail) => {
     server.once('error', fail);
-    server.listen(port, '127.0.0.1', () => ok({ port: (server.address() as import('node:net').AddressInfo).port, close: () => { server.close(); server.closeAllConnections(); } }));
+    server.listen(port, '127.0.0.1', () => ok({ port: (server.address() as import('node:net').AddressInfo).port, close: () => { drop(); server.close(); server.closeAllConnections(); } }));
   });
 }
