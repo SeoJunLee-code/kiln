@@ -23,7 +23,7 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { checksFor, scanArchive } from './judge.ts'
 import type { Check, Results, Spec, Target } from './judge.ts'
 
@@ -124,9 +124,9 @@ const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
 /** Pictures of a Kiln game folder: each scene at its start and along its own input. */
 export async function kilnFrames(game: string, out: string, engine = REPO): Promise<Frame[]> {
-  const { look } = await import(join(engine, 'src/look.ts')) as typeof import('../src/look.ts')
-  const { launch } = await import(join(engine, 'src/chrome.ts')) as typeof import('../src/chrome.ts')
-  const { GPU_SWITCHES } = await import(join(engine, 'src/look.ts')) as typeof import('../src/look.ts')
+  const { look } = await import(pathToFileURL(join(engine, 'src/look.ts')).href) as typeof import('../src/look.ts')
+  const { launch } = await import(pathToFileURL(join(engine, 'src/chrome.ts')).href) as typeof import('../src/chrome.ts')
+  const { GPU_SWITCHES } = await import(pathToFileURL(join(engine, 'src/look.ts')).href) as typeof import('../src/look.ts')
   const browser = await launch({ args: GPU_SWITCHES })
   const frames: Frame[] = []
   try {
