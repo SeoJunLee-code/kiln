@@ -18,6 +18,7 @@ const NEEDS: Record<string, string[]> = {
   tiles: ['pos'],
   sprite: ['pos', 'box'],
   anim: ['sprite'],
+  particles: ['pos'],
   label: ['pos'],
   camera: ['pos'],
   eye: ['pos'],
@@ -92,6 +93,15 @@ export function lint(scene: Scene, file: string, exists?: (name: string) => bool
       const f = sp?.[field] as string | undefined;
       if (f && exists && !exists(f)) warn('K312', `sprite on '${name}' uses ${field} '${f}', which is not next to the scene`);
     }
+    const pt = w.get(id, 'particles');
+    if (pt) {
+      const on = pt.on as string;
+      const heard = new Set(['load', ...w.query('trigger').map((t) => w.get(t, 'trigger')!.event as string), ...w.query('button').map((t) => w.get(t, 'button')!.event as string)]);
+      if ((pt.rate as number) <= 0 && !on) warn('K332', `particles on '${name}' have neither rate= nor on=, so there are none`, 'e.g. particles rate=20, or particles on=coin');
+      else if ((pt.life as number) <= 0 || (pt.size as number) <= 0 || (on && (pt.count as number) < 1)) warn('K332', `particles on '${name}' need life, size and count above 0`);
+      else if (on && !scene.uses.length && !heard.has(on)) warn('K326', `particles on '${name}' burst on '${on}', which no trigger or button here emits`, suggest(on, heard));
+      if (w.query('eye').length) warn('K323', `'${name}' has 'particles', which are not drawn in 3D`);
+    }
     const an = w.get(id, 'anim');
     if (an && sp) {
       const n = an.frames as number, idle = an.idle as number;
@@ -113,11 +123,11 @@ export function lint(scene: Scene, file: string, exists?: (name: string) => bool
         if (a.startsWith('load:') && exists && !exists(a.slice(5))) warn('K312', `${comp} on '${name}' loads '${a.slice(5)}', which is not next to the scene`);
       }
       if (comp === 'when' && !scene.uses.length && !emitted(w).has(c.event as string)) {
-        warn('K332', `when on '${name}' waits for event '${c.event}', which nothing in the scene emits, so it never acts`, suggest(c.event as string, emitted(w)) ?? 'events come from trigger, button, timer, tally then=, nav event=, emit:');
+        warn('K335', `when on '${name}' waits for event '${c.event}', which nothing in the scene emits, so it never acts`, suggest(c.event as string, emitted(w)) ?? 'events come from trigger, button, timer, tally then=, nav event=, emit:');
       }
     }
     const tal = w.get(id, 'tally');
-    if (tal && tal.then && !tal.by) warn('K333', `tally on '${name}' has then=${tal.then} but by=0, so n never reaches ${tal.hit}`);
+    if (tal && tal.then && !tal.by) warn('K336', `tally on '${name}' has then=${tal.then} but by=0, so n never reaches ${tal.hit}`);
     // A wall that stands turned is turned for rigid bodies only.
     if (w.physics && w.has(id, 'solid') && !w.has(id, 'vel') && !w.has(id, 'push') && (w.has(id, 'quat') || (w.get(id, 'rot')?.angle ?? 0) !== 0)
       && w.query('pos', 'vel', 'box').some((m) => !w.has(m, 'rigid') && !w.has(m, 'solid'))) {

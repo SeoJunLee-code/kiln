@@ -116,6 +116,8 @@ try {
   await loadBackend(physicsOf(sceneText), cfg.scene);
   // A built game that does not use navigation was built without it.
   if (cfg.nav !== false) await import('../src/nav.ts');
+  // Particles are a part too, wanted from the first tick on.
+  const dots = cfg.particles === false ? null : await part(import('./particles.ts').then((m) => m.makeParticles()));
 
   const reset = (): void => {
     if (world) freeLink(world);
@@ -146,6 +148,8 @@ try {
     }
     if (x0 <= x1) bounds = { x: x0 / ONE - 0.5, y: y0 / ONE - 0.5, w: (x1 - x0) / ONE + 1, h: (y1 - y0) / ONE + 1 };
     evalTick(world, expects);
+    dots?.reset();
+    dots?.update(world);
   };
 
   const tick = (): void => {
@@ -154,6 +158,7 @@ try {
     // A rollback takes events back.
     else heard = Math.min(heard, world.events.length);
     evalTick(world, expects);
+    dots?.update(world);
     for (; heard < world.events.length; heard++) {
       const ev = world.events[heard];
       beep(ev.name);
@@ -321,6 +326,7 @@ try {
       }
       if (turn || an) g.restore();
     }
+    dots?.draw(g, world, scale, ox, oy);
     for (const id of world.query('label').filter(placed)) {
       const l = world.get(id, 'label')!, [x, y, w, h, u] = rect(id);
       // Above the box; inside it on a button; and a pinned label with no box sits at its place on the screen.
@@ -346,14 +352,25 @@ try {
       if (replay === null) script = parseInput(was.join('\n'), 'input');
     }
     const over = (): boolean => world.events.some((e) => e.name === 'load' && !!e.a);
-    while (world.tick < t && !over()) { step(world, script); evalTick(world, expects); }
+    while (world.tick < t && !over()) { step(world, script); evalTick(world, expects); dots?.update(world); }
     heard = world.events.length;
     draw();
     hud();
   };
 
+  // A built game is for players: the side panel is the developer's, and is there only if
+  // the build asked for it (--panel) or the page is opened with ?panel.
+  const bare = !!cfg.built && !cfg.panel && !asked.has('panel');
+  document.body.classList.toggle('bare', bare);
+
   const hud = (): void => {
     panel?.();
+    if (bare) {
+      // What a player of a network game must still see: waiting, gone, out of sync.
+      const s = net?.session();
+      $('note').textContent = net && (!s || s.desync != null) ? net.status() : '';
+      return;
+    }
     $('state').textContent = `scene ${cfg.scene}\nmode  ${replay === null ? 'live input' : 'replaying input script'}${paused ? ' (paused)' : ''}\ntick  ${world.tick}\nhash  ${hash(world)}${net ? `\nnet   ${net.status()}` : ''}`;
     const ex = $('expects');
     ex.replaceChildren(...expects.map((e) => {
@@ -468,6 +485,8 @@ try {
     },
   });
 } catch (e) {
+  // The panel is where an error is read.
+  document.body.classList.remove('bare');
   $('error').textContent = (e as Error).message;
   throw e;
 }

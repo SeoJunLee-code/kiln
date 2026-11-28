@@ -80,7 +80,13 @@ Animation (2D): draw the frames in one image, side by side, all the same size an
 right (PNG, or SVG with a viewBox), and give the entity sprite image=walk.png + anim 4.
 The frame comes from the tick alone: tick*fps/hz, so a replay draws the same pictures.
 anim 4 idle=1 keeps frame 0 for standing and loops 1..3 while vel is not zero.
-Looking left mirrors the picture; face is saved with the scene and is part of the hash.`,
+Looking left mirrors the picture; face is saved with the scene and is part of the hash.
+Particles (2D) are only drawn: no collision, no dot in the game state, the same on every replay.
+  particles rate=20 angle=90 spread=20 color=skyblue    a steady drip
+  particles on=coin count=16 gravity=6 color=gold       a burst
+on=EVENT bursts when the event names this entity, as the trigger or as what touched it;
+an event a script emits with no names bursts every listener. An entity that despawns on
+that event still bursts.`,
   },
   levels: {
     about: 'a score or lives, kept across scenes',
@@ -254,18 +260,19 @@ check  parse and validate (a folder: every scene). Says the edition needed: lite
 test   run, evaluate expects; --input FILE; exit 1 if any fails. A folder: every scene
        with its NAME.input, then once per NAME.CASE.input. expect lines in an input
        replace the scene's. --follow: go on into the scene a load: opened, with its NAME.input
+       --before REV|OLD.kiln (also run): the first tick where it differs from that version, and what
 run    run without judging; --ticks N
 solve  find an input meeting reach/gone/event, keeping never and count X == 0; --out FILE
-       saves it; --budget seconds (60), then its furthest attempt
+       saves it; --budget S (60), then the furthest attempt
 schema components only
 look   picture of the game view from a headless browser, with what is in it;
        --tick N --input FILE --out FILE.png (needs Chrome/Edge)
 play   open in a browser (CLI only); what you press is recorded as an input script
 apply  ONE call per change (MCP): files=[{path,content}], edits=[{path,old,new}] (exact,
        once), then check + test of the folder file=
-diff   --against OTHER.input|.kiln: the first tick two runs differ, and in what
+diff   --against B.input|B.kiln: first tick two runs differ
 Add to test/run/apply: --view (ASCII picture), --top (3D floor plan), --observe (positions),
---events, --watch ball.pos,lives.tally.n [--at 0,60] (values during the run).
+--events, --watch ball.pos,lives.tally.n [--at 0,60].
 
 OUTPUT
 ok ... / fail ...        last line of every command
