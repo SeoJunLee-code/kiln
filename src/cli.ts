@@ -25,6 +25,9 @@ const HELP = `kiln <command> [scene] [options]
                          --host 0.0.0.0 to be reached from other machines). play has one built in
   new DIR                start a game: starter scene, agent instructions, MCP config
   build SCENE --out DIR  write a folder any static web host can serve (player, engine, the scene's folder)
+  desktop SCENE --out FILE
+                         one executable that runs the game in a window of the installed
+                         Chrome or Edge (needs Node 25.5+ to build; --node PATH, --console)
 options:
   --input FILE           input script (TICK ACTION down|up per line)
   --ticks N              ticks to run (default: last tick any expect needs); a scene ends early
@@ -74,6 +77,19 @@ if (cmd === 'mcp') {
     console.log(`ok built files=${b.written.length} engine_bytes=${b.engineBytes} parts=${b.parts.join(',') || 'none'} out=${out}`);
   } catch (e) {
     console.log(`E K001 build failed: ${(e as Error).message}`);
+    process.exitCode = 2;
+  }
+} else if (cmd === 'desktop' && rest[0] && !rest[0].startsWith('--')) {
+  const flag = (name: string): string | undefined => (rest.includes(name) ? rest[rest.indexOf(name) + 1] : undefined);
+  const out = flag('--out');
+  if (!out) { console.log('E K002 desktop needs --out FILE'); process.exit(2); }
+  const { desktop } = await import('./desktop.ts');
+  try {
+    const d = desktop(rest[0], out, { node: flag('--node'), console: rest.includes('--console') });
+    if (d.skipped.length) console.log(`W K301 not copied (not a game asset): ${d.skipped.join(' ')}`);
+    console.log(`ok desktop files=${d.files} bytes=${d.bytes} out=${d.out}`);
+  } catch (e) {
+    console.log(`E K001 desktop failed: ${(e as Error).message}`);
     process.exitCode = 2;
   }
 } else if (cmd === 'look' && rest[0] && !rest[0].startsWith('--')) {

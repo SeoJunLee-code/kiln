@@ -30,3 +30,17 @@ jobs:
       - name: Check example hashes
         shell: bash
         run: node scripts/hashes.ts --check
+
+  # `kiln desktop` needs a Node that can build single executables (25.5 or newer).
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      - run: node --test tests/desktop.test.ts

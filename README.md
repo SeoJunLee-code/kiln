@@ -79,6 +79,14 @@ node src/cli.ts build mygame/level1.kiln --out dist
 
 `dist` then holds the player, the engine modules it needs and everything next to the scene, as plain files any static host can serve (GitHub Pages, itch.io, an S3 bucket). The demo linked at the top is produced this way on every push.
 
+For a desktop program, with Node 25.5 or newer:
+
+```
+node src/cli.ts desktop mygame/level1.kiln --out mygame-app
+```
+
+The one file (`.exe` on Windows) is Node's single executable application with the built game inside. It opens the game in a window of the Chrome or Edge installed on the player's machine, so it carries no renderer of its own; it is about the size of Node, is not signed, and does not run network play. Each platform builds its own file.
+
 ## A scene
 
 ```
