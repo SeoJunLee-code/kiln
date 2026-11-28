@@ -57,8 +57,9 @@ const GOALS = ['reach', 'gone', 'event'];
  *   stepTicks  how long each key choice is held (smaller = finer control, larger search)
  *   maxStates  give up after this many distinct states
  *   physicsCache  bytes of physics snapshots to keep (physics scenes only)
+ *   scripts  the text of the scene's `use` files: an action they name ('a', 'b') is tried too
  */
-export function solve(sceneText: string, opts: { file?: string; mods?: Mods; stepTicks?: number; maxStates?: number; physicsCache?: number } = {}): SolveResult {
+export function solve(sceneText: string, opts: { file?: string; mods?: Mods; stepTicks?: number; maxStates?: number; physicsCache?: number; scripts?: string } = {}): SolveResult {
   const { world, expects: raw } = parseScene(sceneText, opts.file);
   if (opts.mods) { world.pre = opts.mods.pre; world.post = opts.mods.post; }
   const parsed = parseExpects(raw, world, opts.file);
@@ -79,6 +80,12 @@ export function solve(sceneText: string, opts: { file?: string; mods?: Mods; ste
   const choices = ground
     ? (jumper ? [...walk, ...walk.map((k) => ['a', ...k])] : walk)
     : jumper ? [[], ['right'], ['left'], ['up'], ['up', 'right'], ['up', 'left']] : walk;
+  // `a` and `b` do nothing to the engine's own movement (except the 3D jump above), so they are
+  // tried only when something reads them: a script that names one, or a button with that key.
+  const keyed = world.query('button').map((id) => world.get(id, 'button')!.key);
+  const extra = ['a', 'b'].filter((k) => !(ground && jumper && k === 'a') && (keyed.includes(k) || new RegExp(`['"\`]${k}['"\`]`).test(opts.scripts ?? '')));
+  const moves = [...choices];
+  for (const k of extra) choices.push(...moves.map((m) => [...m, k]));
 
   const count = (ex: Expect[]): number => ex.filter((e) => GOALS.includes(e.kind) && e.ok).length;
   // Two states count as the same when every non-static entity matches to 1/64 of a unit.
@@ -87,11 +94,25 @@ export function solve(sceneText: string, opts: { file?: string; mods?: Mods; ste
   // an answer is only reported after it has been replayed exactly.
   const fxFields = new Map<string, Set<string>>();
   for (const def of registry.values()) fxFields.set(def.name, new Set(def.fields.filter((f) => f.type === 'fx').map((f) => f.name)));
+  // A wall that is as the scene wrote it says nothing about a state, and there are many of them.
+  // One that moves, or that a script changes or takes away, does.
+  const walls0 = world.query('solid').filter((id) => !world.has(id, 'push') && !world.has(id, 'vel') && !world.has(id, 'tiles'));
+  const asWritten = (w: World, id: number): boolean => {
+    for (const [comp, m] of w.comps) {
+      const d = m.get(id), was = world.comps.get(comp)?.get(id);
+      if (!d !== !was) return false;
+      for (const f in d) if (d[f] !== was![f]) return false;
+    }
+    return true;
+  };
+  const still = new Set(walls0);
   const key = (n: Node): string => {
     let s = n.ex.map((e) => (e.ok === undefined ? '?' : +e.ok)).join('');
+    if (n.w.gx !== world.gx || n.w.gy !== world.gy || n.w.gz !== world.gz) s += `g${n.w.gx},${n.w.gy},${n.w.gz}`;
+    for (const id of walls0) if (n.w.names[id] == null) s += `-${id}`;
     n.w.names.forEach((name, id) => {
-      // Walls and maps never change; a crate is solid but does move.
-      if (name == null || (n.w.has(id, 'solid') && !n.w.has(id, 'push')) || n.w.has(id, 'tiles')) return;
+      // Maps never change.
+      if (name == null || n.w.has(id, 'tiles') || (still.has(id) && asWritten(n.w, id))) return;
       s += `|${name}`;
       for (const [comp, m] of n.w.comps) {
         const d = m.get(id);
@@ -112,14 +133,27 @@ export function solve(sceneText: string, opts: { file?: string; mods?: Mods; ste
     }
     return m;
   };
-  // Distance along the way round the walls, for top-down scenes on a tile grid. A straight line
-  // points through walls, and through a door that is still closed. Cells are the cells of the
-  // first map; walls are its solid tiles plus every solid thing that cannot move. The field for a
-  // cell is found once per set of such things (a door that is removed changes the set).
-  const map = jumper || ground ? undefined : world.query('tiles', 'pos').find((id) => world.get(id, 'tiles')!.plane === 'xy');
-  const grid = map === undefined ? null : (() => {
-    const tl = world.get(map, 'tiles')!, p = world.get(map, 'pos')!, rows = tileRows(tl);
-    return { x: p.x as number, y: p.y as number, size: tl.size as number, rows, solid: tl.solid as string, w: Math.max(...rows.map((r) => r.length)), h: rows.length };
+  // Distance along the way round the walls, for 2D scenes with tiles. A straight line points
+  // through walls, and through a door that is still closed. The grid takes the first map's cell
+  // size and covers every map that sits on it (rooms side by side); walls are their solid tiles
+  // plus every solid thing that cannot move. Gravity is not looked at: a way through the air
+  // counts, so for a jumping game this is still closer to the truth than the straight line, no
+  // more. The field for a cell is found once per set of walls (a removed door changes the set).
+  const maps = ground ? [] : world.query('tiles', 'pos').filter((id) => world.get(id, 'tiles')!.plane === 'xy');
+  const grid = !maps.length ? null : (() => {
+    const size = world.get(maps[0], 'tiles')!.size as number, p0 = world.get(maps[0], 'pos')!;
+    const on = maps.map((id) => {
+      const tl = world.get(id, 'tiles')!, p = world.get(id, 'pos')!;
+      return { c: ((p.x as number) - (p0.x as number)) / size, r: ((p.y as number) - (p0.y as number)) / size, rows: tileRows(tl), solid: tl.solid as string, fits: tl.size === size };
+    }).filter((m) => m.fits && Number.isInteger(m.c) && Number.isInteger(m.r));
+    const c0 = Math.min(...on.map((m) => m.c)), r0 = Math.min(...on.map((m) => m.r));
+    const w = Math.max(...on.map((m) => m.c + Math.max(...m.rows.map((r) => r.length)))) - c0;
+    const h = Math.max(...on.map((m) => m.r + m.rows.length)) - r0;
+    // Rooms far apart would make a field too large to be worth it.
+    if (w * h > 1 << 18) return null;
+    const walls = new Uint8Array(w * h);
+    for (const m of on) m.rows.forEach((row, r) => { for (let c = 0; c < row.length; c++) if (m.solid.includes(row[c])) walls[(m.r - r0 + r) * w + m.c - c0 + c] = 1; });
+    return { x: (p0.x as number) + c0 * size, y: (p0.y as number) + r0 * size, size, walls, w, h };
   })();
   const fields = new Map<string, Int32Array | null>();
   const cellOf = (w: World, id: number): number => {
@@ -136,8 +170,7 @@ export function solve(sceneText: string, opts: { file?: string; mods?: Mods; ste
     const k = `${sig}|${start}`;
     const had = fields.get(k);
     if (had !== undefined) return had;
-    const blocked = new Uint8Array(grid.w * grid.h);
-    grid.rows.forEach((row, r) => { for (let c = 0; c < row.length; c++) if (grid.solid.includes(row[c])) blocked[r * grid.w + c] = 1; });
+    const blocked = grid.walls.slice();
     for (const id of walls) { const c = id === to ? -1 : cellOf(w, id); if (c >= 0) blocked[c] = 1; }
     let out: Int32Array | null = null;
     if (!blocked[start]) {
@@ -158,9 +191,8 @@ export function solve(sceneText: string, opts: { file?: string; mods?: Mods; ste
   };
   // A goal with no way to it yet still pulls, but less than any goal that can be walked to.
   const NO_WAY = 2 ** 27;
-  const straight = nearest;
   const walked = (w: World, ids: number[], others: number[]): number => {
-    if (!grid) return straight(w, ids, others);
+    if (!grid) return nearest(w, ids, others);
     const walls = fixed(w), sig = walls.join(',');
     let m = Infinity;
     for (const i of ids) {

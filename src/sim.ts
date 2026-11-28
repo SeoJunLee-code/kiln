@@ -356,7 +356,8 @@ export function step(w: World, script?: InputScript): void {
       if (jump > 0 && held(w, 'a') && w.get(id, 'body')?.grounded) v.y = -jump;
     } else if (jump > 0) {
       if (held(w, 'up') && w.get(id, 'body')?.grounded) v.y = -jump;
-    } else v.y = (held(w, 'down') - held(w, 'up')) * speed;
+    } else if (!w.gy || !w.has(id, 'body')) v.y = (held(w, 'down') - held(w, 'up')) * speed;
+    // A body under gravity with no jump walks: its fall is gravity's, not the keys'.
   }
 
   for (const id of find(w, PACE)) {

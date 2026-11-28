@@ -31,7 +31,7 @@ defineComponent('solid', 'blocks entities that have pos+vel+box');
 defineComponent('push', 'on a solid: movers shove it instead of stopping (one at a time; not along y under gravity)');
 defineComponent('body', 'gets world gravity; carried by what it stands on. grounded and ride (its name) are set by the engine',
   [f('grounded', 'int', 0), f('ride', 'str', '')]);
-defineComponent('ctrl', 'input-driven. jump=0: 4-way. jump>0: platformer, up jumps when grounded. plane=xz (3D): up/down walk along z, `a` jumps',
+defineComponent('ctrl', 'input-driven. jump=0: 4-way (a body under gravity only walks). jump>0: platformer, up jumps when grounded. plane=xz (3D): up/down walk along z, `a` jumps',
   [f('speed', 'fx'), f('jump', 'fx', 0), f('plane', 'str', 'xy')]);
 defineComponent('pace', 'walks back and forth along axis (x, y or z) from min to max at speed; needs vel',
   [f('axis', 'str'), f('min', 'fx'), f('max', 'fx'), f('speed', 'fx')]);

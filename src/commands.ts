@@ -146,7 +146,9 @@ export async function command(cmd: string, a: CmdArgs): Promise<{ text: string; 
       return done(0);
     }
     if (cmd === 'solve') {
-      const s = solve(text, { file, mods, stepTicks: a.stepTicks, maxStates: a.maxStates });
+      // The scripts say which of the other buttons the game reads (already loaded, so they can be read).
+      const scripts = parseScene(text, file).uses.map((u) => readFileSync(join(dirname(file), u), 'utf8')).join('\n');
+      const s = solve(text, { file, mods, stepTicks: a.stepTicks, maxStates: a.maxStates, scripts });
       if (!s.ok) {
         out.push(`fail ${s.note}`);
         // Show where the furthest attempt ended, so the level can be fixed without guessing.
