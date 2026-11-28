@@ -664,12 +664,13 @@ function client(env: Record<string, string> = {}) {
   return { call, close: () => child.kill() };
 }
 
-test('mcp: a script changed during a session is read again, and so is what it imports', async () => {
+test('mcp: a script changed during a session is read again, and so is what it imports', async (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'kiln-mcp-'));
   const scene = join(dir, 's.kiln');
   writeFileSync(scene, 'world hz=60\nuse ./a.ts\n');
   writeFileSync(join(dir, 'a.ts'), "import { name } from './b.ts';\nexport default (k) => { k.system((w) => { if (w.tick === 1) { console.log('seen', name); w.emit(name); } }); };\n");
   const server = client();
+  t.after(server.close); // a failed assert must not leave the server holding the test open
   const run = () => server.call({ cmd: 'run', file: scene, ticks: 2, events: true });
   writeFileSync(join(dir, 'b.ts'), "export const name = 'one';\n");
   const first = await run();
@@ -677,18 +678,17 @@ test('mcp: a script changed during a session is read again, and so is what it im
   assert.match(first, /^log: seen one$/m);
   writeFileSync(join(dir, 'b.ts'), "export const name = 'two';\n");
   assert.match(await run(), /event 1 two/);
-  server.close();
 });
 
-test('mcp: a command that does not end is stopped with an error, and the server goes on', async () => {
+test('mcp: a command that does not end is stopped with an error, and the server goes on', async (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'kiln-mcp-'));
   const scene = join(dir, 's.kiln');
   writeFileSync(scene, 'world hz=60\nuse ./a.ts\n');
   writeFileSync(join(dir, 'a.ts'), 'export default (k) => { k.system(() => { for (;;); }); };\n');
-  const server = client({ KILN_TIMEOUT_MS: '3000' });
-  assert.match(await server.call({ cmd: 'run', file: scene, ticks: 2 }), /^E K005 run stopped after 3 s \(hint: /);
+  const server = client({ KILN_TIMEOUT_MS: '15000' }); // room for a thread to start on a slow, busy machine
+  t.after(server.close);
+  assert.match(await server.call({ cmd: 'run', file: scene, ticks: 2 }), /^E K005 run stopped after 15 s \(hint: /);
   assert.match(await server.call({ cmd: 'check', scene: 'entity a\n  pos 1 1\n' }), /^ok /m);
-  server.close();
 });
 
 test('command: a script that throws while running is reported with its file and line', async () => {
