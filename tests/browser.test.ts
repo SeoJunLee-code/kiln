@@ -694,6 +694,8 @@ test('browser: two pages play one game through the relay of play, and stay in st
     // A second browser: a tab behind another one does not run its frames.
     other = await launch({ args: GPU_SWITCHES });
     const one = await browser.open(url, { width: 640, height: 400 });
+    // The relay numbers players as they arrive: the first page must be in before the second.
+    await one.eval(`(async () => { for (let i = 0; i < 900 && !document.body.textContent.includes('player 1 of 2'); i++) await new Promise((r) => setTimeout(r, 20)); })()`);
     const two = await other.open(url, { width: 640, height: 400 });
     // Player 2 holds right for a while: player 1 sees it move.
     const PLAY2 = `(async () => {

@@ -23,8 +23,8 @@ A row whose Kiln cell says **gated** and then names a part in brackets is
 Such a row does not close a gate by itself and is counted apart from the rows
 gated in full (rule added 2026-11-27).
 
-Counted on 2026-11-28, 63 rows: **23 gated in full, 17 gated in part, 7 works,
-15 none**, and one row that is a number (platforms). By the edition column of
+Counted on 2026-11-28, 63 rows: **23 gated in full, 18 gated in part, 7 works,
+14 none**, and one row that is a number (platforms). By the edition column of
 the tables:
 
 | Edition | gated in full | gated in part | works | none | number | rows |
@@ -32,7 +32,7 @@ the tables:
 | all | 16 | 2 | 6 | 1 | 0 | 25 |
 | Lite | 6 | 7 | 0 | 2 | 0 | 15 |
 | Lite? | 0 | 0 | 0 | 2 | 0 | 2 |
-| Standard | 1 | 8 | 1 | 3 | 1 | 14 |
+| Standard | 1 | 9 | 1 | 2 | 1 | 14 |
 | Ultra | 0 | 0 | 0 | 5 | 0 | 5 |
 | — | 0 | 0 | 0 | 2 | 0 | 2 |
 
@@ -155,7 +155,7 @@ Neither engine was built for this; these rows are why Kiln exists.
 | Tools for the person who supervises: step through, look into, before and after | Lite | yes | yes | yes | **gated** (reading only; no editing) | `tests/supervise.test.ts`, in a browser: `play` steps one or ten ticks back and forward, to the states the headless run has, with a replay or with what was played live; an entity chosen by name or by a click (2D view only) shows its components as scene text, with what the step changed marked; `play --before OLD.kiln` or `--before GITREV` runs the game as it was beside the game as it is and lists what differs by entity and component. A built game carries none of it (`tests/edition.test.ts`). Nothing is edited there, 3D entities are chosen by name only, and the comparison runs the current engine on both |
 | Profiler | Ultra | yes | yes | yes | none | |
 | Web export | all | yes | yes | no | **gated** | build test; live demo |
-| Desktop executable | Standard | yes | yes | yes | none | |
+| Desktop executable | Standard | yes | yes | yes | **gated** (needs an installed Chrome or Edge; unsigned) | `kiln desktop SCENE --out FILE` (Node 25.5+): one file with the built game, shown in a window of the installed browser. CI builds one on Linux, macOS and Windows and runs its self-test, which compares every file it serves (`tests/desktop.test.ts`); the window itself is not opened there. No renderer of its own, no installer or icon, no network play, and the player page's side panel shows |
 | Consoles | — | via partners | yes | yes | none | needs platform contracts, not code |
 
 ## Gates
