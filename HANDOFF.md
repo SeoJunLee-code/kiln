@@ -495,17 +495,20 @@ B의 (b)다. 설계는 **내가 정했다**(사용자 확인 없음). 새 expect
   - `41bdf5e` 점수판 에디션 열과 에디션별 집계표. `tests/parity.test.ts`가 모든 행의 에디션과 숫자를 표에 맞춘다(행을 바꾸면 요약 숫자도 고쳐야 통과). 63행: 전부 gated 23, 부분 12, works 6, none 21.
   - `625ffd2` 사람 감독 도구(`play` 전용, 빌드에는 안 들어간다): 한·열 틱 앞뒤로 넘기기(`,` `.` `<` `>`, 틱 입력), 개체를 눌러(2D) 또는 골라 컴포넌트 보기와 바뀐 줄 표시, `play SCENE --before OLD.kiln|git리비전` 전후 나란히 보기(`web/inspect.ts`, `web/compare.*`, `tests/supervise.test.ts`). 읽기만 한다. 브라우저 창에서 화면은 확인했고 사람이 써 보지는 않았다.
   - `314f2de` `solve`: 스크립트가 읽거나 `button key=`인 `a`·`b`도 누른다 / 움직이거나 사라지는 solid와 뒤집힌 중력을 상태에 넣는다(전에는 합쳐졌다) / 점프 게임도 타일 벽을 돌아가는 거리를 쓰고 여러 타일맵을 합친다(지그재그 8,019 → 592 상태). **동작 변경**: `ctrl jump=0` + `body` + 중력이면 이제 `vel.y`를 덮어쓰지 않고 걷기만 한다(전에는 공중에 거의 떠 있었다).
-- **다음에 집을 일(엔진, 순서대로)**: Standard 게이트(`docs/EDITIONS.md` "Order of work" 6). 설계부터, 덩어리 하나씩:
-  1. 다른 도구가 만든 glTF(Khronos 샘플. 라이선스를 모델마다 확인하고 저장소에 넣을 수 있는 것만).
-  2. 애니메이션·스킨(시간은 틱의 함수, 그리기만 부동소수).
-  3. 조명 여러 개(WebGPU, 기준 이미지).
-  4. 강체 모양·조인트(Rapier 백엔드, 해시 고정).
-  5. 내비게이션(고정소수 격자·경로, 해시).
-  6. 네트워크(재생·롤백 위의 세션).
-  7. 엔티티 10만 개, 틱당 할당 0(`step`의 남은 약 0.8KB부터 확인: 배열 for-of 반복자로 추정, 확인 안 함. 물리·스크립트 장면은 재지 않았다).
-  8. 데스크톱 실행 파일.
+- **2026-11-28 세 번째 엔진 세션(Standard 게이트 1~3, CI 셋 초록)**:
+  - `9ffa1ba` 다른 도구의 glTF: Godot 4.7.2 내보내기(`scripts/godot/export.gd`, `examples/godot/`, `examples/bend.glb`)로 검증. 결함 수정: 모델이 하위 폴더의 파일(텍스처)을 가리키면 `play`는 403, `build`는 조용히 빠뜨렸다(`sidecars`, `src/build.ts`). **Khronos 샘플은 시험하지 않았다**(파일 내려받기는 사용자 허락이 필요하다고 판단).
+  - `78e4535` 애니메이션·스킨: `clip NAME [speed] [from] [loop]`(틱의 함수, 시뮬레이션에 영향 없음), `check`가 없는 이름을 K315로, 장면 `rig3d`. CPU에서 포즈를 만들고 화면의 서로 다른 순간마다 한 번. 블렌딩·IK·모프 타깃 없음, 캐릭터 수 한계는 재지 않았다. 3D 화면 코드를 `web/view3.ts`(3d 부품)로 옮겨 2D Lite 빌드가 71,828 → 68,427바이트.
+  - `5f3a559` 점광원: `light [color] [range] [power]`, WebGPU만, 시점에서 가까운 32개, 그림자 없음, 장면 `lamps3d`. 3D Lite 바이트 예산 102,000 → 104,000(이유는 `tests/edition.test.ts` 주석).
+  - 새 장면의 기준 이미지는 CI의 `images` 작업이 한 번 실패한 뒤 그 산출물(`gh run download ID -n images`)을 눈으로 보고 `tests/images/`에 넣었다.
+- **다음에 집을 일(엔진, 순서대로)**: Standard 게이트의 남은 것(`docs/EDITIONS.md` "Order of work" 6). 설계부터, 덩어리 하나씩:
+  1. 강체 모양·조인트(Rapier 백엔드 `backends/rapier/index.ts`, `src/physics.ts`. 지금 `rigid shape`는 box·ball. 해시 고정).
+  2. 내비게이션(고정소수 격자·경로, 해시).
+  3. 네트워크(재생·롤백 위의 세션).
+  4. 엔티티 10만 개, 틱당 할당 0(`step`의 남은 약 0.8KB부터 확인: 배열 for-of 반복자로 추정, 확인 안 함. 물리·스크립트 장면은 재지 않았다).
+  5. 데스크톱 실행 파일.
+  - 그 뒤: Standard 증명 게임과 에이전트 비용. 조명·애니메이션의 남은 것(캐스케이드 그림자, 블렌딩·IK, 환경 맵)은 점수판에 부분으로 남아 있다.
   - 남은 `solve` 한계: 키 조합을 정한 틱 수만큼 누른다(`--step`), 버튼은 누르지 않는다, 거리 추정은 중력을 보지 않는다, 스크립트가 `'a'`를 문자열이 아닌 방식으로 만들면 못 알아본다.
-- **사용자 몫**: 화면 판정·녹화(H1·H2·H3 각 9개 + Gem Vault 10개, 결과물은 저장소 옆 `_archive/kiln-compare/`), H2 심은 결함 셋 화면 확인, `tugcantopaloglu/godot-mcp`를 대신 쓸지, 라이선스, 기준 휴대폰, Ultra 기준 기계, Lite 게이트의 Godot 데모 3개, 홍보 글 게시.
+- **사용자 몫**: Khronos glTF 샘플을 내려받아 시험해도 되는지, 화면 판정·녹화(H1·H2·H3 각 9개 + Gem Vault 10개, 결과물은 저장소 옆 `_archive/kiln-compare/`), H2 심은 결함 셋 화면 확인, `tugcantopaloglu/godot-mcp`를 대신 쓸지, 라이선스, 기준 휴대폰, Ultra 기준 기계, Lite 게이트의 Godot 데모 3개, 홍보 글 게시.
 
 **2026-11-27 계획 변경(사용자 승인). 아래 A~E보다 이 목록이 먼저다.** 규칙 전문은 `docs/EDITIONS.md`의 "Winning, not only matching"과 "Order of work"다. 이 절은 문서만 고쳤고 실험·코드는 0이다.
 
