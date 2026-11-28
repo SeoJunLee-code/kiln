@@ -20,8 +20,8 @@ export function portOf(title: string): number {
 }
 
 /** Build the game into `dir` with what the launcher needs beside it; returns every file. */
-export function stage(sceneFile: string, dir: string): { files: string[]; skipped: string[]; title: string } {
-  const b = build(sceneFile, dir);
+export function stage(sceneFile: string, dir: string, opts: { panel?: boolean } = {}): { files: string[]; skipped: string[]; title: string } {
+  const b = build(sceneFile, dir, opts);
   const title = basename(sceneFile).replace(/\.kiln$/, '').replace(/[^\w.-]+/g, '-') || 'game';
   const files = [...new Set(b.written)];
   writeFileSync(join(dir, 'kiln-desktop.json'), JSON.stringify({ title, port: portOf(title), width: 960, height: 640, files }));
@@ -51,7 +51,7 @@ export function hideConsole(exe: string): void {
   } finally { closeSync(fd); }
 }
 
-export function desktop(sceneFile: string, outFile: string, opts: { node?: string; console?: boolean } = {}): { out: string; files: number; bytes: number; skipped: string[] } {
+export function desktop(sceneFile: string, outFile: string, opts: { node?: string; console?: boolean; panel?: boolean } = {}): { out: string; files: number; bytes: number; skipped: string[] } {
   const node = opts.node ?? process.execPath;
   if (!canBuildSea(node)) throw new Error('an executable needs Node 25.5 or newer to build it (--node PATH names one)');
   let out = resolve(outFile);
@@ -60,7 +60,7 @@ export function desktop(sceneFile: string, outFile: string, opts: { node?: strin
   const temp = mkdtempSync(join(tmpdir(), 'kiln-desktop-'));
   try {
     const dir = join(temp, 'game');
-    const { files, skipped } = stage(sceneFile, dir);
+    const { files, skipped } = stage(sceneFile, dir, opts);
     const assets = Object.fromEntries([...files, 'kiln-desktop.json'].map((f) => [f, join(dir, f)]));
     mkdirSync(dirname(out), { recursive: true });
     const config = join(temp, 'sea.json');

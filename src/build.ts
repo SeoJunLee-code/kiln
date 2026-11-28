@@ -60,12 +60,13 @@ const toJs = (code: string): string => stripTypeScriptTypes(code).replace(IMPORT
 const PARTS: Record<string, string> = { 'web/view3.ts': '3d', 'web/gpu.ts': '3d', 'web/gl.ts': '3d', 'web/gltf.ts': 'gltf', 'web/audio.ts': 'audio', 'src/rigid.ts': 'rigid', 'src/nav.ts': 'nav', 'web/netplay.ts': 'net', 'web/inspect.ts': 'play only' };
 
 /**
- * Write a folder that any static web host can serve: the player, the engine modules it
+ * Write a folder that any static web host can serve (the developer's side panel is hidden
+ * unless `panel`): the player, the engine modules it
  * needs, and every file next to the scene (scenes, scripts, images).
  *   OUT/index.html, OUT/config.json, OUT/engine/..., OUT/game/...
  * Returns the paths written, relative to OUT, and the names of files it left out.
  */
-export function build(sceneFile: string, outDir: string): { written: string[]; skipped: string[]; parts: string[]; engineBytes: number } {
+export function build(sceneFile: string, outDir: string, opts: { panel?: boolean } = {}): { written: string[]; skipped: string[]; parts: string[]; engineBytes: number } {
   const written: string[] = [];
   let engineBytes = 0;
   const put = (rel: string, data: string | Buffer): void => {
@@ -132,7 +133,7 @@ export function build(sceneFile: string, outDir: string): { written: string[]; s
   }
 
   put('index.html', readFileSync(join(ROOT, 'web/index.html'), 'utf8').replace('engine/web/player.ts', 'engine/web/player.js'));
-  put('config.json', JSON.stringify({ scene: basename(sceneFile), input: false, built: true, scenes, nav: parts.has('nav') }));
+  put('config.json', JSON.stringify({ scene: basename(sceneFile), input: false, built: true, scenes, nav: parts.has('nav'), panel: !!opts.panel }));
   parts.delete('rigid'); // it is the backend's other half, not a part of its own
   return { written, skipped, parts: [...parts].sort(), engineBytes };
 }

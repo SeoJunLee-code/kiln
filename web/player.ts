@@ -343,8 +343,19 @@ try {
     hud();
   };
 
+  // A built game is for players: the side panel is the developer's, and is there only if
+  // the build asked for it (--panel) or the page is opened with ?panel.
+  const bare = !!cfg.built && !cfg.panel && !asked.has('panel');
+  document.body.classList.toggle('bare', bare);
+
   const hud = (): void => {
     panel?.();
+    if (bare) {
+      // What a player of a network game must still see: waiting, gone, out of sync.
+      const s = net?.session();
+      $('note').textContent = net && (!s || s.desync != null) ? net.status() : '';
+      return;
+    }
     $('state').textContent = `scene ${cfg.scene}\nmode  ${replay === null ? 'live input' : 'replaying input script'}${paused ? ' (paused)' : ''}\ntick  ${world.tick}\nhash  ${hash(world)}${net ? `\nnet   ${net.status()}` : ''}`;
     const ex = $('expects');
     ex.replaceChildren(...expects.map((e) => {
@@ -454,6 +465,8 @@ try {
     },
   });
 } catch (e) {
+  // The panel is where an error is read.
+  document.body.classList.remove('bare');
   $('error').textContent = (e as Error).message;
   throw e;
 }
