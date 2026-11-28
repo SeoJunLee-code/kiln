@@ -91,6 +91,9 @@ export class World {
   names: (string | null)[] = [];
   ids = new Map<string, number>();
   comps = new Map<string, Map<number, Comp>>();
+  /** Counts the changes to who has which component, so an answer to a query can be kept until
+   *  one. Whoever replaces `comps` or writes to its maps directly raises it. Not state. */
+  version = 0;
   pressed = new Set<string>();
   /** "triggerName:otherName" pairs currently overlapping */
   overlaps = new Set<string>();
@@ -141,19 +144,21 @@ export class World {
     this.names[id] = null;
     this.ids.delete(n);
     for (const m of this.comps.values()) m.delete(id);
+    this.version++;
     for (const k of [...this.overlaps]) if (k.split(':').includes(n)) this.overlaps.delete(k);
   }
 
   add(id: number, comp: string, data: Comp): Comp {
     let m = this.comps.get(comp);
     if (!m) this.comps.set(comp, (m = new Map()));
+    if (!m.has(id)) this.version++;
     m.set(id, data);
     return data;
   }
 
   /** Take a component off an entity. */
   drop(id: number, comp: string): void {
-    this.comps.get(comp)?.delete(id);
+    if (this.comps.get(comp)?.delete(id)) this.version++;
   }
 
   get(id: number, comp: string): Comp | undefined {

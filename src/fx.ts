@@ -86,7 +86,7 @@ export const wrapDeg = (a: number): number => a - fdiv(a, TURN) * TURN;
  * where sin f = f and cos f = 1 - f*f/2 are exact to well under one unit at this size.
  * Every product here is an integer below 2^53, so plain numbers hold it exactly.
  */
-export function sinCos24(deg: number): [number, number] {
+export function sinCos24(deg: number, into: [number, number] = [0, 0]): [number, number] {
   const a = wrapDeg(deg), q = Math.floor(a / QUARTER), r = a - q * QUARTER;
   const d = r >> 16, s0 = SIN[d], c0 = SIN[90 - d];
   // The fraction in radians: f * pi/180, scaled by 2^24.
@@ -95,7 +95,9 @@ export function sinCos24(deg: number): [number, number] {
   const s = s0 + Math.round((c0 * rad - s0 * half) / P24);
   const c = c0 - Math.round((s0 * rad + c0 * half) / P24);
   // `| 0` so that a zero is never the float's negative zero.
-  return q === 0 ? [s, c] : q === 1 ? [c, -s | 0] : q === 2 ? [-s | 0, -c | 0] : [-c | 0, s];
+  into[0] = q === 0 ? s : q === 1 ? c : q === 2 ? -s | 0 : -c | 0;
+  into[1] = q === 0 ? c : q === 1 ? -s | 0 : q === 2 ? -c | 0 : s;
+  return into;
 }
 
 /** [sin, cos] of an angle in fixed-point degrees, as fixed-point. */

@@ -42,7 +42,7 @@ const save = (w: World): Snapshot => ({
 function restore(w: World, s: Snapshot): void {
   freeLink(w);
   w.tick = s.tick; w.hz = s.hz; w.seed = s.seed; [w.gx, w.gy, w.gz] = s.g;
-  w.names = [...s.names]; w.ids = new Map(s.ids); w.comps = copyComps(s.comps);
+  w.names = [...s.names]; w.ids = new Map(s.ids); w.comps = copyComps(s.comps); w.version++;
   w.pressed = new Set(s.pressed); w.overlaps = new Set(s.overlaps);
   w.events.length = s.events;
   restoreLink(w, s.link);

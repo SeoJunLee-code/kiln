@@ -23,16 +23,16 @@ A row whose Kiln cell says **gated** and then names a part in brackets is
 Such a row does not close a gate by itself and is counted apart from the rows
 gated in full (rule added 2026-11-27).
 
-Counted on 2026-11-28, 63 rows: **23 gated in full, 16 gated in part, 6 works,
-17 none**, and one row that is a number (platforms). By the edition column of
+Counted on 2026-11-28, 63 rows: **23 gated in full, 17 gated in part, 7 works,
+15 none**, and one row that is a number (platforms). By the edition column of
 the tables:
 
 | Edition | gated in full | gated in part | works | none | number | rows |
 |---|---|---|---|---|---|---|
-| all | 16 | 1 | 6 | 2 | 0 | 25 |
+| all | 16 | 2 | 6 | 1 | 0 | 25 |
 | Lite | 6 | 7 | 0 | 2 | 0 | 15 |
 | Lite? | 0 | 0 | 0 | 2 | 0 | 2 |
-| Standard | 1 | 8 | 0 | 4 | 1 | 14 |
+| Standard | 1 | 8 | 1 | 3 | 1 | 14 |
 | Ultra | 0 | 0 | 0 | 5 | 0 | 5 |
 | — | 0 | 0 | 0 | 2 | 0 | 2 |
 
@@ -68,7 +68,7 @@ does that thing best. The agent-first rows belong to the core and hold in all th
 | Exported size within a byte budget, per edition | all | **gated** | engine bytes of a built game: 2D Lite 72,000, 3D Lite 102,000, Standard with everything 4,630,000 (2D Lite now 67,497 with sprite animation, state between levels, gamepad, audio and UI; measured 61,108 / 90,484 / 4,491,655 since `build` squeezes engine files; before that 93,775 against 94,000) |
 | A game of a lower edition reaches the same hash under a higher one | all | works | browser test: a 2D and a 3D Lite game built without the parts they do not use reach the headless hash (two scenes, 90 ticks, nothing pressed). Not every example, and there is no way yet to run one game under a named edition |
 | Lite features drawn by both renderers | Lite | **gated** | the reference images shared by WebGL2 and WebGPU |
-| Allocation per tick in the simulation path: Lite no more than measured, Standard and Ultra none | all | none | `bench/alloc.ts` on the reference PC: 1.5 to 2.2 KB per played tick and 1.3 to 1.8 KB per idle tick in four Lite examples (5 to 11 KB before). `tests/alloc.test.ts` holds a ceiling over two of them |
+| Allocation per tick in the simulation path: Lite no more than measured, Standard and Ultra none | all | **gated** (the engine's own tick; not physics, nav, network or what a script asks for) | On the reference PC a tick that changes nothing allocates about 1 byte and a played tick 20 to 65 in the Lite examples (`bench/alloc.ts`; 5 to 11 KB before), and 100,000 entities add nothing (`bench/CROWD.md`). `tests/alloc.test.ts` holds ceilings over four examples and over 10,000 moving entities. A rigid-body scene still allocates about 24 KB a tick, much of it inside the Rapier bindings; `nav` and the network snapshots allocate; `w.query` in a script builds a new list |
 | Parallel simulation reaches the serial hash | Standard | none | no parallel code yet |
 | `check` reports the edition per axis (drawing, physics, world, network) | all | **gated** | one line per axis above Lite; `nav` sets world, `players=` sets network. The scenes drawn only by WebGPU must be exactly those whose drawing is Standard |
 | Budgets per edition: exported bytes, memory, time to first frame | all | works (Lite, bytes gated; the other two measured on the PC) | bytes are gated in the row above. Memory after loading and time to the first frame: [`proof/lite/START.md`](../proof/lite/START.md) (`bench/start.ts`), reference PC only, no phone, no limit set |
@@ -80,7 +80,7 @@ does that thing best. The agent-first rows belong to the core and hold in all th
 | Feature | Edition | Unity | Kiln | Check |
 |---|---|---|---|---|
 | Frame rate on a phone and on a low-end laptop | Lite | yes | none | touch is tested with synthetic events only; never run on a phone |
-| 100,000 entities: time per tick | Standard | yes (DOTS) | none | not measured; the largest measured scenes are in `bench/` |
+| 100,000 entities: time per tick | Standard | yes (DOTS) | works | measured once on a laptop-class PC (`bench/CROWD.md`): 100,000 moving entities fit 60 Hz (about 14 ms); 100,000 falling bodies that each test for collision do not (about 50 ms). One thread; no check holds the time |
 | Number of platforms a game ships to | Standard | 20+ | 1 (web) | build test |
 | Assets and plug-ins made by others | — | yes | none | code cannot close this |
 

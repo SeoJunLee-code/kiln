@@ -42,19 +42,29 @@ const P = ['x', 'y', 'z'], S = ['w', 'h', 'd'];
 // none of it hangs off a World (solve keeps a great many of those).
 
 /** A query asked every tick: the component names, and the list it was last answered with. */
-interface Ask { comps: string[]; out: number[] }
-const ask = (...comps: string[]): Ask => ({ comps, out: [] });
+interface Ask { comps: string[]; out: number[]; world?: World; version: number }
+const ask = (...comps: string[]): Ask => ({ comps, out: [], version: 0 });
 const CTRL = ask('ctrl', 'vel'), PACE = ask('pace', 'pos', 'vel'), ANIM = ask('anim', 'vel'), BODY = ask('body', 'vel');
 const SOLID = ask('solid', 'pos', 'box'), MAPS = ask('tiles', 'pos'), MOVERS = ask('pos', 'vel'), ROT = ask('rot'), QUAT = ask('quat');
 const NAV = ask('nav', 'pos', 'vel'), BUTTON = ask('button'), TRIGGER = ask('trigger', 'pos', 'box'), TAG = ask('tag'), TALLY = ask('tally');
 
+/** Cut a reused list to `n`. Not by setting `length`: that gives the list's memory back, to be asked for again. */
+function trim(list: unknown[], n: number): void {
+  while (list.length > n) list.pop();
+}
+
 /** The same ids as w.query, in the same order. Valid until the same question is asked again. */
 function find(w: World, q: Ask): number[] {
-  const out = q.out, first = w.comps.get(q.comps[0]);
+  const out = q.out;
+  // Nobody has gained or lost a component since this was last asked: the answer stands.
+  if (q.world === w && q.version === w.version) return out;
+  q.world = w;
+  q.version = w.version;
+  const first = w.comps.get(q.comps[0]);
   asking.world = w; asking.q = q; asking.n = 0; asking.last = -1; asking.sorted = true;
   // forEach with a function made once: a for-of over the keys makes an iterator each time.
   first?.forEach(collect);
-  if (out.length !== asking.n) out.length = asking.n;
+  trim(out, asking.n);
   if (!asking.sorted) out.sort((a, b) => a - b);
   return out;
 }
@@ -72,7 +82,8 @@ const TARGETS: number[] = [];
 function targets(w: World, ref: string): number[] {
   let n = 0;
   if (ref.startsWith('#')) {
-    for (const id of find(w, TAG)) {
+    for (let i = 0, ids = find(w, TAG); i < ids.length; i++) {
+      const id = ids[i];
       const name = w.get(id, 'tag')!.name as string;
       if (name.length === ref.length - 1 && ref.endsWith(name)) TARGETS[n++] = id;
     }
@@ -80,7 +91,7 @@ function targets(w: World, ref: string): number[] {
     const id = w.ids.get(ref);
     if (id !== undefined) TARGETS[n++] = id;
   }
-  if (TARGETS.length !== n) TARGETS.length = n;
+  trim(TARGETS, n);
   return TARGETS;
 }
 
@@ -136,20 +147,27 @@ export interface SolidIndex { ids: number[]; box: Block[]; cells: Map<number, nu
 
 // Cell edge is 4 units (2^18 in fixed-point), so a shift gives the cell coordinate.
 const CELL_SHIFT = 18;
-const cellKey = (cx: number, cy: number): number => (cx + 32768) * 65536 + (cy + 32768);
+const cellKey = (cx: number, cy: number): number => (cx << 16) | (cy & 0xffff);
 
-export function buildIndex(w: World, solids: number[]): SolidIndex {
-  const ids: number[] = [], box: Block[] = [], cells = new Map<number, number[]>(), big: number[] = [], crate: boolean[] = [];
-  for (const s of solids) {
-    const sp = w.get(s, 'pos')!, sb = w.get(s, 'box')!;
-    const r: Block = [sp.x as number, sp.y as number, sp.z as number, sb.w as number, sb.h as number, sb.d as number, s];
-    const i = ids.push(s) - 1;
-    box.push(r);
-    crate.push(w.has(s, 'push'));
+const empty = (list: number[]): void => trim(list, 0);
+
+export function buildIndex(w: World, solids: number[], into?: SolidIndex): SolidIndex {
+  const index = into ?? { ids: [], box: [], cells: new Map<number, number[]>(), big: [], crate: [], seen: new Int32Array(Math.max(16, solids.length)), query: 0 };
+  const { ids, box, cells, crate } = index;
+  let { big } = index;
+  // Filled again where it stands: with a solid that moves, this runs every tick.
+  cells.forEach(empty);
+  let bigs = 0;
+  for (let i = 0; i < solids.length; i++) {
+    const s = solids[i], sp = w.get(s, 'pos')!, sb = w.get(s, 'box')!;
+    const r = box[i] ?? (box[i] = [0, 0, 0, 0, 0, 0, 0]);
+    r[0] = sp.x as number; r[1] = sp.y as number; r[2] = sp.z as number; r[3] = sb.w as number; r[4] = sb.h as number; r[5] = sb.d as number; r[6] = s;
+    ids[i] = s;
+    crate[i] = w.has(s, 'push');
     const x0 = r[0] >> CELL_SHIFT, x1 = (r[0] + r[3] - 1) >> CELL_SHIFT, y0 = r[1] >> CELL_SHIFT, y1 = (r[1] + r[4] - 1) >> CELL_SHIFT;
     // Something that covers many cells (a floor, a wall) is cheaper to test every time.
     // Crates are kept there too: they move during the tick, and a cell entry would go stale.
-    if ((x1 - x0 + 1) * (y1 - y0 + 1) > 64 || crate[i]) { big.push(i); continue; }
+    if ((x1 - x0 + 1) * (y1 - y0 + 1) > 64 || crate[i]) { big[bigs++] = i; continue; }
     for (let cx = x0; cx <= x1; cx++) for (let cy = y0; cy <= y1; cy++) {
       const k = cellKey(cx, cy);
       const list = cells.get(k);
@@ -157,7 +175,15 @@ export function buildIndex(w: World, solids: number[]): SolidIndex {
       else cells.set(k, [i]);
     }
   }
-  return { ids, box, cells, big, crate, seen: new Int32Array(ids.length), query: 0 };
+  trim(ids, solids.length); trim(box, solids.length); trim(crate, solids.length); trim(big, bigs);
+  // A solid that goes a long way leaves empty cells behind; start the map over before they pile up.
+  if (cells.size > 64 + 8 * solids.length) {
+    for (const [k, list] of cells) if (!list.length) cells.delete(k);
+  }
+  if (index.seen.length < solids.length) index.seen = new Int32Array(solids.length * 2);
+  else index.seen.fill(0);
+  index.query = 0;
+  return index;
 }
 
 let lastIndex: SolidIndex | undefined;
@@ -179,7 +205,7 @@ function solidIndex(w: World, solids: number[]): SolidIndex {
       return old;
     }
   }
-  return (lastIndex = buildIndex(w, solids));
+  return (lastIndex = buildIndex(w, solids, old));
 }
 
 /** A list of blockers that is filled again and again, with the boxes it made for tiles. */
@@ -201,7 +227,8 @@ export function blockers(w: World, self: number, index: SolidIndex, maps: number
     const list = index.cells.get(cellKey(cx, cy));
     if (list) for (let i = 0; i < list.length; i++) n = take(index, list[i], q, self, lo, hi, out, n);
   }
-  for (const m of maps) {
+  for (let k = 0, all = maps; k < all.length; k++) {
+    const m = all[k];
     const t = w.get(m, 'tiles')!, mp = w.get(m, 'pos')!;
     const size = t.size as number, solid = t.solid as string, rows = tileRows(t);
     // Rows run along `vi` (y, or z for a floor plan); `wi` is the axis the cells are extruded on.
@@ -226,7 +253,7 @@ export function blockers(w: World, self: number, index: SolidIndex, maps: number
       }
     }
   }
-  if (out.length !== n) out.length = n;
+  trim(out, n);
   return out;
 }
 
@@ -259,7 +286,9 @@ function shove(w: World, crate: Block, a: number, want: number, index: SolidInde
   let to = (from + want) | 0;
   for (let i = 0; i < 3; i++) { SHOVE_AT[i] = crate[i] as number; SHOVE_SIZE[i] = crate[i + 3] as number; }
   swept(SHOVE_AT, SHOVE_SIZE, a, to, SHOVE_LO, SHOVE_HI);
-  for (const r of blockers(w, crate[6], index, maps, SHOVE_LO, SHOVE_HI, SHOVE_HITS)) {
+  const hits = blockers(w, crate[6], index, maps, SHOVE_LO, SHOVE_HI, SHOVE_HITS);
+  for (let n = 0; n < hits.length; n++) {
+    const r = hits[n];
     to = want > 0 ? Math.min(to, r[a] - crate[a + 3]) : Math.max(to, r[a] + r[a + 3]);
   }
   if (w.physics && to !== from) {
@@ -272,6 +301,8 @@ function shove(w: World, crate: Block, a: number, want: number, index: SolidInde
   return to - from;
 }
 
+const TURNED: [number, number] = [0, 0];
+
 /**
  * Turn a quaternion component by the angle vector (tx, ty, tz), in degrees about the world
  * axes. The small turn is built at 2^24 scale and the product rounded to fixed-point once,
@@ -280,7 +311,8 @@ function shove(w: World, crate: Block, a: number, want: number, index: SolidInde
 export function spinQuat(q: Comp, tx: number, ty: number, tz: number): void {
   const angle = isqrt(tx * tx + ty * ty + tz * tz);
   if (angle === 0) return;
-  const [s, c] = sinCos24(angle >> 1);
+  sinCos24(angle >> 1, TURNED);
+  const s = TURNED[0], c = TURNED[1];
   const ax = Math.round((tx * s) / angle), ay = Math.round((ty * s) / angle), az = Math.round((tz * s) / angle);
   const x = q.x as number, y = q.y as number, z = q.z as number, v = q.w as number;
   // (ax, ay, az, c) * (x, y, z, v): the new turn applied after the old one.
@@ -328,7 +360,8 @@ function nudge(id: number, a: number, want: number): number {
   const from = cur[a];
   let to = (from + want) | 0;
   swept(cur, size, a, to, SHOVE_LO, SHOVE_HI);
-  for (const r of blockers(w, id, index, maps, SHOVE_LO, SHOVE_HI, SHOVE_HITS)) to = want > 0 ? Math.max(from, Math.min(to, r[a] - size[a])) : Math.min(from, Math.max(to, r[a] + r[a + 3]));
+  const hits = blockers(w, id, index, maps, SHOVE_LO, SHOVE_HI, SHOVE_HITS);
+  for (let n = 0, r = hits[0]; n < hits.length; r = hits[++n]) to = want > 0 ? Math.max(from, Math.min(to, r[a] - size[a])) : Math.min(from, Math.max(to, r[a] + r[a + 3]));
   if (to !== from) {
     const hit = physicsSweep(w, cur, size, a, to - from, 0);
     if (hit) to = from + hit.go;
@@ -354,7 +387,8 @@ export function step(w: World, script?: InputScript): void {
   const heard = w.events.length;
   const k = w.tick % w.hz;
 
-  for (const id of find(w, CTRL)) {
+  for (let n = 0, ids = find(w, CTRL); n < ids.length; n++) {
+    const id = ids[n];
     const c = w.get(id, 'ctrl')!, v = w.get(id, 'vel')!;
     const speed = c.speed as number, jump = c.jump as number, p = c.player as number;
     v.x = (held(w, 'right', p) - held(w, 'left', p)) * speed;
@@ -368,7 +402,8 @@ export function step(w: World, script?: InputScript): void {
     // A body under gravity with no jump walks: its fall is gravity's, not the keys'.
   }
 
-  for (const id of find(w, PACE)) {
+  for (let n = 0, ids = find(w, PACE); n < ids.length; n++) {
+    const id = ids[n];
     const c = w.get(id, 'pace')!, p = w.get(id, 'pos')!, v = w.get(id, 'vel')!, a = c.axis as string;
     if ((p[a] as number) >= (c.max as number)) v[a] = -(c.speed as number);
     else if ((p[a] as number) <= (c.min as number) || v[a] === 0) v[a] = c.speed;
@@ -380,16 +415,18 @@ export function step(w: World, script?: InputScript): void {
     nav.run(w, walkers);
   }
 
-  for (const sys of w.pre) sys(w);
+  for (let n = 0; n < w.pre.length; n++) w.pre[n](w);
 
   // Which way an animated sprite looks is state: it has to survive a save, and standing
   // still must not forget it. It follows what the entity is trying to do this tick.
-  for (const id of find(w, ANIM)) {
+  for (let n = 0, ids = find(w, ANIM); n < ids.length; n++) {
+    const id = ids[n];
     const x = w.get(id, 'vel')!.x as number;
     if (x) w.get(id, 'anim')!.face = x > 0 ? 1 : -1;
   }
 
-  for (const id of find(w, BODY)) {
+  for (let n = 0, ids = find(w, BODY); n < ids.length; n++) {
+    const id = ids[n];
     // The backend gives a rigid body its gravity; adding it here too would read as a script changing its speed.
     if (w.physics && w.has(id, 'rigid')) continue;
     const v = w.get(id, 'vel')!;
@@ -401,7 +438,8 @@ export function step(w: World, script?: InputScript): void {
   const index = solidIndex(w, find(w, SOLID));
   const maps = find(w, MAPS);
   if (w.physics) physicsSync(w);
-  for (const id of find(w, MOVERS)) {
+  for (let n = 0, ids = find(w, MOVERS); n < ids.length; n++) {
+    const id = ids[n];
     // A rigid body is moved by the physics backend, below.
     if (w.physics && w.has(id, 'rigid')) continue;
     const p = w.get(id, 'pos')!, v = w.get(id, 'vel')!, b = w.get(id, 'box');
@@ -443,11 +481,11 @@ export function step(w: World, script?: InputScript): void {
       }
       if (crates) {
         let near = crates[0];
-        for (const r of crates) if (d[a] > 0 ? r[a] < near[a] : r[a] > near[a]) near = r;
+        for (let n = 0, r = crates[0]; n < crates.length; r = crates[++n]) if (d[a] > 0 ? r[a] < near[a] : r[a] > near[a]) near = r;
         const contact = d[a] > 0 ? near[a] - size[a] : near[a] + near[a + 3];
         // `to` is where the mover would end up without crates; anything past the contact point is the shove.
         if (d[a] > 0 ? to > contact : to < contact) to = contact + shove(w, near, a, to - contact, index, maps);
-        for (const r of crates) if (r !== near) to = stopped(to, d[a], size[a], a, r);
+        for (let n = 0, r = crates[0]; n < crates.length; r = crates[++n]) if (r !== near) to = stopped(to, d[a], size[a], a, r);
       }
       // Rigid bodies stand in the way too. They are turned boxes and balls that only the
       // backend knows exactly, so it is asked how far this box can go before touching one.
@@ -460,7 +498,7 @@ export function step(w: World, script?: InputScript): void {
         if (a === 1 && d[a] > 0) {
           grounded = 1;
           // What it landed on: the entity whose top it now rests on (lowest id if several).
-          for (const r of hits) if (r[6] >= 0 && r[1] - size[1] === to && (ride < 0 || r[6] < ride)) ride = r[6];
+          for (let n = 0, r = hits[0]; n < hits.length; r = hits[++n]) if (r[6] >= 0 && r[1] - size[1] === to && (ride < 0 || r[6] < ride)) ride = r[6];
           if (under >= 0 && (ride < 0 || under < ride)) ride = under;
         }
       }
@@ -481,11 +519,13 @@ export function step(w: World, script?: InputScript): void {
 
   // Turning. An angle is added to exactly, like a position. A quaternion is multiplied by
   // this tick's small turn and then scaled back to unit length, all in fixed-point.
-  for (const id of find(w, ROT)) {
+  for (let n = 0, ids = find(w, ROT); n < ids.length; n++) {
+    const id = ids[n];
     const r = w.get(id, 'rot')!;
     if (r.spin) r.angle = wrapDeg((r.angle as number) + tickShare(r.spin as number, k, w.hz));
   }
-  for (const id of find(w, QUAT)) {
+  for (let n = 0, ids = find(w, QUAT); n < ids.length; n++) {
+    const id = ids[n];
     const q = w.get(id, 'quat')!;
     if (w.physics && w.has(id, 'rigid')) continue;
     if (q.sx || q.sy || q.sz) spinQuat(q, tickShare(q.sx as number, k, w.hz), tickShare(q.sy as number, k, w.hz), tickShare(q.sz as number, k, w.hz));
@@ -494,16 +534,19 @@ export function step(w: World, script?: InputScript): void {
   w.tick++;
 
   if (w.met.length) w.met = [];
-  if (DOOMED.length) DOOMED.length = 0;
-  if (fresh) for (const id of find(w, BUTTON)) {
+  trim(DOOMED, 0);
+  if (fresh) for (let n = 0, ids = find(w, BUTTON); n < ids.length; n++) {
+    const id = ids[n];
     const b = w.get(id, 'button')!, name = w.names[id]!;
     if (!fresh.includes(`tap:${name}`) && !fresh.includes(b.key as string)) continue;
     w.events.push({ tick: w.tick, name: b.event as string, a: name, b: '' });
     act(w, b.action as string, id, undefined, name);
   }
-  for (const t of find(w, TRIGGER)) {
+  for (let n = 0, triggers = find(w, TRIGGER); n < triggers.length; n++) {
+    const t = triggers[n];
     const tr = w.get(t, 'trigger')!, tp = w.get(t, 'pos')!, tb = w.get(t, 'box')!;
-    for (const o of targets(w, tr.target as string)) {
+    for (let m = 0, others = targets(w, tr.target as string); m < others.length; m++) {
+      const o = others[m];
       const op = w.get(o, 'pos'), ob = w.get(o, 'box');
       if (o === t || !op || !ob) continue;
       const touching = overlap(tp, tb, op, ob);
@@ -517,10 +560,11 @@ export function step(w: World, script?: InputScript): void {
       act(w, tr.action as string, t, o, w.names[o]!);
     }
   }
-  for (const id of DOOMED) w.despawn(id);
-  for (const sys of w.post) sys(w);
+  for (let n = 0; n < DOOMED.length; n++) w.despawn(DOOMED[n]);
+  for (let n = 0; n < w.post.length; n++) w.post[n](w);
   // A tally counts what this step emitted, scripts included. It is state: saved and hashed.
-  for (const id of find(w, TALLY)) {
+  for (let n = 0, ids = find(w, TALLY); n < ids.length; n++) {
+    const id = ids[n];
     const t = w.get(id, 'tally')!;
     for (let i = heard; i < w.events.length; i++) if (w.events[i].name === t.event) t.n = (t.n as number) + (t.by as number);
   }
