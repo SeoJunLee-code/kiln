@@ -121,7 +121,7 @@ Engine bytes in a built game, as shipped. Since 2026-11-27 `build` squeezes engi
 
 Since then the 2D Lite game has grown to 67,497 bytes with gamepad, audio and UI (budgets unchanged).
 
-2026-11-28: rules as scene lines, the screen layer over 3D and new physics fields took 2D Lite to 72,576 and 3D Lite to 107,862, and the budgets were raised to 78,000 and 109,000. The same day two changes gave it back: `timer`, `when` and `reset:` became the part `rules` (`src/rules.ts`, 2,468 bytes, shipped only by a game that names one), and `build` leaves out of `world.ts` the sentence that says what each component is for, which only `guide` reads. Measured now: 2D Lite 67,556, 3D Lite 102,842, 2D with particles and sound 71,093. Budgets are 72,000 and 104,000 again.
+2026-11-28: rules as scene lines, the screen layer over 3D and new physics fields took 2D Lite to 72,576 and 3D Lite to 107,862, and the budgets were raised to 78,000 and 109,000. The same day two changes gave it back: `timer`, `when` and `reset:` became the part `rules` (`src/rules.ts`, 2,468 bytes, shipped only by a game that names one), and `build` leaves out of `world.ts` the sentence that says what each component is for, which only `guide` reads. Measured now: 2D Lite 67,556, 3D Lite 102,842, 2D with particles and sound 71,093. Budgets are 72,000 and 104,000 again. A body's `step` (walking up stairs) then added about 930 bytes to every build: 68,490 / 103,776 / 72,027, and the 2D budget is 73,000.
 
 Existing features by edition:
 

@@ -33,20 +33,20 @@ defineComponent('vel', 'velocity in units/second', [f('x', 'fx', 0), f('y', 'fx'
 defineComponent('box', 'axis-aligned size on x, y and (3D) z; for collision and triggers', [f('w', 'fx'), f('h', 'fx'), f('d', 'fx', 65536)]);
 defineComponent('solid', 'blocks entities that have pos+vel+box');
 defineComponent('push', 'on a solid: movers shove it instead of stopping (one at a time; not along y under gravity)');
-defineComponent('body', 'gets world gravity; carried by what it stands on. grounded and ride (its name) are set by the engine',
-  [f('grounded', 'int', 0), f('ride', 'str', '')]);
+defineComponent('body', 'gets world gravity; rides what it stands on. step=H: climbs ledges up to H. Engine-set: grounded, ride',
+  [f('grounded', 'int', 0), f('ride', 'str', ''), f('step', 'fx', 0)]);
 defineComponent('ctrl', 'input-driven. jump=0: 4-way (a body under gravity only walks). jump>0: platformer, up jumps when grounded. plane=xz (3D): up/down walk along z, `a` jumps. player: whose keys',
   [f('speed', 'fx'), f('jump', 'fx', 0), f('plane', 'str', 'xy'), f('player', 'int', 1)]);
-defineComponent('pace', 'walks back and forth along axis (x, y or z) from min to max at speed; needs vel',
+defineComponent('pace', 'walks to and fro on axis (x, y or z), min to max, at speed; needs vel',
   [f('axis', 'str'), f('min', 'fx'), f('max', 'fx'), f('speed', 'fx')]);
 defineComponent('nav', 'walks to `to` (name or #tag) around solids. Needs vel and box (guide nav)',
   [f('to', 'str'), f('speed', 'fx'), f('reach', 'fx', 0), f('plane', 'str', 'xy'), f('cell', 'fx', 65536), f('event', 'str', ''), f('on', 'int', 0), f('nx', 'fx', 0), f('ny', 'fx', 0), f('there', 'int', 0)], 'nav', ['world', 'standard']);
 defineComponent('tag', 'group label; refer to it as #name', [f('name', 'str')]);
 defineComponent('trigger', 'emits event when target (entity name or #tag) starts overlapping. action: none, despawn-self, despawn-other, despawn:REF (name or #tag), load:FILE (event load; the scene ends and FILE opens); join with +',
   [f('target', 'str'), f('event', 'str'), f('action', 'str', 'none')]);
-defineComponent('tiles', 'grid of cells at pos. solid: characters that block. spawn: CHAR:PREFAB (o:coin,@:hero), made entities on load. paint: CHAR:COLOR or, in 2D, CHAR:IMAGE (#:teal,.:grass.svg). plane=xz: a 3D floor plan (rows run along z), depth is the wall height',
+defineComponent('tiles', 'grid of cells at pos. solid: characters that block. spawn: CHAR:PREFAB (o:coin,@:hero), spawned on load. paint: CHAR:COLOR or, in 2D, CHAR:IMAGE (#:teal,.:grass.svg). plane=xz: a 3D floor plan (rows run along z), depth is the wall height',
   [f('size', 'fx', 65536), f('solid', 'str', '#'), f('spawn', 'str', ''), f('depth', 'fx', 65536), f('plane', 'str', 'xy'), f('paint', 'str', '')]);
-defineComponent('sprite', 'glyph: character in the ASCII view. color: CSS color. image (2D): svg/png beside the scene. mesh (3D): .obj/.gltf/.glb, fitted to the box',
+defineComponent('sprite', 'glyph: char in the ASCII view. color: CSS color. image (2D): svg/png beside the scene. mesh (3D): .obj/.gltf/.glb, fitted to the box',
   [f('glyph', 'str', ''), f('color', 'str', 'white'), f('image', 'str', ''), f('mesh', 'str', '')]);
 defineComponent('rot', 'turned angle degrees about axis (x, y, z) through the box centre, clockwise in 2D. spin: degrees/second. Collision ignores it',
   [f('angle', 'fx', 0), f('spin', 'fx', 0), f('axis', 'str', 'z')], 'view');

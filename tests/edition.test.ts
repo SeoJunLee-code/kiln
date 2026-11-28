@@ -139,7 +139,10 @@ test('edition: the scenes only WebGPU draws are exactly the ones whose drawing i
 // and `build` leaves out of world.ts the sentence that says what each component is for,
 // which only `guide` reads. Measured 67,556 (2D), 102,842 (3D), 71,093 (2D with particles
 // and sound): the budgets are back at 72,000 and 104,000.
-const BUDGET = { lite2d: 72_000, lite3d: 104_000, standard: 4_630_000 };
+// A body's `step` (walking up stairs, in the mover's sweep in sim.ts) is in every build: about
+// 930 bytes. Measured 68,490 (2D), 103,776 (3D), 72,027 (2D with particles and sound): the 2D
+// budget is 73,000, the 3D one stays.
+const BUDGET = { lite2d: 73_000, lite3d: 104_000, standard: 4_630_000 };
 
 test('squeeze: comments, indentation and blank lines go; strings, templates and regular expressions stay', async () => {
   const { squeeze } = await import('../src/squeeze.ts');

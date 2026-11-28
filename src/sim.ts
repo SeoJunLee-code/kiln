@@ -335,6 +335,34 @@ const tagOf = (w: World, id: number): string => (w.get(id, 'tag')?.name as strin
 const stopped = (to: number, way: number, size: number, a: number, r: Block): number =>
   way > 0 ? Math.min(to, r[a] - size) : Math.max(to, r[a] + r[a + 3]);
 
+/**
+ * A ledge in the way of a walking body: up by no more than `step`, across at that height,
+ * and down again onto it, each a swept move like any other. True, with `cur` moved on
+ * `a` and y, when that takes the body further than `got`, where staying down left it.
+ */
+function climb(w: World, id: number, index: SolidIndex, maps: number[], cur: number[], size: number[], a: number, want: number, got: number, step: number): boolean {
+  // Where a move of `cur` along `on` towards `to` ends, among what is solid.
+  const reach = (on: number, to: number, way: number): number => {
+    swept(cur, size, on, to, SHOVE_LO, SHOVE_HI);
+    const hits = blockers(w, id, index, maps, SHOVE_LO, SHOVE_HI, SHOVE_HITS);
+    for (let n = 0; n < hits.length; n++) to = stopped(to, way, size[on], on, hits[n]);
+    return to;
+  };
+  const from = cur[a], y0 = cur[1], up = reach(1, (y0 - step) | 0, -1);
+  if (up >= y0) return false;
+  cur[1] = up;
+  let to = reach(a, (from + want) | 0, want);
+  if (w.physics && to !== from) {
+    const hit = physicsSweep(w, cur, size, a, to - from, want);
+    if (hit) to = from + hit.go;
+  }
+  if (want > 0 ? to <= got : to >= got) { cur[1] = y0; return false; }
+  cur[a] = to;
+  // Down onto the ledge, and never lower than it stood.
+  cur[1] = reach(1, y0, 1);
+  return true;
+}
+
 /** Entities this tick's triggers and buttons despawn, once all of them have run. */
 const DOOMED: number[] = [];
 
@@ -522,6 +550,8 @@ export function step(w: World, script?: InputScript): void {
         const hit = physicsSweep(w, cur, size, a, to - from, d[a]);
         if (hit) { to = from + hit.go; under = hit.id; }
       }
+      // A body that stood on the ground and has `step` walks up a ledge no higher than that.
+      if (to !== free && a !== 1 && !crates && under < 0 && body && body.step && body.grounded && w.gy > 0 && climb(w, id, index, maps, cur, size, a, d[a], to, body.step as number)) to = cur[a];
       if (to !== free) {
         v[P[a]] = 0;
         if (a === 1 && d[a] > 0) {

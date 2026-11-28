@@ -131,7 +131,7 @@ export function lint(scene: Scene, file: string, exists?: (name: string) => bool
     // A wall that stands turned is turned for rigid bodies only.
     if (w.physics && w.has(id, 'solid') && !w.has(id, 'vel') && !w.has(id, 'push') && (w.has(id, 'quat') || (w.get(id, 'rot')?.angle ?? 0) !== 0)
       && w.query('pos', 'vel', 'box').some((m) => !w.has(m, 'rigid') && !w.has(m, 'solid'))) {
-      warn('K334', `'${name}' is a turned solid: rigid bodies meet it as turned, but movers (ctrl, pace, body) still meet its unturned box`, 'keep movers away from it, or build the slope for them from unturned boxes');
+      warn('K334', `'${name}' is a turned solid: rigid bodies meet it as turned, but movers (ctrl, pace, body) still meet its unturned box`, 'keep movers away from it, or build stairs of unturned boxes and give the mover body step=H');
     }
     const bt = w.get(id, 'button'), pn = w.get(id, 'pin');
     if (bt) {

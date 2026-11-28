@@ -23,14 +23,14 @@ A row whose Kiln cell says **gated** and then names a part in brackets is
 Such a row does not close a gate by itself and is counted apart from the rows
 gated in full (rule added 2026-11-27).
 
-Counted on 2026-11-28, 63 rows: **23 gated in full, 20 gated in part, 7 works,
+Counted on 2026-11-28, 64 rows: **23 gated in full, 21 gated in part, 7 works,
 12 none**, and one row that is a number (platforms). By the edition column of
 the tables:
 
 | Edition | gated in full | gated in part | works | none | number | rows |
 |---|---|---|---|---|---|---|
 | all | 16 | 3 | 6 | 0 | 0 | 25 |
-| Lite | 6 | 7 | 0 | 2 | 0 | 15 |
+| Lite | 6 | 8 | 0 | 2 | 0 | 16 |
 | Lite? | 0 | 1 | 0 | 1 | 0 | 2 |
 | Standard | 1 | 9 | 1 | 2 | 1 | 14 |
 | Ultra | 0 | 0 | 0 | 5 | 0 | 5 |
@@ -110,6 +110,7 @@ Neither engine was built for this; these rows are why Kiln exists.
 |---|---|---|---|---|---|
 | Sprites, tile maps, camera | Lite | yes | yes | **gated** | reference images of 11 2D scenes |
 | Box collision, swept movement | Lite | yes | yes | **gated** | tests, hashes |
+| Character walks up stairs; slopes | Lite | yes | yes | **gated** (stairs: `body step=H`; no slopes for movers, no snapping down) | `tests/step.test.ts`: stairs of boxes and of solid tiles in 2D, both floor axes in 3D, a ledge higher than the step and a ceiling stop it, nothing is climbed from the air; a scene without `step` saves and hashes as before |
 | Rotation | Lite | yes | yes | **gated** (drawn only) | angle is hashed state on 3 OSes; reference image (`windmill`). Collision ignores it |
 | Circle and polygon collision | Lite? | yes | yes | none | |
 | Rigid bodies, joints | Standard | yes | yes | none in 2D (3D backend only). 3D has joints, see the row below | |
