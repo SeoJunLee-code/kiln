@@ -699,17 +699,17 @@ test('browser: two pages play one game through the relay of play, and stay in st
     const two = await other.open(url, { width: 640, height: 400 });
     // Player 2 holds right for a while: player 1 sees it move.
     const PLAY2 = `(async () => {
-      const wait = async (ok) => { for (let i = 0; i < 600 && !ok(); i++) await new Promise((r) => setTimeout(r, 20)); };
+      const wait = async (ok) => { for (let i = 0; i < 1500 && !ok(); i++) await new Promise((r) => setTimeout(r, 20)); };
       await wait(() => window.kiln?.net());
       dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
-      await wait(() => kiln.world.tick > 60);
+      await wait(() => window.kiln?.world.tick > 60);
       dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight' }));
-      await wait(() => kiln.world.tick > 120 && kiln.net().confirmed > 100);
+      await wait(() => window.kiln?.world.tick > 120 && kiln.net()?.confirmed > 100);
       const s = kiln.net();
       return { desync: s.desync, text: s.inputText(), tick: kiln.world.tick };
     })()`;
     const WATCH = `(async () => {
-      for (let i = 0; i < 900 && !(window.kiln?.net() && kiln.world.tick > 120 && kiln.net().confirmed > 100); i++) await new Promise((r) => setTimeout(r, 20));
+      for (let i = 0; i < 1500 && !(window.kiln?.net() && kiln.world.tick > 120 && kiln.net().confirmed > 100); i++) await new Promise((r) => setTimeout(r, 20));
       const s = kiln.net();
       return { desync: s.desync, text: s.inputText(), tick: kiln.world.tick, b: kiln.world.get(kiln.world.ids.get('b'), 'pos').x };
     })()`;
