@@ -21,8 +21,11 @@ anything else is added.
 A row whose Kiln cell says **gated** and then names a part in brackets is
 **gated in part**: the check is real, but the row is not level with its bar.
 Such a row does not close a gate by itself and is counted apart from the rows
-gated in full (rule added 2026-11-27; the tables below have not been recounted,
-and they do not yet say which edition each row belongs to).
+gated in full (rule added 2026-11-27).
+
+Counted on 2026-11-28, 62 rows: **23 gated in full, 11 gated in part, 6 works,
+21 none**, and one row that is a number (platforms). The tables do not yet say
+which edition each row belongs to.
 
 Three kinds of check, because they fail differently:
 
@@ -48,7 +51,7 @@ does that thing best. The agent-first rows belong to the core and hold in all th
 | `check` names the lowest edition a game needs, and why | **gated** | `tests/edition.test.ts`: the edition of every example is written down; each kind of use is reported with its line; a folder needs the largest edition of its scenes |
 | A feature above a given ceiling (`--edition`) is an error | **gated** | K140 with the line of every use, also for entities spawned from a prefab; at or under the ceiling the output is unchanged |
 | A game ships only the parts it uses | **gated** | `tests/edition.test.ts`: a 2D game is built with the player alone, a 3D one adds the two renderers, a model file adds the glTF reader, a physics scene adds the backend. Decided from what the game folder holds; a part a scene asks for and the build lacks is a page error |
-| Exported size within a byte budget, per edition | **gated** | engine bytes of a built game: 2D Lite 72,000, 3D Lite 102,000, Standard with everything 4,630,000 (2D Lite now 63,997 with sprite animation and state between levels; measured 61,108 / 90,484 / 4,491,655 since `build` squeezes engine files; before that 93,775 against 94,000) |
+| Exported size within a byte budget, per edition | **gated** | engine bytes of a built game: 2D Lite 72,000, 3D Lite 102,000, Standard with everything 4,630,000 (2D Lite now 67,497 with sprite animation, state between levels, gamepad, audio and UI; measured 61,108 / 90,484 / 4,491,655 since `build` squeezes engine files; before that 93,775 against 94,000) |
 | A game of a lower edition reaches the same hash under a higher one | works | browser test: a 2D and a 3D Lite game built without the parts they do not use reach the headless hash (two scenes, 90 ticks, nothing pressed). Not every example, and there is no way yet to run one game under a named edition |
 | Lite features drawn by both renderers | **gated** | the reference images shared by WebGL2 and WebGPU |
 | Allocation per tick in the simulation path: Lite no more than measured, Standard and Ultra none | none | measured once on the reference PC with `bench/alloc.ts`: 5 to 11 KB per tick in four Lite examples, also on ticks where nothing happens. No test holds it yet |
@@ -75,7 +78,7 @@ Neither engine was built for this; these rows are why Kiln exists.
 |---|---|---|
 | Scene as plain text, round-trips exactly | **gated** | tests |
 | Every error at once, with codes and hints | **gated** | tests |
-| Headless run with the same result as the browser | **gated** | all 18 examples replay in a browser to the headless hash, on 3 OSes |
+| Headless run with the same result as the browser | **gated** | all 21 examples replay in a browser to the headless hash, on 3 OSes |
 | `solve`: the engine finds the input that wins a level | **gated** | tests, including a level won by pushing a rigid body, and one with gems in a maze, a door that opens last and guards that must not be touched (`count NAME == 0`). Distance follows the walls on top-down tile maps only; platformers and 3D still use the straight line |
 | A scene ends headless where it loads another; `--follow` plays a game through its scenes | **gated** | `tests/cases.test.ts`: the run stops at the tick of the load and names the scene; counts asked for later are final; `--follow` replays the Lite proof game from level 1 to its ending in one command, stops at a failing scene, and gives up on a scene that loads itself. `solve` does not walk on through a load. Nothing is carried from one scene to the next |
 | One scene checked for several things without copying it | **gated** | `tests/cases.test.ts`: `expect` lines in an input replace the scene's; `test DIR` runs each `NAME.CASE.input`; the three checks the first agent needed copied levels for pass against the levels themselves |
@@ -83,7 +86,7 @@ Neither engine was built for this; these rows are why Kiln exists.
 | One-call guide for an agent, kept small | **gated** | size budget in tests |
 | MCP server | **gated** (protocol) | JSON-RPC test. One real client has used it (Claude Code, headless): [`proof/lite/RUN.md`](../proof/lite/RUN.md) |
 | `look`: an agent sees what was drawn | **gated** | tests; over MCP the picture comes back in the reply |
-| Real token cost of building a game, measured | works | one run, one model: 37,711 tokens written, 794,808 read (725,800 of them from cache), 7 m 4 s. `scripts/agentcost.ts` reads it from the run log (tested). No second run, no other engine yet |
+| Real token cost of building a game, measured | works | one run, one model: 37,711 tokens written, 794,808 read (725,800 of them from cache), 7 m 4 s for the first run. `scripts/agentcost.ts` reads it from the run log (tested). Repeated runs and runs on Godot are in [`proof/compare`](../proof/compare/README.md); CI does not repeat them |
 | A real agent builds a game to the end and repairs its own failures | works | twice: the Lite proof game. First run: 7 failures repaired without a person, 4 kinds of them Kiln's fault (listed in `proof/lite/RUN.md`). Second run, after those were fixed: none (`proof/lite/COMPARE.md`). Both games are kept working by `tests/proof.test.ts`; the runs themselves are not repeated by CI |
 | The first tick where two runs differ is reported | none | |
 
@@ -91,7 +94,7 @@ Neither engine was built for this; these rows are why Kiln exists.
 
 | Feature | Godot | Unity | Kiln | Check |
 |---|---|---|---|---|
-| Sprites, tile maps, camera | yes | yes | **gated** | reference images of 10 scenes |
+| Sprites, tile maps, camera | yes | yes | **gated** | reference images of 11 2D scenes |
 | Box collision, swept movement | yes | yes | **gated** | tests, hashes |
 | Rotation | yes | yes | **gated** (drawn only) | angle is hashed state on 3 OSes; reference image (`windmill`). Collision ignores it |
 | Circle and polygon collision | yes | yes | none | |
@@ -144,7 +147,7 @@ Neither engine was built for this; these rows are why Kiln exists.
 
 Each gate also needs the edition rows above **gated** for that edition: its budgets, its proof game and its agent cost.
 
-Since 2026-11-27 a gate also has a winning condition: on specs the engine was not fixed for, an agent finishes at least as often with Kiln as with the bar engine and for less. From Standard on, frame rate and size are held to the same rule. How that is measured is in [`EDITIONS.md`](EDITIONS.md), "Winning, not only matching". Not run yet.
+Since 2026-11-27 a gate also has a winning condition: on specs the engine was not fixed for, an agent finishes at least as often with Kiln as with the bar engine and for less. From Standard on, frame rate and size are held to the same rule. How that is measured is in [`EDITIONS.md`](EDITIONS.md), "Winning, not only matching". Two of three held-out specs have been run and none has been judged on a screen.
 
 ### Lite
 

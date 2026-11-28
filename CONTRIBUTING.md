@@ -4,7 +4,7 @@ Thanks for looking. Kiln is early, so small, focused changes are the easiest to 
 
 ## Setup
 
-Node 24 or newer. There is nothing to install and nothing to build.
+Node 24 or newer. There is nothing to build. The core has nothing to install; the physics tests are skipped unless the optional backend is there (`npm ci --prefix backends/rapier`), and CI installs it.
 
 ```
 npm test
@@ -19,7 +19,7 @@ Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) first: it explains the layers,
 
 1. **No floats in the simulation.** Code under `src/` that changes world state uses the fixed-point helpers in `src/fx.ts`. Floats are fine for drawing (`web/`) and for reporting.
 2. **No hidden nondeterminism.** No `Math.random`, clocks, or iteration over unordered data in the simulation. Use `world.rand()` and `world.query()` (ascending ids).
-3. **No runtime dependencies.** The engine runs from a fresh clone. If a dependency looks necessary, open an issue first.
+3. **No runtime dependencies in the core.** The engine runs from a fresh clone. An optional backend with a pinned version may live under `backends/`. If a dependency looks necessary, open an issue first.
 4. **Node runs the TypeScript directly.** That means no `enum`, no constructor parameter properties, `import type` for types, and `.ts` in import paths.
 5. **Errors are for machines first.** A new error gets a `K` code, a `file:line`, and a hint that says what to do. Report all errors you can find, not only the first.
 6. **Output is compact.** CLI and MCP output is read by agents that pay per token. Prefer one short line to a paragraph.
@@ -37,9 +37,9 @@ Tests live in `tests/` and use Node's built-in runner. A behavior change needs a
 
 - More `expect` forms (for example comparing two entities, or counting entities with a tag).
 - Collision shapes beyond boxes.
-- Tile colors and images: map a tile character to how it is drawn.
+- Particles in 2D.
 - Trying `solve` on bigger levels and reporting where it gives up.
-- Trying the MCP server with a real agent and reporting where it wastes tokens.
+- Building a game with an agent over the MCP server and reporting where it wastes tokens.
 
 ## License
 

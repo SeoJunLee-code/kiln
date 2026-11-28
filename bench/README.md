@@ -21,6 +21,6 @@ Run `node bench/size.ts`. It writes `RESULTS.md`.
   opened or run in Godot**, so they may contain mistakes. The Godot test also needs the
   GUT addon and a `project.godot`, which are not counted.
 - One small game is not a general result. A game that leans on things Godot has and Kiln
-  lacks (animation, tilemaps, 3D, audio) cannot be written in Kiln at all today.
+  lacks (particles, skeletal animation, navigation, networking) cannot be written in Kiln at all today.
 - It says nothing about the cost of engine documentation, tool calls, or looking at
   results, which also matter for an agent.

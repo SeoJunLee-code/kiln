@@ -83,7 +83,7 @@ Four things, the same four for each edition. A feature list alone does not close
 
 ### Winning, not only matching
 
-Planned 2026-11-27. **Nothing in this section has been run.** The four things above show that an edition is as good as its bar. A gate also asks that building with Kiln costs an agent less. The one comparison made so far ([`proof/lite/COMPARE.md`](../proof/lite/COMPARE.md)) does not show that: before its fixes Kiln cost the same $0.73 as Godot, and the cheaper second run was on a spec the engine had just been fixed for. So:
+Planned 2026-11-27. **State on 2026-11-28:** the spread is measured ([`proof/compare/SPREAD.md`](../proof/compare/SPREAD.md)), two of the three held-out specs have been run ([H2](../proof/compare/RESULT-H2.md), [H3](../proof/compare/RESULT-H3.md)), the third has not, and no screen check has been judged, so there is no verdict. The four things above show that an edition is as good as its bar. A gate also asks that building with Kiln costs an agent less. The one comparison made so far ([`proof/lite/COMPARE.md`](../proof/lite/COMPARE.md)) does not show that: before its fixes Kiln cost the same $0.73 as Godot, and the cheaper second run was on a spec the engine had just been fixed for. So:
 
 - **Runs are isolated.** An empty settings folder, a pinned engine commit, the same model, tools and starting folder for every run. Time is recorded in two parts: waiting for the model, and inside tools.
 - **A spec carries its own pass checks**, written before any run and independent of the engine: given this input, the screen shows that. The same checks judge every game built from the spec.
@@ -117,6 +117,8 @@ Engine bytes in a built game, as shipped. Since 2026-11-27 `build` squeezes engi
 | 3D with boxes and OBJ meshes, Lite (both renderers) | 90,484 | 102,000 | 128,480, budget 133,000 |
 | Everything: glTF and Rapier, Standard | 4,491,655 | 4,630,000 | 4,537,594, budget 4,680,000 |
 
+Since then the 2D Lite game has grown to 67,497 bytes with gamepad, audio and UI (budgets unchanged).
+
 Existing features by edition:
 
 - **Lite**: everything gated in the 2D table, boxes and OBJ meshes with one sun, rotation as drawn in 2D, the fixed-point box core, web export.
@@ -130,12 +132,12 @@ The last column is the present state, not the hope.
 | Weakness | Kiln's answer | State |
 |---|---|---|
 | Unreal: hard to learn, many modules | One text format; a guide with a size budget; errors all at once with hints | Gated. The budget will be under pressure as editions grow; topic guides are the outlet |
-| Unreal: heavy editor and renderer | Editions; no editor needed to run or test | Lite is light today; budgets are not yet checked |
+| Unreal: heavy editor and renderer | Editions; no editor needed to run or test | Lite is light today; the byte budget is checked, memory and start-up time are not |
 | Unreal: slow compile, shader compile, cook | No build step; assets are read as they are | True today. **Ultra geometry will need offline processing of meshes.** It must be incremental and keyed by content |
 | Unreal: Blueprint overhead | One script language, no second visual layer | True today. Script speed in JavaScript has not been measured |
 | Unreal: Nanite and Lumen are costly | Only Ultra pays for them | Not built |
-| Unreal, Unity, Godot: not built for agents | The core | Gated. One agent has built the Lite proof game with it, twice; not yet shown to be cheaper than another engine |
-| Unity: garbage collection pauses | **Kiln runs on JavaScript and has the same problem.** Answer: the allocation budget above | Not measured, not checked |
+| Unreal, Unity, Godot: not built for agents | The core | Gated. Agents have built games with it; not yet shown to be cheaper than another engine, and on the 3D spec (H3) it cost more |
+| Unity: garbage collection pauses | **Kiln runs on JavaScript and has the same problem.** Answer: the allocation budget above | Measured once (5 to 11 KB a tick), no test holds it |
 | Unity: GameObject and ECS side by side | One entity model. A second is never added | True today |
 | Unity: recompile and domain reload | State is text; reloading is parsing | True today |
 | Unity: three render pipelines | Rules 1, 2 and 6 | WebGL2 already cannot draw two of the 3D examples; rule 6 makes that a stated boundary instead of a gap |
@@ -161,7 +163,7 @@ The last column is the present state, not the hope.
 
 1. **Draw the line in code.** Each component and scene feature names its axis and edition; `check` reports per axis and why; `--edition` ceiling; the byte budget in CI; every example replayed under each edition to one hash.
 2. **Prove the core with a real agent.** Write the Lite proof game's spec, connect an agent over MCP, build it to the end, record the agent cost. Every edition rests on this. Run once (2026-11-26, [`proof/lite/RUN.md`](../proof/lite/RUN.md)): finished without a person. Since then ([`proof/lite/COMPARE.md`](../proof/lite/COMPARE.md)): what the run showed `solve` cannot do is fixed, a second run met no failure it had to repair, and the same spec was built once on Godot. Still open: repeats, so that the spread between runs is known.
-3. **The first comparison** (moved ahead of the rest of Lite on 2026-11-27), by the rules under "Winning, not only matching": isolation and the pass checks, the spread, then the held-out specs.
+3. **The first comparison** (moved ahead of the rest of Lite on 2026-11-27), by the rules under "Winning, not only matching": isolation and the pass checks, the spread, then the held-out specs. Under way: H1 and the screen checks are left.
 4. **The runtime spike**, its first half (where the simulation core runs natively).
 5. **Close the Lite gate**: sprite animation, per-tile art, audio, UI, gamepad, state between levels (all done); name the three Godot demos and rebuild them; the scoreboard's edition column and its count of rows gated in part; the remaining budgets; a run on a phone. Tools for the person who supervises start here, not in Ultra: a before-and-after view of a change, stepping through a replay, looking into a scene.
 6. **Close the Standard gate**: glTF from other tools, animation and skins, lights, shapes and joints, navigation, networking, a hundred thousand entities with no allocation per tick, a desktop executable; its proof game and agent cost.

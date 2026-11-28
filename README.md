@@ -26,21 +26,22 @@ Kiln is a few days old. The long-term aim is an engine that agents can take from
 
 | Works today | Not yet |
 |---|---|
-| Text scenes, 23 built-in components, levels drawn as character grids with prefabs | Skeletal animation, custom shaders, more than one light |
-| Fixed-point simulation on x, y and z; swept box collision; triggers that emit events and remove things (keys, doors, pickups); pacing guards; pushable crates; moving platforms that carry what stands on them | Collision that follows rotation, joints |
+| Text scenes, 26 built-in components, levels drawn as character grids with prefabs | Skeletal animation, custom shaders, more than one light |
+| Fixed-point simulation on x, y and z; swept box collision; triggers that emit events and remove things (keys, doors, pickups); pacing guards; pushable crates; moving platforms that carry what stands on them | Circle or polygon collision, collision that follows rotation |
 | Rotation as fixed-point state: an angle (`rot`) or a quaternion (`quat`), drawn in 2D and by WebGPU | Parent-child transforms |
-| Rigid bodies (boxes and balls) through an optional backend, Rapier's deterministic build: same hash on Linux, macOS and Windows, and `solve` searches through them | Rigid bodies that block the character; other shapes |
-| `expect` checks with explanations on failure | Animation, UI widgets |
-| TypeScript scripts with a determinism check | Asset pipeline beyond single images |
-| Browser player: Canvas 2D, and lit, shadowed boxes and OBJ meshes for 3D scenes, drawn with WebGPU (WebGL2 where the browser has none) | Images in 3D |
+| Rigid bodies (boxes and balls) through an optional backend, Rapier's deterministic build: same hash on Linux, macOS and Windows, they block and shove the character, and `solve` searches through them | 2D rigid bodies, joints, other shapes |
+| 2D: sprites and sprite-sheet animation, a color or an image per tile character, labels, buttons, entities pinned to the screen | Particles, layout containers, text input |
+| Sound files on events and one looping music track | Positional sound, fades |
+| Keyboard, touch and gamepad | Remapping, analog values |
+| Several levels (a trigger loads the next scene) and a score or lives that go along (`tally`, `keep`) | Saving to disk |
+| `expect` checks with explanations on failure; TypeScript scripts with a determinism check | Asset pipeline |
+| Browser player: Canvas 2D, and lit, shadowed boxes and OBJ meshes for 3D scenes, drawn with WebGPU (WebGL2 where the browser has none) | Images, glyphs and labels in 3D |
 | glTF 2.0 models (.glb, .gltf) with metallic-roughness materials and textures, on WebGPU | glTF animation and skins; files from other exporters are untested; environment lighting |
-| `look`: the scene drawn in a headless browser, returned to the agent as a picture | |
-| Several levels (a trigger loads the next scene), a score or lives that go along (`tally`, `keep`), text labels, a tone per event | Music, sound files, menus |
-| `solve`: automatic search for a winning input |  |
-| `build`: export to a static web folder |  |
-| MCP server, CLI | Networking, desktop and mobile export |
+| `look`: the scene drawn in a headless browser, returned to the agent as a picture | An editor for people, a profiler |
+| `solve`: automatic search for a winning input | `solve` does not tap buttons |
+| `build`: export to a static web folder; MCP server and CLI | Networking, desktop and mobile export |
 
-No human has play-tested it yet, and the MCP server has only been exercised by its own tests. See [HANDOFF.md](HANDOFF.md) (Korean) for the detailed status and known limits.
+Claude Code has built games with Kiln over its MCP server ([proof/lite](proof/lite/RUN.md), [proof/compare](proof/compare/README.md)). A comparison with Godot on held-out specs is under way and has no verdict yet. One known fault: the long-running MCP server does not re-read a game script that has changed. No human has play-tested a game yet. See [HANDOFF.md](HANDOFF.md) (Korean) for the detailed status and known limits.
 
 ## Try it
 
@@ -162,7 +163,7 @@ ok tick=1 hash=505dfab4 passed=1 failed=0 path=level1.kiln>level2.kiln>level3.ki
 $ node src/cli.ts solve examples/cave.kiln --out cave.input
 0 right down
 ...
-ok solved tick=250 states=2507 wrote=cave.input
+ok solved tick=255 states=267 wrote=cave.input
 ```
 
 Because a run is fully determined by scene and input, the engine can search the input space: over which keys are held for the next few ticks, merging states that are the same. An answer is replayed through the normal path before it is reported. If nothing works it says which goal is still open and draws where its furthest attempt ended:
@@ -177,7 +178,7 @@ origin 0,0
 fail tick=20 states=94
 ```
 
-Thirteen of the fourteen examples solve in under a second on one laptop, and the largest ([examples/quest.kiln](examples/quest.kiln): a key, a door and a guard sweeping the corridor) in a little over one. They include the 3D one, a crate-pushing puzzle ([examples/sokoban.kiln](examples/sokoban.kiln)), a gap that can only be crossed by riding a lift ([examples/lift.kiln](examples/lift.kiln)), a key-and-door puzzle ([examples/vault.kiln](examples/vault.kiln)) and a corridor of pacing guards where the crossing has to be timed ([examples/gauntlet.kiln](examples/gauntlet.kiln)). The search tries inputs that get nearer to a goal first; it has only been tried with one controllable character in small levels, and it gives up (and says so) when it runs out of states. `at` expectations are not searched for.
+Twenty of the twenty-one examples solve on one laptop, each in under two seconds (the one left is a title screen, which needs a tap); the one that takes the most search is [examples/quest.kiln](examples/quest.kiln): a key, a door and a guard sweeping the corridor. They include the 3D one, a crate-pushing puzzle ([examples/sokoban.kiln](examples/sokoban.kiln)), a gap that can only be crossed by riding a lift ([examples/lift.kiln](examples/lift.kiln)), a key-and-door puzzle ([examples/vault.kiln](examples/vault.kiln)) and a corridor of pacing guards where the crossing has to be timed ([examples/gauntlet.kiln](examples/gauntlet.kiln)). The search tries inputs that get nearer to a goal first; it has only been tried with one controllable character in small levels, and it gives up (and says so) when it runs out of states. `at` expectations are not searched for.
 
 ## 3D
 

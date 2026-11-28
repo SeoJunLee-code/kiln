@@ -35,8 +35,12 @@ A run is a pure function: **scene text + input script → state**. Everything el
 | `run.ts` | run a scene headless; ASCII view | the above |
 | `solve.ts` | search for an input | the above |
 | `api.ts` | what a script receives | `fx`, `world` |
+| `physics.ts` | the backend interface and the fixed-point boundary; the one place in the simulation with floats | `world`, `fx` |
+| `lint.ts`, `edition.ts` | warnings; which edition a scene needs | the shared modules |
+| `squeeze.ts`, `png.ts` | smaller engine files in a build; reading and comparing pictures | Node |
+| `look.ts`, `chrome.ts` | draw a scene in a headless browser | Node, an installed Chrome or Edge |
 | `load.ts`, `serve.ts`, `build.ts`, `new.ts`, `mcp.ts`, `cli.ts`, `commands.ts` | files, HTTP, processes | Node |
-| `web/` | drawing and keyboard | DOM, WebGL, the shared modules |
+| `web/` | drawing, input and sound | DOM, WebGPU, WebGL2, the shared modules |
 
 The shared modules must stay free of Node and DOM APIs: the browser loads them as they are.
 
@@ -56,11 +60,16 @@ All simulation state is an integer. A value like `1.5` is stored as `1.5 * 65536
 2. `ctrl` sets velocities from held keys
 3. `pace` turns pacing entities around
 4. script systems registered as `pre`
-5. gravity on every `body`
-6. movement, one entity at a time in ascending id, one axis at a time (x, y, z)
-7. tick counter + 1
-8. triggers: new overlaps emit events and run actions
-9. script systems registered as `post`
+5. an animated sprite notes which way it faces
+6. gravity on every `body`
+7. movement, one entity at a time in ascending id, one axis at a time (x, y, z); with a physics backend, rigid bodies are registered first and stop movers
+8. the physics backend takes one step
+9. turning (`rot`, `quat`)
+10. tick counter + 1
+11. buttons tapped or whose key was newly pressed
+12. triggers: new overlaps emit events and run actions
+13. script systems registered as `post`
+14. `tally` counts the events of this tick
 
 Movement is swept: the mover's box is stretched along its path and tested against solids, so speed cannot carry it through a wall. Solids come from a coarse grid rebuilt each tick (`buildIndex`). The result of a query is only ever reduced with `min` and `max`, so the order of candidates does not matter; that is what makes the grid safe.
 
@@ -90,7 +99,7 @@ Every problem a user can cause has a code (`K…`), a `file:line`, a message and
 
 ## Rendering
 
-`web/player.ts` draws a world; it never changes one except by calling `step`. Wall-clock time decides how many ticks to run, never what a tick does. 2D uses Canvas; a scene with an `eye` is drawn with WebGL2 (`web/gl.ts`): boxes and OBJ meshes, one sun, one shadow map.
+`web/player.ts` draws a world; it never changes one except by calling `step`. Wall-clock time decides how many ticks to run, never what a tick does. 2D uses Canvas; a scene with an `eye` is drawn with WebGPU (`web/gpu.ts`): boxes, OBJ meshes and glTF models, one sun, one shadow map. WebGL2 (`web/gl.ts`) is a frozen fallback that draws neither rotation nor glTF.
 
 ## Adding things
 
