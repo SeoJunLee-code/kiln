@@ -16,7 +16,7 @@ const TYPES: Record<string, string> = {
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 /** The game as it was: the folder of another scene file, or this game at a git revision. */
-function earlier(before: string, sceneFile: string): { scene: string; read: (rel: string) => Buffer | null } {
+export function earlier(before: string, sceneFile: string): { scene: string; read: (rel: string) => Buffer | null } {
   if (/\.kiln$/.test(before) && existsSync(before)) {
     const dir = resolve(dirname(before));
     return { scene: basename(before), read: (rel) => { try { return readFileSync(resolve(dir, rel)); } catch { return null; } } };

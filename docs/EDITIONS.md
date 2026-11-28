@@ -75,9 +75,11 @@ Four things, the same four for each edition. A feature list alone does not close
 
    | Edition | Reference machine | Proof game |
    |---|---|---|
-   | Lite | The reference PC with WebGPU turned off; one real phone | Gem Vault, a top-down game of three levels: [`proof/lite`](../proof/lite). Built once by an agent. On the PC: far above 60 fps, with the GPU and without ([`FPS.md`](../proof/lite/FPS.md)). On a phone: not measured |
-   | Standard | The reference PC (integrated GPU) | To be chosen: a third-person 3D game with physics |
+   | Lite | The reference PC with WebGPU turned off; one real phone (the owner's own, in its default browser) | Gem Vault, a top-down game of three levels: [`proof/lite`](../proof/lite). Built once by an agent. On the PC: far above 60 fps, with the GPU and without ([`FPS.md`](../proof/lite/FPS.md)). On a phone: not measured |
+   | Standard | The reference PC (integrated GPU) | A third-person 3D collect-and-platform game: a glTF character with animation made in another tool, lighting, rigid crates that can be pushed, one enemy that finds its way and chases, three levels. Not built |
    | Ultra | A machine with a discrete GPU. **None is available yet** | To be chosen |
+
+   Chosen on 2026-11-28 (the owner's decisions as relayed by another session): the reference phone and the two proof games above (H3's rolling ball is a held-out spec and is not used), and for the Lite gate three demos of `godot-demo-projects`: 2D Platformer, Dodge the Creeps, 2D Role Playing Game. That they exist as named, and the licences of their code and assets, are not checked yet: check before rebuilding, swap in a 2D demo of the same kind with the reason written down if one does not fit, and make new assets instead of copying.
 
 4. **Agent cost.** For the proof game: tokens used, time taken, failures the agent repaired without a person, and whether it finished. The same spec is then built with an agent on the engine that is the bar. This is the number Kiln exists for, and it is reported before any graphics number.
 

@@ -96,8 +96,8 @@ test('rules: check reads them: unknown actions, names that match nothing, events
   const check = async (text: string): Promise<string> => (await command('check', { scene: text })).text;
   assert.match(await check('entity a\n  when x explode\n'), /^E K104 scene:2 unknown when action 'explode'/m);
   assert.match(await check('entity a\n  timer 3 x reset:nobody\n'), /^W K311 scene timer on 'a' refers to 'nobody'/m);
-  assert.match(await check('entity a\n  when felll reset:all\nentity t\n  timer 1 fell\n'), /^W K332 scene when on 'a' waits for event 'felll', which nothing in the scene emits, so it never acts \(hint: did you mean 'fell'\?\)$/m);
-  assert.match(await check('entity a\n  tally x 3 0 then=y\n'), /^W K333 /m);
+  assert.match(await check('entity a\n  when felll reset:all\nentity t\n  timer 1 fell\n'), /^W K335 scene when on 'a' waits for event 'felll', which nothing in the scene emits, so it never acts \(hint: did you mean 'fell'\?\)$/m);
+  assert.match(await check('entity a\n  tally x 3 0 then=y\n'), /^W K336 /m);
   assert.doesNotMatch(await check(GAME + 'expect event dead by 400\n'), /^[WE] /m);
 });
 

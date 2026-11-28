@@ -714,3 +714,14 @@ test('guide script: the example it shows runs as written', async () => {
   const r = await command('run', { file: join(dir, 's.kiln'), ticks: 3 });
   assert.equal(r.code, 0, r.text);
 });
+
+test('particles: a drawing, with warnings for the lines that would show nothing', async () => {
+  const check = async (line: string, more = ''): Promise<string> => (await command('check', { scene: `entity a\n  pos 0 0\n  box 1 1\n  ${line}\n${more}` })).text;
+  assert.doesNotMatch(await check('particles rate=5'), /^W K3(1|2|32)/m);
+  assert.doesNotMatch(await check('particles on=hit', 'entity t\n  pos 3 0\n  box 1 1\n  trigger a hit\n'), /^W K3(2|3)/m);
+  assert.match(await check('particles'), /^W K332 scene particles on 'a' have neither rate= nor on=/m);
+  assert.match(await check('particles rate=5 size=0'), /^W K332 /m);
+  assert.match(await check('particles on=hitt', 'entity t\n  pos 3 0\n  box 1 1\n  trigger a hit\n'), /^W K326 scene particles on 'a' burst on 'hitt'/m);
+  assert.match(await check('particles rate=5', 'entity cam\n  pos 0 0\n  eye 0 -8 9\n'), /^W K323 scene 'a' has 'particles'/m);
+  assert.match(await command('check', { scene: 'entity a\n  particles rate=5\n' }).then((r) => r.text), /^W K310 scene 'a' has 'particles' but no 'pos'/m);
+});
