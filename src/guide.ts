@@ -216,6 +216,7 @@ check  parse and validate (a folder: every scene). Says the edition needed: lite
 test   run, evaluate expects; --input FILE; exit 1 if any fails. A folder: every scene
        with its NAME.input, then once per NAME.CASE.input. expect lines in an input
        replace the scene's. --follow: go on into the scene a load: opened, with its NAME.input
+       --before REV|OLD.kiln (also run): the first tick where it differs from that version, and what
 run    run without judging; --ticks N
 solve  find an input meeting reach/gone/event, keeping never and count X == 0; --out FILE saves it
 schema components only

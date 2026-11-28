@@ -161,3 +161,32 @@ test('proof game (Lite): one command plays it from the first level to the ending
   assert.equal(r.code, 0, r.text);
   assert.match(r.text, /path=level1\.kiln>level2\.kiln>level3\.kiln>end\.kiln\n$/);
 });
+
+test('before: the first tick where a change makes the game differ, and what differs', async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { execFileSync } = await import('node:child_process');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { command } = await import('../src/commands.ts');
+  const dir = mkdtempSync(join(tmpdir(), 'kiln-diff-'));
+  const scene = (speed: number): string => `entity ball\n  pos 0 0\n  vel ${speed} 0\nentity rock\n  pos 9 9\nexpect at 30 ball.pos.x > 0\n`;
+  const file = join(dir, 'game.kiln');
+  writeFileSync(file, scene(1));
+  writeFileSync(join(dir, 'old.kiln'), scene(1));
+  const git = (...args: string[]): void => void execFileSync('git', ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args], { stdio: 'ignore' });
+  git('init', '-q');
+  git('add', '.');
+  git('commit', '-qm', 'one');
+  const same = await command('test', { file, before: 'HEAD' });
+  assert.match(same.text, /^same as before=HEAD through tick 30$/m);
+  writeFileSync(file, scene(2));
+  for (const before of ['HEAD', join(dir, 'old.kiln')]) {
+    const r = await command('test', { file, before });
+    assert.equal(r.code, 0, r.text);
+    // The two start with different speeds, so they differ before anything has moved.
+    assert.match(r.text, /differs from before=.+ first at tick 0\r?\n~ ball\r?\n    - vel 1\r?\n    \+ vel 2\r?\n/);
+    assert.doesNotMatch(r.text, /rock/);
+  }
+  assert.match((await command('test', { file, before: 'nothing' })).text, /neither a scene file nor a git revision/);
+  assert.match((await command('test', { scene: scene(1), before: 'HEAD' })).text, /^E K002 /m);
+});

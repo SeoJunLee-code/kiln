@@ -23,13 +23,13 @@ A row whose Kiln cell says **gated** and then names a part in brackets is
 Such a row does not close a gate by itself and is counted apart from the rows
 gated in full (rule added 2026-11-27).
 
-Counted on 2026-11-28, 63 rows: **23 gated in full, 18 gated in part, 7 works,
-14 none**, and one row that is a number (platforms). By the edition column of
+Counted on 2026-11-28, 63 rows: **23 gated in full, 19 gated in part, 7 works,
+13 none**, and one row that is a number (platforms). By the edition column of
 the tables:
 
 | Edition | gated in full | gated in part | works | none | number | rows |
 |---|---|---|---|---|---|---|
-| all | 16 | 2 | 6 | 1 | 0 | 25 |
+| all | 16 | 3 | 6 | 0 | 0 | 25 |
 | Lite | 6 | 7 | 0 | 2 | 0 | 15 |
 | Lite? | 0 | 0 | 0 | 2 | 0 | 2 |
 | Standard | 1 | 9 | 1 | 2 | 1 | 14 |
@@ -102,7 +102,7 @@ Neither engine was built for this; these rows are why Kiln exists.
 | `look`: an agent sees what was drawn | all | **gated** | tests; over MCP the picture comes back in the reply |
 | Real token cost of building a game, measured | all | works | one run, one model: 37,711 tokens written, 794,808 read (725,800 of them from cache), 7 m 4 s for the first run. `scripts/agentcost.ts` reads it from the run log (tested). Repeated runs and runs on Godot are in [`proof/compare`](../proof/compare/README.md); CI does not repeat them |
 | A real agent builds a game to the end and repairs its own failures | all | works | twice: the Lite proof game. First run: 7 failures repaired without a person, 4 kinds of them Kiln's fault (listed in `proof/lite/RUN.md`). Second run, after those were fixed: none (`proof/lite/COMPARE.md`). Both games are kept working by `tests/proof.test.ts`; the runs themselves are not repeated by CI |
-| The first tick where two runs differ is reported | all | none | |
+| The first tick where two runs differ is reported | all | **gated** (two versions of a game, or two players of a network game) | `test SCENE --before OLD.kiln|REV` (or `run`, also over MCP): both run with the same input, and the first tick they differ is said with what differs as scene text (`tests/cases.test.ts`). A network session says the tick it went out of sync (`tests/net.test.ts`). Two machines are not compared tick by tick, and `--follow` is not compared |
 
 ## 2D (Godot 2D is the bar)
 
