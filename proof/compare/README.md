@@ -11,6 +11,7 @@ specs.
 | [`GEMVAULT-CHECKS.md`](GEMVAULT-CHECKS.md) | Screen pass checks of the development spec |
 | [`SPREAD.md`](SPREAD.md) | The development spec run five times on each engine. Highest price over lowest is 1.42 and 1.39, so a held-out spec is run 3 times per setup |
 | [`GODOT-TOOLS.md`](GODOT-TOOLS.md) | Agent tooling for Godot: the candidates, the one chosen, and its trial runs |
+| [`../../scripts/judge.ts`](../../scripts/judge.ts) | Screen judging in one command: `node scripts/judge.ts ARCHIVE` starts each result, shows its checks and records one key per check; `--report` counts the runs that passed all of them |
 | [`H1.md`](H1.md), [`H2.md`](H2.md), [`H3.md`](H3.md) | The three held-out specs, all run on 2026-11-27 and 28 |
 | [`RESULT-H2.md`](RESULT-H2.md) | H2 run three times on each of the three setups, engine pinned at `1f50d8d`: the logs and the automatic checks. All nine ended by themselves. Verdict pending the screen checks |
 | [`RESULT-H3.md`](RESULT-H3.md) | H3 run the same way. All nine ended by themselves; Kiln cost the most ($1.13 to $1.76 against $0.53 to $0.75), and the runs found that Kiln's server kept a changed script's first version. Verdict pending the screen checks |
