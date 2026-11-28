@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
-import { basename, dirname, join } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { EDITIONS, isEdition, lowest, needs, over, why } from './edition.ts';
 import { fmtWarn, lint } from './lint.ts';
 import { loadGltf } from '../web/gltf.ts';
@@ -42,6 +43,16 @@ export interface CmdArgs {
   topic?: string;
   /** check: the largest edition the game may need (lite, standard, ultra); more is an error */
   edition?: string;
+}
+
+/** What a scene run threw, as an error line that says where: in the game's script when the
+ * stack passes through a file of the game's folder, in the engine when it does not. */
+function runtimeError(e: Error, folder: string): string {
+  const game = `${pathToFileURL(resolve(folder)).href}/`, engine = new URL('.', import.meta.url).href;
+  const at = (e.stack ?? '').split('\n').map((l) => /(file:\/\/\/[^\s)]+):(\d+):\d+/.exec(l))
+    .find((m) => m && m[1].startsWith(game) && !m[1].startsWith(engine));
+  const msg = String(e.message ?? e).split('\n')[0];
+  return at ? `E K124 ${at[1].slice(game.length)}:${at[2]} script failed while running: ${msg}` : `E K125 the engine failed: ${msg}`;
 }
 
 /** Run one engine command. Shared by the CLI and the MCP server. Exit code: 0 ok, 1 expectation failed, 2 error. */
@@ -180,8 +191,8 @@ export async function command(cmd: string, a: CmdArgs): Promise<{ text: string; 
     out.push(`${bad ? 'fail' : 'ok'} tick=${r.world.tick} hash=${r.hash}${cmd === 'test' ? ` passed=${r.expects.length - failed} failed=${failed}` : ''}${r.load !== undefined ? ` load=${r.load}` : ''}${path.length > 1 ? ` path=${path.join('>')}` : ''}`);
     return done(bad ? 1 : 0);
   } catch (e) {
-    if (!(e instanceof KilnFail)) throw e;
-    out.push(e.message, `fail errors=${e.diags.length}`);
+    if (e instanceof KilnFail) return out.push(e.message, `fail errors=${e.diags.length}`), done(2);
+    out.push(runtimeError(e as Error, dirname(file)), 'fail errors=1');
     return done(2);
   }
 }

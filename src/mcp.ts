@@ -1,7 +1,37 @@
 // Minimal MCP server over stdio (newline-delimited JSON-RPC 2.0), no dependencies.
 // It exposes a single tool on purpose: every tool definition costs the agent context on every turn.
 import { createInterface } from 'node:readline';
+import { Worker } from 'node:worker_threads';
 import { COMMANDS, command } from './commands.ts';
+import type { CmdArgs } from './commands.ts';
+
+// A client gives up on a call after some minutes and drops the server with it, so the
+// server gives up first and says why.
+const LIMIT_MS = Number(process.env.KILN_TIMEOUT_MS) || 240_000;
+
+type Reply = { text: string; code: number };
+
+/** Run a command that loads the game's scripts in a new thread (see worker.ts). */
+function fresh(cmd: string, args: CmdArgs): Promise<Reply> {
+  return new Promise((ok) => {
+    const worker = new Worker(new URL('./worker.ts', import.meta.url), { workerData: { cmd, args }, stdout: true });
+    worker.stdout.resume();
+    let done = false;
+    const end = (r: Reply): void => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      ok(r);
+      void worker.terminate();
+    };
+    const fail = (why: string, hint: string): void => end({ text: `E K005 ${cmd} ${why} (hint: ${hint})\nfail\n`, code: 2 });
+    const timer = setTimeout(() => fail(`stopped after ${LIMIT_MS / 1000} s`,
+      cmd === 'solve' ? 'solve a smaller scene, or give a larger step' : 'run fewer ticks, or look for a loop that never ends in a script'), LIMIT_MS);
+    worker.once('message', end);
+    worker.once('error', (e: Error) => fail(`crashed: ${e.message.split('\n')[0]}`, 'the server is still up'));
+    worker.once('exit', (code) => fail(`stopped without a reply, exit ${code}`, 'a script must not end the process'));
+  });
+}
 
 const TOOL = {
   name: 'kiln',
@@ -52,7 +82,7 @@ async function handle(msg: Msg): Promise<unknown> {
       const a = (msg.params.arguments ?? {}) as Record<string, unknown>;
       // look answers with the picture itself, so the agent sees the frame without a second call.
       if (a.cmd === 'look') {
-        if (typeof a.file !== 'string') return { content: [{ type: 'text', text: 'E K002 look needs file\n' }], isError: true };
+        if (typeof a.file !== 'string') return { content: [{ type: 'text', text: 'E K002 look needs file (hint: look draws a .kiln file; write the scene to one first)\n' }], isError: true };
         const { look, describe } = await import('./look.ts');
         try {
           const seen = await look(a.file, { tick: a.ticks as number | undefined, inputFile: a.input_file as string | undefined });
@@ -61,7 +91,9 @@ async function handle(msg: Msg): Promise<unknown> {
           return { content: [{ type: 'text', text: `E K400 look failed: ${(e as Error).message.split('\n')[0]}\n` }], isError: true };
         }
       }
-      const r = await command(String(a.cmd), {
+      const cmd = String(a.cmd);
+      // guide reads no game; every other command may import scripts.
+      const r = await (cmd === 'guide' ? command : fresh)(cmd, {
         file: a.file as string | undefined,
         scene: a.scene as string | undefined,
         input: a.input as string | undefined,

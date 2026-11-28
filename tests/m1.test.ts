@@ -644,3 +644,59 @@ test('sound: check says what will not be heard, and a run does not depend on it'
   assert.ok(quiet.ok && loud.ok);
   assert.deepEqual(loud.world.events, quiet.world.events);
 });
+
+// A client for the server: one request at a time, the reply's text back.
+function client(env: Record<string, string> = {}) {
+  const child = spawn(process.execPath, [cli, 'mcp'], { stdio: ['pipe', 'pipe', 'inherit'], env: { ...process.env, ...env } });
+  const waiting = new Map<number, (text: string) => void>();
+  let buf = '', id = 0;
+  child.stdout.on('data', (d) => {
+    buf += d;
+    for (let i; (i = buf.indexOf('\n')) >= 0; buf = buf.slice(i + 1)) {
+      const m = JSON.parse(buf.slice(0, i)); // every line of stdout is a reply
+      waiting.get(m.id)?.(m.result.content[0].text);
+    }
+  });
+  const call = (args: Record<string, unknown>): Promise<string> => new Promise((ok) => {
+    waiting.set(++id, ok);
+    child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method: 'tools/call', params: { name: 'kiln', arguments: args } }) + '\n');
+  });
+  return { call, close: () => child.kill() };
+}
+
+test('mcp: a script changed during a session is read again, and so is what it imports', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'kiln-mcp-'));
+  const scene = join(dir, 's.kiln');
+  writeFileSync(scene, 'world hz=60\nuse ./a.ts\n');
+  writeFileSync(join(dir, 'a.ts'), "import { name } from './b.ts';\nexport default (k) => { k.system((w) => { if (w.tick === 1) { console.log('seen', name); w.emit(name); } }); };\n");
+  const server = client();
+  const run = () => server.call({ cmd: 'run', file: scene, ticks: 2, events: true });
+  writeFileSync(join(dir, 'b.ts'), "export const name = 'one';\n");
+  const first = await run();
+  assert.match(first, /event 1 one/);
+  assert.match(first, /^log: seen one$/m);
+  writeFileSync(join(dir, 'b.ts'), "export const name = 'two';\n");
+  assert.match(await run(), /event 1 two/);
+  server.close();
+});
+
+test('mcp: a command that does not end is stopped with an error, and the server goes on', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'kiln-mcp-'));
+  const scene = join(dir, 's.kiln');
+  writeFileSync(scene, 'world hz=60\nuse ./a.ts\n');
+  writeFileSync(join(dir, 'a.ts'), 'export default (k) => { k.system(() => { for (;;); }); };\n');
+  const server = client({ KILN_TIMEOUT_MS: '3000' });
+  assert.match(await server.call({ cmd: 'run', file: scene, ticks: 2 }), /^E K005 run stopped after 3 s \(hint: /);
+  assert.match(await server.call({ cmd: 'check', scene: 'entity a\n  pos 1 1\n' }), /^ok /m);
+  server.close();
+});
+
+test('command: a script that throws while running is reported with its file and line', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'kiln-throw-'));
+  const scene = join(dir, 's.kiln');
+  writeFileSync(scene, 'world hz=60\nuse ./a.ts\n');
+  writeFileSync(join(dir, 'a.ts'), "export default (k) => {\n  k.system((w) => { w.spawn('dot'); w.spawn('dot'); });\n};\n");
+  const r = await command('run', { file: scene, ticks: 2 });
+  assert.equal(r.code, 2);
+  assert.match(r.text, /^E K124 a\.ts:2 script failed while running: duplicate entity 'dot'$/m);
+});
