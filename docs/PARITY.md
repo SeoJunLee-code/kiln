@@ -23,15 +23,15 @@ A row whose Kiln cell says **gated** and then names a part in brackets is
 Such a row does not close a gate by itself and is counted apart from the rows
 gated in full (rule added 2026-11-27).
 
-Counted on 2026-11-28, 63 rows: **23 gated in full, 19 gated in part, 7 works,
-13 none**, and one row that is a number (platforms). By the edition column of
+Counted on 2026-11-28, 63 rows: **23 gated in full, 20 gated in part, 7 works,
+12 none**, and one row that is a number (platforms). By the edition column of
 the tables:
 
 | Edition | gated in full | gated in part | works | none | number | rows |
 |---|---|---|---|---|---|---|
 | all | 16 | 3 | 6 | 0 | 0 | 25 |
 | Lite | 6 | 7 | 0 | 2 | 0 | 15 |
-| Lite? | 0 | 0 | 0 | 2 | 0 | 2 |
+| Lite? | 0 | 1 | 0 | 1 | 0 | 2 |
 | Standard | 1 | 9 | 1 | 2 | 1 | 14 |
 | Ultra | 0 | 0 | 0 | 5 | 0 | 5 |
 | — | 0 | 0 | 0 | 2 | 0 | 2 |
@@ -115,7 +115,7 @@ Neither engine was built for this; these rows are why Kiln exists.
 | Rigid bodies, joints | Standard | yes | yes | none in 2D (3D backend only). 3D has joints, see the row below | |
 | Sprite animation | Lite | yes | yes | **gated** (one row of frames) | `anim FRAMES [fps] [idle]` on a sprite whose image is a row of frames: the frame is a function of the tick and the state (headless test), a browser test reads the frame color at six ticks and sees the mirror when the entity looks left; the facing is hashed state; reference image (`stroll`). No named clips, no atlas with rows, no per-frame timing, no events on a frame |
 | Per-tile color and image | Lite | yes | yes | **gated** | `tiles paint=CHAR:COLOR,CHAR:IMAGE`: reference image (`garden`); browser test counts each painted color's cells in 2D and sees painted walls in both 3D renderers (colors only there); `check` rejects a malformed entry and warns about a character in no row, a missing image, an image in a 3D scene (K317, K312, K318). One image per character: no atlas, no auto-tiling, no animated tiles |
-| Particles | Lite? | yes | yes | none | |
+| Particles | Lite? | yes | yes | **gated** (2D only, a drawing: no collision) | `particles` drips at a rate or bursts on an event, also where an entity that went on that event was; no dot is game state, and a replay or rewind draws the same ones (browser test, `tests/m1.test.ts`; K332 for lines that show nothing). Not drawn in 3D, no curves over a dot's life, no images |
 | Audio (samples, music, mixing) | Lite | yes | yes | **gated** (a sample per event, one looping track, two volumes) | `sound EVENT:FILE,... [music=FILE] [vol] [mvol]`: the player starts the file when the event is emitted, and the track at the first key. Browser test: the files started in the player match the events of a replay; the part is rendered to a buffer (`OfflineAudioContext`) and the peaks show the sample at its loudness, `vol` halving it, the music still playing after its first pass, `mvol=0` and mute silencing it, a missing file reported. A game without `sound` ships without the part (1,224 bytes) and keeps the event tones. `check` warns about a malformed pair, a wrong file type, an event no trigger emits, a second sound line, a missing file (K325 to K327, K312). No positional or pitched sound, no per-sample volume, no fades or crossfade between scenes, no buses beyond the two; nobody has listened on a phone |
 | UI (text, buttons, layout) | Lite | yes | yes | **gated** (labels, buttons, nine screen anchors) | `button EVENT [action] [key=]`: a click or tap on its box, or the named key, emits the event and does a trigger's actions (`load:FILE` for a title screen); it is input (`TICK NAME tap`), so it is recorded and replays headless. `pin WHERE [dx] [dy]`: drawn against an edge, a corner or the centre of the view in units of a twelfth of its shorter side, whatever the camera does. Headless test: tap, key, every tap counts, actions, a tap on a non-button is an error (K201), warnings K328 to K331. Browser test at two view sizes (wide and tall): the pinned boxes are where the rule puts them before and after the camera moves, clicks on and beside a pinned button and on one in the world, the recorded taps replay to the same hash; the title example draws its label inside the button and starts on the key. Reference image (`title`). No containers, rows or grids (every entity is placed by itself), no text wrapping or measured sizes, no hover or pressed look, no focus moving between buttons, no sliders, text fields or scrolling; 2D only; `solve` does not tap |
 | Gamepad | Lite | yes | yes | **gated** (standard layout, actions only) | the player asks the Gamepad API once a frame: d-pad or left stick past half way, button 0 is `a`, button 1 is `b`; a change becomes the same input line a key makes. Browser test with a synthetic pad: d-pad, stick under and over the threshold, both buttons, a pad that goes away, and the recorded input replays headless to the same hash. No analog values (the simulation has six on/off actions), no remapping, no rumble, no pad button for pause or restart; never tried with a real pad |
@@ -171,7 +171,7 @@ row they use **gated**.
 
 Open, and the gate cannot be judged until they are settled: the three demos
 have not been named, and the choice decides whether circle and polygon
-collision and particles (both **none**) are Lite rows. Rigid bodies in 2D are
+collision (**none**) and particles (**gated** in part) are Lite rows. Rigid bodies in 2D are
 not: they are Standard on the physics axis.
 
 ### Standard
