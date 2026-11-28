@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { EDITIONS, isEdition, lowest, needs, over, why } from './edition.ts';
@@ -48,7 +48,8 @@ export interface CmdArgs {
 /** What a scene run threw, as an error line that says where: in the game's script when the
  * stack passes through a file of the game's folder, in the engine when it does not. */
 function runtimeError(e: Error, folder: string): string {
-  const game = `${pathToFileURL(resolve(folder)).href}/`, engine = new URL('.', import.meta.url).href;
+  // Node names a module by its real path, so a linked folder (macOS /var) is followed first.
+  const game = `${pathToFileURL(existsSync(folder) ? realpathSync(folder) : resolve(folder)).href}/`, engine = new URL('.', import.meta.url).href;
   const at = (e.stack ?? '').split('\n').map((l) => /(file:\/\/\/[^\s)]+):(\d+):\d+/.exec(l))
     .find((m) => m && m[1].startsWith(game) && !m[1].startsWith(engine));
   const msg = String(e.message ?? e).split('\n')[0];
