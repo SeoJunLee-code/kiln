@@ -31,6 +31,21 @@ rope, spring: from this centre to the other's (or, with world, this one's) moved
 length=0 is the distance at the start. Joined bodies do not collide with each other.
 Scripts may change motor, power, min, max, or drop the component.`,
   },
+  nav: {
+    about: 'enemies and others that find their way',
+    text: `nav TO speed [reach] walks an entity with pos, box and vel to TO (a name or #tag, the
+nearest one), around solid entities that stand still and solid tiles:
+  entity wolf
+    pos 1 1
+    box 0.8 0.8
+    vel
+    nav hero 3 event=bitten     % emits bitten once it is within reach
+reach: how near counts as there (centre to centre; 0: onto it). plane=xz: a 3D floor.
+cell (1) is the grid of the search: set it to the tile size. 8 directions, corners are
+not cut, the mover's own size counts. It re-plans at every cell, so moved targets and
+opened doors are noticed; movers do not avoid each other. With no way through it goes as
+close as it can. Not for side-view jumping. Scripts retarget with w.get(id,'nav').to.`,
+  },
   view: {
     about: 'turning, animation, cameras, labels',
     text: `None of these change collision, triggers or solve: they see the unturned box.

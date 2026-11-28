@@ -52,10 +52,11 @@ const toJs = (code: string): string => stripTypeScriptTypes(code).replace(IMPORT
  *   gltf  the glTF reader: a model file is in the game folder
  *   audio samples and music: some scene or script has `sound`
  *   rigid the engine's side of a physics backend: some scene names one
+ *   nav   path finding: some scene or script has `nav`
  * Scripts can add components while the game runs, so the test is on what the folder
  * holds, not on what one scene says at tick 0.
  */
-const PARTS: Record<string, string> = { 'web/view3.ts': '3d', 'web/gpu.ts': '3d', 'web/gl.ts': '3d', 'web/gltf.ts': 'gltf', 'web/audio.ts': 'audio', 'src/rigid.ts': 'rigid', 'web/inspect.ts': 'play only' };
+const PARTS: Record<string, string> = { 'web/view3.ts': '3d', 'web/gpu.ts': '3d', 'web/gl.ts': '3d', 'web/gltf.ts': 'gltf', 'web/audio.ts': 'audio', 'src/rigid.ts': 'rigid', 'src/nav.ts': 'nav', 'web/inspect.ts': 'play only' };
 
 /**
  * Write a folder that any static web host can serve: the player, the engine modules it
@@ -92,6 +93,7 @@ export function build(sceneFile: string, outDir: string): { written: string[]; s
     // `eye` as a component line in a scene, or as a quoted name in a script.
     if (/\.(kiln|ts)$/.test(f) && (f.endsWith('.ts') ? /['"`]eye['"`]/ : /^\s+eye(\s|$)/m).test(readFileSync(path, 'utf8'))) parts.add('3d');
     if (/\.(kiln|ts)$/.test(f) && (f.endsWith('.ts') ? /['"`]sound['"`]/ : /^\s+sound(\s|$)/m).test(readFileSync(path, 'utf8'))) parts.add('audio');
+    if (/\.(kiln|ts)$/.test(f) && (f.endsWith('.ts') ? /['"`]nav['"`]/ : /^\s+nav(\s|$)/m).test(readFileSync(path, 'utf8'))) parts.add('nav');
     if (f.endsWith('.kiln')) scenes.push(f);
     if (f.endsWith('.ts')) put(`game/${f.replace(/\.ts$/, '.js')}`, toJs(readFileSync(path, 'utf8')));
     else copy(f);
@@ -128,7 +130,7 @@ export function build(sceneFile: string, outDir: string): { written: string[]; s
   }
 
   put('index.html', readFileSync(join(ROOT, 'web/index.html'), 'utf8').replace('engine/web/player.ts', 'engine/web/player.js'));
-  put('config.json', JSON.stringify({ scene: basename(sceneFile), input: false, built: true, scenes }));
+  put('config.json', JSON.stringify({ scene: basename(sceneFile), input: false, built: true, scenes, nav: parts.has('nav') }));
   parts.delete('rigid'); // it is the backend's other half, not a part of its own
   return { written, skipped, parts: [...parts].sort(), engineBytes };
 }

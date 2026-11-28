@@ -212,6 +212,10 @@ export function parseScene(text: string, file = 'scene'): Scene {
       if (!JOINTS.includes(data.kind as string)) { err('K104', line, `joint kind must be one of ${JOINTS.join(', ')}, got '${data.kind}'`); bad = true; }
       else if (!['x', 'y', 'z'].includes(data.axis as string)) { err('K104', line, `joint axis must be x, y or z, got '${data.axis}'`); bad = true; }
     }
+    if (def.name === 'nav' && !bad && (!['xy', 'xz'].includes(data.plane as string) || (data.cell as number) < 4096)) {
+      err('K104', line, `nav plane must be xy or xz, and cell at least 1/16`, 'e.g. nav hero 3 plane=xz');
+      bad = true;
+    }
     if (def.name === 'trigger' && !bad) {
       for (const act of (data.action as string).split('+')) {
         if (!/^(none|despawn-self|despawn-other|despawn:#?[A-Za-z_][\w-]*|load:[\w.-]+\.kiln)$/.test(act)) {

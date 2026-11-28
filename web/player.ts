@@ -112,6 +112,8 @@ try {
   }
 
   await loadBackend(physicsOf(sceneText), cfg.scene);
+  // A built game that does not use navigation was built without it.
+  if (cfg.nav !== false) await import('../src/nav.ts');
 
   const reset = (): void => {
     if (world) freeLink(world);

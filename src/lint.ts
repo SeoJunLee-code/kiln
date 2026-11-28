@@ -26,6 +26,7 @@ const NEEDS: Record<string, string[]> = {
   rigid: ['pos', 'box'],
   button: ['box'],
   joint: ['rigid'],
+  nav: ['pos', 'vel', 'box'],
   impulse: ['rigid'],
   force: ['rigid'],
 };
@@ -59,6 +60,11 @@ export function lint(scene: Scene, file: string, exists?: (name: string) => bool
       }
     }
     if (w.has(id, 'rigid') && !w.physics) warn('K316', `'${name}' has 'rigid' but the world has no physics backend, so it does nothing`, 'add physics=rapier to the world line');
+    const nv = w.get(id, 'nav');
+    if (nv) {
+      if (!w.match(nv.to as string).length) warn('K311', `nav on '${name}' walks to '${nv.to}', which matches no entity`, (nv.to as string).startsWith('#') ? 'no entity has that tag' : suggest(nv.to as string, w.ids.keys()));
+      if (nv.plane === 'xy' && w.gy && w.has(id, 'body')) warn('K323', `nav on '${name}' is for a floor seen from above, but gravity pulls it down the same plane`, 'use plane=xz in 3D; side-view jumping is not planned for');
+    }
     const jt = w.get(id, 'joint');
     if (jt && jt.to !== 'world') {
       const to = w.ids.get(jt.to as string);

@@ -39,6 +39,8 @@ defineComponent('ctrl', 'input-driven. jump=0: 4-way (a body under gravity only 
   [f('speed', 'fx'), f('jump', 'fx', 0), f('plane', 'str', 'xy')]);
 defineComponent('pace', 'walks back and forth along axis (x, y or z) from min to max at speed; needs vel',
   [f('axis', 'str'), f('min', 'fx'), f('max', 'fx'), f('speed', 'fx')]);
+defineComponent('nav', 'walks to `to` (name or #tag) around solids. Needs vel and box (guide nav)',
+  [f('to', 'str'), f('speed', 'fx'), f('reach', 'fx', 0), f('plane', 'str', 'xy'), f('cell', 'fx', 65536), f('event', 'str', ''), f('on', 'int', 0), f('nx', 'fx', 0), f('ny', 'fx', 0), f('there', 'int', 0)], 'nav', ['world', 'standard']);
 defineComponent('tag', 'group label; refer to it as #name', [f('name', 'str')]);
 defineComponent('trigger', 'emits event when target (entity name or #tag) starts overlapping. action: none, despawn-self, despawn-other, despawn:REF (name or #tag), load:FILE (event load; the scene ends and FILE opens); join with +',
   [f('target', 'str'), f('event', 'str'), f('action', 'str', 'none')]);

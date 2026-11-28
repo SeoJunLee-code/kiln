@@ -660,3 +660,22 @@ test('browser: an animated sprite shows the frame of its tick, mirrored when it 
     assert.ok(Math.abs(got[3].green.n - got[3].blue.n) < 0.05 * got[3].green.n, `green ${got[3].green.n}, blue ${got[3].blue.n}`);
   } finally { await player.close(); }
 });
+
+test('browser: a built game with navigation walks the same way as headless', { skip }, async () => {
+  const { build } = await import('../src/build.ts');
+  const { run } = await import('../src/run.ts');
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = mkdtempSync(join(tmpdir(), 'kiln-game-')), out = mkdtempSync(join(tmpdir(), 'kiln-site-'));
+  const text = 'entity wall\n  pos 3 0\n  box 1 4\n  solid\nentity a\n  pos 0 0\n  box 0.8 0.8\n  vel\n  nav b 3\nentity b\n  pos 6 0\n  box 0.8 0.8\n';
+  writeFileSync(join(dir, 'walk.kiln'), text);
+  assert.deepEqual(build(join(dir, 'walk.kiln'), out).parts, ['nav']);
+  const site = await host(out);
+  try {
+    const page = await browser.open(`${site.url}?paused&offscreen&scene=walk.kiln`, { width: 960, height: 600 });
+    const got = await page.eval<{ hash: string }>(PLAY);
+    assert.equal(got.hash, run(text, { ticks: 90 }).hash);
+    assert.deepEqual(page.errors(), []);
+  } finally { site.close(); }
+});

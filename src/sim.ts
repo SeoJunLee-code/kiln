@@ -41,7 +41,7 @@ interface Ask { comps: string[]; out: number[] }
 const ask = (...comps: string[]): Ask => ({ comps, out: [] });
 const CTRL = ask('ctrl', 'vel'), PACE = ask('pace', 'pos', 'vel'), ANIM = ask('anim', 'vel'), BODY = ask('body', 'vel');
 const SOLID = ask('solid', 'pos', 'box'), MAPS = ask('tiles', 'pos'), MOVERS = ask('pos', 'vel'), ROT = ask('rot'), QUAT = ask('quat');
-const BUTTON = ask('button'), TRIGGER = ask('trigger', 'pos', 'box'), TAG = ask('tag'), TALLY = ask('tally');
+const NAV = ask('nav', 'pos', 'vel'), BUTTON = ask('button'), TRIGGER = ask('trigger', 'pos', 'box'), TAG = ask('tag'), TALLY = ask('tally');
 
 /** The same ids as w.query, in the same order. Valid until the same question is asked again. */
 function find(w: World, q: Ask): number[] {
@@ -332,6 +332,9 @@ function nudge(id: number, a: number, want: number): number {
   return to - from;
 }
 
+/** Filled in by nav.ts when a game that uses `nav` loads it. */
+export const nav: { run?: (w: World, ids: number[]) => void } = {};
+
 /** Advance one fixed tick. System order is fixed: input, ctrl, pace, scripts (pre), gravity, move, physics, turn, triggers, scripts (post). */
 export function step(w: World, script?: InputScript): void {
   // What was tapped or newly pressed this tick: buttons answer to these further down.
@@ -364,6 +367,12 @@ export function step(w: World, script?: InputScript): void {
     const c = w.get(id, 'pace')!, p = w.get(id, 'pos')!, v = w.get(id, 'vel')!, a = c.axis as string;
     if ((p[a] as number) >= (c.max as number)) v[a] = -(c.speed as number);
     else if ((p[a] as number) <= (c.min as number) || v[a] === 0) v[a] = c.speed;
+  }
+
+  const walkers = find(w, NAV);
+  if (walkers.length) {
+    if (!nav.run) throw new Error(`'nav' is used but navigation was not loaded: name nav in the scene or a script of the game`);
+    nav.run(w, walkers);
   }
 
   for (const sys of w.pre) sys(w);

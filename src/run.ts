@@ -5,6 +5,7 @@ import { KilnFail, kept, parseScene, suggest, take } from './scene.ts';
 import type { RawExpect } from './scene.ts';
 import { hash, parseInput, step, tileAt, tileRows } from './sim.ts';
 import type { System, World } from './world.ts';
+import './nav.ts';
 
 export interface RunResult {
   world: World; hash: string; expects: Expect[]; ok: boolean; uses: string[];

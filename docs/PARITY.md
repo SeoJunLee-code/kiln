@@ -23,8 +23,8 @@ A row whose Kiln cell says **gated** and then names a part in brackets is
 Such a row does not close a gate by itself and is counted apart from the rows
 gated in full (rule added 2026-11-27).
 
-Counted on 2026-11-28, 63 rows: **23 gated in full, 14 gated in part, 6 works,
-19 none**, and one row that is a number (platforms). By the edition column of
+Counted on 2026-11-28, 63 rows: **23 gated in full, 15 gated in part, 6 works,
+18 none**, and one row that is a number (platforms). By the edition column of
 the tables:
 
 | Edition | gated in full | gated in part | works | none | number | rows |
@@ -32,7 +32,7 @@ the tables:
 | all | 16 | 1 | 6 | 2 | 0 | 25 |
 | Lite | 6 | 7 | 0 | 2 | 0 | 15 |
 | Lite? | 0 | 0 | 0 | 2 | 0 | 2 |
-| Standard | 1 | 6 | 0 | 6 | 1 | 14 |
+| Standard | 1 | 7 | 0 | 5 | 1 | 14 |
 | Ultra | 0 | 0 | 0 | 5 | 0 | 5 |
 | — | 0 | 0 | 0 | 2 | 0 | 2 |
 
@@ -70,7 +70,7 @@ does that thing best. The agent-first rows belong to the core and hold in all th
 | Lite features drawn by both renderers | Lite | **gated** | the reference images shared by WebGL2 and WebGPU |
 | Allocation per tick in the simulation path: Lite no more than measured, Standard and Ultra none | all | none | `bench/alloc.ts` on the reference PC: 1.5 to 2.2 KB per played tick and 1.3 to 1.8 KB per idle tick in four Lite examples (5 to 11 KB before). `tests/alloc.test.ts` holds a ceiling over two of them |
 | Parallel simulation reaches the serial hash | Standard | none | no parallel code yet |
-| `check` reports the edition per axis (drawing, physics, world, network) | all | **gated** | one line per axis above Lite; nothing sets world or network yet. The scenes drawn only by WebGPU must be exactly those whose drawing is Standard |
+| `check` reports the edition per axis (drawing, physics, world, network) | all | **gated** | one line per axis above Lite; `nav` sets world; nothing sets network yet. The scenes drawn only by WebGPU must be exactly those whose drawing is Standard |
 | Budgets per edition: exported bytes, memory, time to first frame | all | works (Lite, bytes gated; the other two measured on the PC) | bytes are gated in the row above. Memory after loading and time to the first frame: [`proof/lite/START.md`](../proof/lite/START.md) (`bench/start.ts`), reference PC only, no phone, no limit set |
 | A proof game per edition, built by an agent, at 60 fps on that edition's reference machine | all | works (Lite, on the PC; no phone) | `proof/lite`: spec, game and run record; tests replay it headless and in a browser. Frame rate measured on the reference PC by the protocol ([`proof/lite/FPS.md`](../proof/lite/FPS.md), 24 runs of 60 s): 1% low never under 247 fps without a frame cap, with the GPU or with it turned off, and no frame over 16.67 ms on the display. Not measured on a phone; with the page's CPU slowed 4x, one run of three had a 1% low of 52 fps. CI cannot check time; it holds a frame of the largest level to 90 Canvas 2D calls (`tests/proof.test.ts`). Standard and Ultra: none |
 | Agent cost per edition: tokens for one spec, failures repaired without a person | all | works (Lite, one run each) | [`proof/lite/COMPARE.md`](../proof/lite/COMPARE.md): the same spec built once on Kiln before its fixes (7 failures repaired, 105 turns, $0.73), once after (0, 44 turns, $0.43) and once on Godot 4.7.2 (0, 45 turns, $0.73, 29 minutes against 4, and three and a half times the bytes of game: the agent wrote the rules, the solver and the test runner itself). One run each, so the spread is unknown; the spec was written by Kiln, and the engine was fixed for it between the two Kiln runs, so it shows nothing about which engine is cheaper. The comparison that counts is planned in [`EDITIONS.md`](EDITIONS.md), "Winning, not only matching" |
@@ -143,7 +143,7 @@ Neither engine was built for this; these rows are why Kiln exists.
 |---|---|---|---|---|---|---|
 | Deterministic across OSes | all | no | no | no | **gated** | hashes on 3 OSes |
 | 3D rigid bodies, convex shapes | Standard | yes | yes | yes | **gated** (boxes, balls, capsules, cylinders, cones and six joints, Rapier backend) | pinned state hash and example hash on 3 OSes; browser replay equals headless; save and restore continue exactly; `solve` through physics; bodies stop, carry and are shoved by the character without overlap, also wedged against a wall; a body at 4 units per tick does not pass a thin wall; `impulse` and `force` from the scene or a script; a script puts a body somewhere or sets its speed, turn and spin, and a mover is stopped by it on that tick; WebGPU reference image (`tumble3d`); a body that runs into the character moves it by their weights, takes it along when a force drives the body, not through a wall, and a state saved meanwhile continues exactly; bodies a script writes to every tick stop a mover to a pinned hash; capsules, cylinders and cones come to rest at their size and block a mover; `joint` fixed, ball, hinge (limits, motor), slider (limits, motor), rope and spring end where written, pinned hash on 3 OSes, save and restore continue exactly, a dropped or despawned end lets go. Measured, not gated: about 500 bodies fit a 60 Hz tick on the reference laptop (`bench/PHYSICS.md`). No convex hull from a mesh, no triangle-mesh colliders, joints do not break under load |
-| Navigation | Standard | yes | yes | yes | none (`pace` only) | |
+| Navigation | Standard | yes | yes | yes | **gated** (grid paths; no navmesh, no avoidance, not for side-view jumping) | `nav` walks to a name or #tag around static solids and solid tiles, on a 2D plane or a 3D floor; walk round a wall without entering it, event on arrival, as close as possible when shut off and through once the door goes, saved state continues, pinned hash on 3 OSes, built browser game matches headless |
 | World streaming | Ultra | no | partial | yes | none | |
 | Networking | Standard | yes | yes | yes | none | |
 
