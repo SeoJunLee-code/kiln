@@ -80,23 +80,47 @@ A browser gives no sound before the first key, tap or pad button, so the music s
 there. M mutes. Nothing in the game can read sound: headless runs and solve skip it, and
 no expect can hear it. check warns about a missing file and an event nothing emits.`,
   },
+  script: {
+    about: 'the API of a use script',
+    text: `export default (k) => {
+  k.component('lamp', 'doc', [{ name: 'on', type: 'int', def: 0 }]);   // types: fx int str
+  k.system((w) => {                          // every tick, before movement
+    for (const id of w.query('lamp', 'pos')) {       // ids, ascending
+      const lamp = w.get(id, 'lamp');       // the live object: assign to its fields
+    }
+  });
+  k.system((w) => {}, 'post');               // after triggers
+};
+WORLD (w)
+query(...comps)  match(name or #tag)  ids.get(name)  names[id]      find entities
+get(id, comp)  has(id, comp)  add(id, comp, {every field})  drop(id, comp)
+spawn(name) -> id   throws if the name is taken: put w.tick or a count in it
+despawn(id)
+on(action) held now   emit(event, a, b) heard by expect, tally, sound
+rand() uint32   tick   hz   gx gy gz   events: {tick, name, a, b}[] so far
+VALUES  pos vel box are {x, y, z}; tag is {name}. type fx is fixed-point: 1 unit = k.ONE.
+k.fx(1.5), k.mul(a, b), k.div(a, b), k.fmtFx(v) text, k.tickShare(perSecond, w.tick, w.hz)
+RULES  no floats, no Math.random or Date; keep state in components, not in variables.
+console.log shows in the reply.`,
+  },
 };
 
 /** One part of the manual. Its component list is generated from the registry. */
 export function topicText(topic: string): string {
   const t = TOPICS[topic];
+  const comps = schemaText(topic);
   return `KILN GUIDE: ${topic}  (${t.about})
 ${t.text}
-
+${comps && `
 COMPONENTS
-${schemaText(topic)}`;
+${comps}`}`;
 }
 
 /** The lines of the core guide that say what else there is to read. */
 function topicIndex(): string {
-  return Object.entries(TOPICS).map(([name, t]) => {
+  return Object.entries(TOPICS).flatMap(([name, t]) => {
     const comps = [...registry.values()].filter((c) => c.topic === name).map((c) => c.name).join(' ');
-    return `${name}: ${comps}  -- ${t.about}`;
+    return comps ? [`${name}: ${comps}  -- ${t.about}`] : [];
   }).join('\n');
 }
 
@@ -171,14 +195,7 @@ WORKFLOW
    the furthest attempt: fix the level there.
 3. Save the input with --out and keep test passing as you change things.
 
-SCRIPTS  only when components cannot express the rule
-export default (k) => {
-  k.component('name', 'doc', [{ name: 'f', type: 'fx' }]);   // types: fx int str; def = default
-  k.system((w) => { for (const id of w.query('name', 'pos')) { const c = w.get(id, 'name'); } });
-};
-World: w.query(...comps) ids ascending, w.get(id, comp), w.add(id, comp, data), w.spawn(name),
-w.despawn(id), w.match(nameOrTag), w.on(action), w.emit(event), w.rand(), w.tick.
-Numbers of type fx are fixed-point: k.fx(1.5), k.mul(a, b), k.div(a, b), k.ONE. No floats,
-no Math.random, no Date; keep state in components, not in variables.
+SCRIPTS  only when components cannot express the rule: use ./file.ts exporting
+(k) => { k.system((w) => { ... }) }. Read \`guide script\` for the API before writing one.
 `;
 }

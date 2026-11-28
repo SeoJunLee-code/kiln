@@ -258,7 +258,7 @@ Scripts must stay deterministic. `Math.random`, `Date`, timers and similar are r
 { "mcpServers": { "kiln": { "command": "node", "args": ["/path/to/kiln/src/cli.ts", "mcp"] } } }
 ```
 
-The server exposes one tool, `kiln`, with a `cmd` argument (`check`, `run`, `test`, `solve`, `schema`, `guide`). `guide` returns the core manual in one call (about 5,200 characters; a test keeps it under 5,600). Parts only some games need (`guide physics`, `guide view`; over MCP `topic=physics`) are named there in one line each and read on demand, so a new component does not make every agent's first call longer. With that an agent does not have to read this README or the source. One tool instead of many keeps the definition an agent carries in context small.
+The server exposes one tool, `kiln`, with a `cmd` argument (`check`, `run`, `test`, `solve`, `schema`, `guide`). `guide` returns the core manual in one call (about 5,100 characters; a test keeps it under 5,600). Parts only some games need (`guide physics`, `guide view`, `guide script`; over MCP `topic=physics`) are named there in one line each and read on demand, so a new component does not make every agent's first call longer. With that an agent does not have to read this README or the source. One tool instead of many keeps the definition an agent carries in context small.
 
 ## Is it actually smaller?
 
