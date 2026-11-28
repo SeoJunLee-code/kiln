@@ -130,6 +130,11 @@ these gaps.
 No failed call was read as a fault of either engine. The refused shell lines belong to the
 setup, as in [`SPREAD.md`](SPREAD.md).
 
+**Added after the H3 runs:** the pinned Kiln server did not reread a script changed during a
+session ([`RESULT-H3.md`](RESULT-H3.md), "The fault of the engine"). In H2 this touched
+kiln-1 only: 3 of its 20 engine calls came after a loaded script had been changed, 1 of them
+failed. kiln-2 and kiln-3 changed no loaded script. The numbers above stand as measured.
+
 ## Godot's time outside the model
 
 As in the spread, the long calls are one thing: the starting game carries a search for

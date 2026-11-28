@@ -16,7 +16,7 @@ type Line = {
 // ms: from the line that asked for the call to the line that answered it; -1 when the log has no times.
 export type Call = { tool: string; cmd: string; failed: boolean; first: string; ms: number };
 export type Cost = {
-  model: string; finished: boolean; ended: string; turns: number; seconds: number;
+  model: string; finished: boolean; ended: string; turns: number; seconds: number; stretches: number;
   // The run's time in two parts: waiting for the model (the provider's own figure) and inside
   // tool calls (calls that ran side by side are counted once). The rest is the harness.
   modelSeconds: number; toolSeconds: number; secondsBy: Record<string, number>;
@@ -40,12 +40,13 @@ export function godotFailed(reply: string): boolean {
 
 export function cost(log: string): Cost {
   const out: Cost = {
-    model: '', finished: false, ended: 'cut off', turns: 0, seconds: 0, modelSeconds: 0, toolSeconds: 0, secondsBy: {}, input: 0, cacheWrite: 0, cacheRead: 0, output: 0, usd: 0,
+    model: '', finished: false, ended: 'cut off', turns: 0, seconds: 0, stretches: 0, modelSeconds: 0, toolSeconds: 0, secondsBy: {}, input: 0, cacheWrite: 0, cacheRead: 0, output: 0, usd: 0,
     calls: [], failures: 0, byTool: {}, failedBy: {},
   };
   const open = new Map<string, Call>();
   const began = new Map<string, number>();
   const spans: [number, number][] = [];
+  let runMs = 0;
   for (const raw of log.split('\n')) {
     if (!raw.trim()) continue;
     let m: Line;
@@ -72,20 +73,25 @@ export function cost(log: string): Cost {
         call.first = (reply.split('\n').find((l) => /^(E K\d+|FAIL |fail\b|\s*(SCRIPT ERROR|ERROR|Parse Error))/.test(l)) ?? reply.split('\n')[0] ?? '').slice(0, 110);
       }
     }
+    // A run that is woken again after its last turn (a background command finishing) writes one
+    // result line per stretch. Turns, tokens and time are each stretch's own and are added up;
+    // the price and the model time are totals so far, so the last line holds them.
     if (m.type === 'result') {
       const u = m.usage ?? {};
       out.finished = m.subtype === 'success';
       out.ended = m.subtype ?? '?';
+      out.stretches++;
       out.modelSeconds = Math.round((m.duration_api_ms ?? 0) / 1000);
-      out.turns = m.num_turns ?? 0;
-      out.seconds = Math.round((m.duration_ms ?? 0) / 1000);
-      out.input = Number(u.input_tokens ?? 0);
-      out.cacheWrite = Number(u.cache_creation_input_tokens ?? 0);
-      out.cacheRead = Number(u.cache_read_input_tokens ?? 0);
-      out.output = Number(u.output_tokens ?? 0);
+      out.turns += m.num_turns ?? 0;
+      runMs += m.duration_ms ?? 0;
+      out.input += Number(u.input_tokens ?? 0);
+      out.cacheWrite += Number(u.cache_creation_input_tokens ?? 0);
+      out.cacheRead += Number(u.cache_read_input_tokens ?? 0);
+      out.output += Number(u.output_tokens ?? 0);
       out.usd = m.total_cost_usd ?? 0;
     }
   }
+  out.seconds = Math.round(runMs / 1000);
   let ms = 0, end = -Infinity;
   for (const [a, b] of spans.sort((x, y) => x[0] - y[0])) { if (b > end) { ms += b - Math.max(a, end); end = b; } }
   out.toolSeconds = Math.round(ms / 1000);
@@ -107,7 +113,7 @@ export function report(c: Cost): string {
   return [
     `model            ${c.model}`,
     `ended by itself  ${c.finished ? 'yes' : `no (${c.ended})`}`,
-    `time             ${t(c.seconds)}`,
+    `time             ${t(c.seconds)}${c.stretches > 1 ? ` in ${c.stretches} stretches, waits between them not counted` : ''}`,
     `  for the model  ${t(c.modelSeconds)}`,
     `  inside tools   ${t(c.toolSeconds)}${Object.keys(c.secondsBy).length ? ': ' + Object.entries(c.secondsBy).map(([k, v]) => `${k} ${t(v)}`).join(', ') : ''}`,
     `turns            ${c.turns}`,

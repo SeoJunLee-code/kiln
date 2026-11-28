@@ -94,3 +94,13 @@ test('agent cost: time is split into waiting for the model and inside tools, sid
   // A log without times still counts calls; their time is unknown, not zero.
   assert.equal(cost(use('1', 'Write', {})).calls[0].ms, -1);
 });
+
+test('agent cost: a run woken again after its last turn is added up over its result lines', () => {
+  const end = (turns: number, ms: number, apiMs: number, usd: number, out: number): string =>
+    line({ type: 'result', subtype: 'success', num_turns: turns, duration_ms: ms, duration_api_ms: apiMs, total_cost_usd: usd,
+      usage: { input_tokens: 1, cache_creation_input_tokens: 10, cache_read_input_tokens: 100, output_tokens: out } });
+  const c = cost([end(42, 541000, 231000, 0.65, 300), end(10, 134000, 262000, 0.75, 40)].join('\n'));
+  assert.deepEqual([c.turns, c.seconds, c.modelSeconds, c.usd, c.stretches], [52, 675, 262, 0.75, 2]);
+  assert.deepEqual([c.input, c.cacheWrite, c.cacheRead, c.output], [2, 20, 200, 340]);
+  assert.match(report(c), /time +11m 15s in 2 stretches/);
+});
