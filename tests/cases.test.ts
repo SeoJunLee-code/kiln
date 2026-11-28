@@ -3,7 +3,9 @@
 // things without copying it. The agent made three copies of its levels and read ticks by hand.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { command } from '../src/commands.ts';
 import { run } from '../src/run.ts';
@@ -105,7 +107,15 @@ test('--follow stops at a scene that fails, and says which', async () => {
 test('--follow gives up on a scene that loads itself, and on one that loads nothing there', async () => {
   const loop = await command('test', { file: fix('loop/again.kiln'), follow: true });
   assert.equal(loop.code, 2);
-  assert.match(loop.text, /^E K132 still loading after 64 scenes: again\.kiln > again\.kiln > again\.kiln/m);
+  // The same scene, input and kept state twice: a circle, said at once.
+  assert.match(loop.text, /^E K132 the game goes round for ever: again\.kiln > again\.kiln, each time with the same/m);
+  assert.equal(loop.text.match(/^scene /gm)?.length, 1, loop.text);
+  // Kept state that changes every time is not a circle: the count of scenes ends it.
+  const dir = mkdtempSync(join(tmpdir(), 'kiln-loop-'));
+  const grows = join(dir, 'grows.kiln');
+  writeFileSync(grows, ['world hz=60 gravity=0,0', 'entity hero', '  pos 0 0', '  box 1 1', 'entity door', '  pos 0 0', '  box 1 1', '  trigger hero out load:grows.kiln', 'entity far', '  pos 5 5', '  vel 1 0', '  keep pos', 'expect event out by 60', ''].join(String.fromCharCode(10)));
+  const counted = await command('test', { file: grows, follow: true });
+  assert.match(counted.text, /^E K132 still loading after 64 scenes: grows\.kiln x64; last /m);
   const lost = await command('test', { file: fix('loop/lost.kiln'), follow: true });
   assert.equal(lost.code, 2);
   assert.match(lost.text, /^E K001 lost\.kiln loads 'nowhere\.kiln', which is not next to it$/m);

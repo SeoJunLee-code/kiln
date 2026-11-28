@@ -17,6 +17,13 @@ import { solve } from './solve.ts';
 /** --follow gives up after this many scenes: a scene that loads itself would go on for ever. */
 const FOLLOW_MAX = 64;
 
+/** "a.kiln x3, b.kiln x2": how often each scene ran. */
+function tally(path: string[]): string {
+  const n = new Map<string, number>();
+  for (const p of path) n.set(p, (n.get(p) ?? 0) + 1);
+  return [...n].map(([name, times]) => `${name} x${times}`).join(', ');
+}
+
 export const COMMANDS = ['check', 'run', 'test', 'solve', 'schema', 'guide'];
 
 export interface CmdArgs {
@@ -170,9 +177,14 @@ export async function command(cmd: string, a: CmdArgs): Promise<{ text: string; 
     // --follow: when the scene loads another, go on in that one with its own NAME.input, as a
     // player would, until a scene ends without loading or one fails. A game played end to end.
     const path = [basename(file)];
+    // A run depends only on the scene, its input and what was kept: the same load twice is a circle.
+    const seen = new Map<string, number>();
     while (a.follow && r.load !== undefined && r.ok) {
       if (a.scene !== undefined) return out.push('E K002 follow needs a scene file, not scene text'), done(2);
-      if (path.length >= FOLLOW_MAX) return out.push(`E K132 still loading after ${FOLLOW_MAX} scenes: ${path.slice(-3).join(' > ')} (hint: a scene that loads itself with the same input never ends)`), done(2);
+      const state = JSON.stringify([r.load, r.kept]), first = seen.get(state);
+      if (first !== undefined) return out.push(`E K132 the game goes round for ever: ${[...path.slice(first), r.load].join(' > ')}, each time with the same input and kept state (hint: the input of one of these scenes ends in the same load again; give it an input that moves on)`), done(2);
+      if (path.length >= FOLLOW_MAX) return out.push(`E K132 still loading after ${FOLLOW_MAX} scenes: ${tally(path)}; last ${path.slice(-3).join(' > ')} (hint: a scene that loads itself with a kept value that always changes never ends)`), done(2);
+      seen.set(state, path.length);
       const next = `${dirname(file)}/${r.load}`, nextInput = next.replace(/\.kiln$/, '.input');
       if (!existsSync(next)) return out.push(`E K001 ${path.at(-1)} loads '${r.load}', which is not next to it`), done(2);
       out.push(`scene ${path.at(-1)} tick=${r.world.tick} hash=${r.hash} passed=${r.expects.length} load=${r.load}`);
