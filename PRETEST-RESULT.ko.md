@@ -199,8 +199,8 @@ fail 1 of 2 scenes
 
 ## 출처
 
-- 게임과 로그: `C:\Users\west6\OneDrive\Desktop\_archive\kiln-compare\holdout\H1|H3\kiln-1..3\game`, 같은 폴더의 `kiln-N.jsonl`.
-- 분류표와 계산: `C:\Users\west6\AppData\Roaming\Claude\side-session-notes\local_6a1d1aa3-7a56-49c2-bfab-dd7152f640d8\classify.mjs`(A의 줄 범위 배정과 바이트), `bundles.mjs`(B의 묶음, C의 느슨한 변형). `node 파일 LOG...`로 다시 돌릴 수 있다.
+- 게임과 로그: 저장소 옆 `_archive/kiln-compare/holdout/H1|H3/kiln-1..3/game`, 같은 폴더의 `kiln-N.jsonl`.
+- 분류표와 계산: 저장소 밖 작업 메모 폴더의 `classify.mjs`(A의 줄 범위 배정과 바이트), `bundles.mjs`(B의 묶음, C의 느슨한 변형). `node 파일 LOG...`로 다시 돌릴 수 있다.
 - C: `node scripts/agentcost.ts LOG --tune`(`scripts/agentcost.ts`의 `tune`).
 - 기존 부품 판단: `node src/cli.ts guide`와 `guide view|levels|physics|ui`(오늘의 엔진). 비교 당시 고정 사본은 `1f50d8d`(11-27)이고 `joint`는 `4461117`(11-28)에 들어왔다.
 - 다시 계산하지 않은 수치: `PLAN-NEXT.ko.md`와 `plan-next-findings.md`.
