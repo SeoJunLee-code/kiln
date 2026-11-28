@@ -32,6 +32,68 @@ export function parseInput(text: string, file = 'input'): InputScript {
 // Axis tables: position field and the matching size field. 2D scenes simply never move on z.
 const P = ['x', 'y', 'z'], S = ['w', 'h', 'd'];
 
+// A tick should need no new memory: its lists and arrays are kept here and filled again.
+// step() never runs inside itself, so one set serves every world, none of it is state, and
+// none of it hangs off a World (solve keeps a great many of those).
+
+/** A query asked every tick: the component names, and the list it was last answered with. */
+interface Ask { comps: string[]; out: number[] }
+const ask = (...comps: string[]): Ask => ({ comps, out: [] });
+const CTRL = ask('ctrl', 'vel'), PACE = ask('pace', 'pos', 'vel'), ANIM = ask('anim', 'vel'), BODY = ask('body', 'vel');
+const SOLID = ask('solid', 'pos', 'box'), MAPS = ask('tiles', 'pos'), MOVERS = ask('pos', 'vel'), ROT = ask('rot'), QUAT = ask('quat');
+const BUTTON = ask('button'), TRIGGER = ask('trigger', 'pos', 'box'), TAG = ask('tag'), TALLY = ask('tally');
+
+/** The same ids as w.query, in the same order. Valid until the same question is asked again. */
+function find(w: World, q: Ask): number[] {
+  const out = q.out, first = w.comps.get(q.comps[0]);
+  asking.world = w; asking.q = q; asking.n = 0; asking.last = -1; asking.sorted = true;
+  // forEach with a function made once: a for-of over the keys makes an iterator each time.
+  first?.forEach(collect);
+  if (out.length !== asking.n) out.length = asking.n;
+  if (!asking.sorted) out.sort((a, b) => a - b);
+  return out;
+}
+
+const asking = { world: undefined as unknown as World, q: undefined as unknown as Ask, n: 0, last: -1, sorted: true };
+function collect(_: unknown, id: number): void {
+  const { world, q } = asking;
+  for (let i = 1; i < q.comps.length; i++) if (!world.has(id, q.comps[i])) return;
+  if (id < asking.last) asking.sorted = false;
+  asking.last = q.out[asking.n++] = id;
+}
+
+/** What w.match(ref) answers, without building it anew. */
+const TARGETS: number[] = [];
+function targets(w: World, ref: string): number[] {
+  let n = 0;
+  if (ref.startsWith('#')) {
+    for (const id of find(w, TAG)) {
+      const name = w.get(id, 'tag')!.name as string;
+      if (name.length === ref.length - 1 && ref.endsWith(name)) TARGETS[n++] = id;
+    }
+  } else {
+    const id = w.ids.get(ref);
+    if (id !== undefined) TARGETS[n++] = id;
+  }
+  if (TARGETS.length !== n) TARGETS.length = n;
+  return TARGETS;
+}
+
+// "trigger:other" as w.overlaps holds it, made once for a pair of names rather than every tick.
+const pairs = new Map<string, Map<string, string>>();
+let pairCount = 0;
+function pairKey(a: string, b: string): string {
+  let of = pairs.get(a);
+  let key = of?.get(b);
+  if (key !== undefined) return key;
+  // A game that keeps spawning new names must not grow this for ever.
+  if (pairCount >= 20000) { pairs.clear(); pairCount = 0; of = undefined; }
+  if (!of) pairs.set(a, (of = new Map()));
+  of.set(b, (key = `${a}:${b}`));
+  pairCount++;
+  return key;
+}
+
 /** Do two boxes overlap on all three axes? (Every box has depth 1 at z 0 unless the scene says otherwise.) */
 export function overlap(ap: Comp, ab: Comp, bp: Comp, bb: Comp): boolean {
   for (let a = 0; a < 3; a++) {
@@ -65,23 +127,24 @@ export type Block = [x: number, y: number, z: number, w: number, h: number, d: n
  * Solids bucketed on a coarse x/y grid, rebuilt every tick. A query then looks only at
  * the cells its region touches instead of at every solid in the world.
  */
-export interface SolidIndex { ids: number[]; box: Block[]; cells: Map<number, number[]>; big: number[]; seen: Int32Array; query: number }
+export interface SolidIndex { ids: number[]; box: Block[]; cells: Map<number, number[]>; big: number[]; crate: boolean[]; seen: Int32Array; query: number }
 
 // Cell edge is 4 units (2^18 in fixed-point), so a shift gives the cell coordinate.
 const CELL_SHIFT = 18;
 const cellKey = (cx: number, cy: number): number => (cx + 32768) * 65536 + (cy + 32768);
 
 export function buildIndex(w: World, solids: number[]): SolidIndex {
-  const ids: number[] = [], box: Block[] = [], cells = new Map<number, number[]>(), big: number[] = [];
+  const ids: number[] = [], box: Block[] = [], cells = new Map<number, number[]>(), big: number[] = [], crate: boolean[] = [];
   for (const s of solids) {
     const sp = w.get(s, 'pos')!, sb = w.get(s, 'box')!;
     const r: Block = [sp.x as number, sp.y as number, sp.z as number, sb.w as number, sb.h as number, sb.d as number, s];
     const i = ids.push(s) - 1;
     box.push(r);
+    crate.push(w.has(s, 'push'));
     const x0 = r[0] >> CELL_SHIFT, x1 = (r[0] + r[3] - 1) >> CELL_SHIFT, y0 = r[1] >> CELL_SHIFT, y1 = (r[1] + r[4] - 1) >> CELL_SHIFT;
     // Something that covers many cells (a floor, a wall) is cheaper to test every time.
     // Crates are kept there too: they move during the tick, and a cell entry would go stale.
-    if ((x1 - x0 + 1) * (y1 - y0 + 1) > 64 || w.has(s, 'push')) { big.push(i); continue; }
+    if ((x1 - x0 + 1) * (y1 - y0 + 1) > 64 || crate[i]) { big.push(i); continue; }
     for (let cx = x0; cx <= x1; cx++) for (let cy = y0; cy <= y1; cy++) {
       const k = cellKey(cx, cy);
       const list = cells.get(k);
@@ -89,35 +152,57 @@ export function buildIndex(w: World, solids: number[]): SolidIndex {
       else cells.set(k, [i]);
     }
   }
-  return { ids, box, cells, big, seen: new Int32Array(ids.length), query: 0 };
+  return { ids, box, cells, big, crate, seen: new Int32Array(ids.length), query: 0 };
 }
+
+let lastIndex: SolidIndex | undefined;
+
+/** The last tick's index while it still describes these solids, else a new one. */
+function solidIndex(w: World, solids: number[]): SolidIndex {
+  const old = lastIndex;
+  if (old && old.ids.length === solids.length) {
+    let i = 0;
+    for (; i < solids.length; i++) {
+      const s = solids[i], r = old.box[i];
+      if (old.ids[i] !== s) break;
+      const p = w.get(s, 'pos')!, b = w.get(s, 'box')!;
+      if (r[0] !== p.x || r[1] !== p.y || r[2] !== p.z || r[3] !== b.w || r[4] !== b.h || r[5] !== b.d || old.crate[i] !== w.has(s, 'push')) break;
+    }
+    if (i === solids.length) {
+      // `seen` holds query numbers; start them over long before they stop fitting.
+      if (old.query > 1e9) { old.query = 0; old.seen.fill(0); }
+      return old;
+    }
+  }
+  return (lastIndex = buildIndex(w, solids));
+}
+
+/** A list of blockers that is filled again and again, with the boxes it made for tiles. */
+export interface Hits { list: Block[]; tiles: Block[] }
+const hitList = (): Hits => ({ list: [], tiles: [] });
+const MOVE_HITS = hitList(), SHOVE_HITS = hitList();
 
 /**
  * Solid boxes and solid tiles that overlap the region lo..hi (half-open on each axis), except `self`.
  * The callers only take minima and maxima over the result, so its order does not affect the simulation.
  */
-export function blockers(w: World, self: number, index: SolidIndex, maps: number[], lo: number[], hi: number[]): Block[] {
-  const out: Block[] = [];
+export function blockers(w: World, self: number, index: SolidIndex, maps: number[], lo: number[], hi: number[], into: Hits = hitList()): Block[] {
+  const out = into.list;
+  let n = 0, made = 0;
   const q = ++index.query;
-  const test = (i: number): void => {
-    if (index.seen[i] === q) return;
-    index.seen[i] = q;
-    if (index.ids[i] === self) return;
-    const r = index.box[i];
-    if (lo[0] < r[0] + r[3] && hi[0] > r[0] && lo[1] < r[1] + r[4] && hi[1] > r[1] && lo[2] < r[2] + r[5] && hi[2] > r[2]) out.push(r);
-  };
-  for (const i of index.big) test(i);
+  for (let i = 0; i < index.big.length; i++) n = take(index, index.big[i], q, self, lo, hi, out, n);
   const x1 = (hi[0] - 1) >> CELL_SHIFT, y1 = (hi[1] - 1) >> CELL_SHIFT;
   for (let cx = lo[0] >> CELL_SHIFT; cx <= x1; cx++) for (let cy = lo[1] >> CELL_SHIFT; cy <= y1; cy++) {
     const list = index.cells.get(cellKey(cx, cy));
-    if (list) for (const i of list) test(i);
+    if (list) for (let i = 0; i < list.length; i++) n = take(index, list[i], q, self, lo, hi, out, n);
   }
   for (const m of maps) {
     const t = w.get(m, 'tiles')!, mp = w.get(m, 'pos')!;
     const size = t.size as number, solid = t.solid as string, rows = tileRows(t);
     // Rows run along `vi` (y, or z for a floor plan); `wi` is the axis the cells are extruded on.
     const vi = t.plane === 'xz' ? 2 : 1, wi = 3 - vi;
-    const at = [mp.x as number, mp.y as number, mp.z as number], depth = t.depth as number;
+    const depth = t.depth as number, at = AT;
+    at[0] = mp.x as number; at[1] = mp.y as number; at[2] = mp.z as number;
     if (!(lo[wi] < at[wi] + depth && hi[wi] > at[wi])) continue;
     const c0 = Math.max(0, fdiv(lo[0] - at[0], size)), c1 = fdiv(hi[0] - 1 - at[0], size);
     const r0 = Math.max(0, fdiv(lo[vi] - at[vi], size)), r1 = Math.min(rows.length - 1, fdiv(hi[vi] - 1 - at[vi], size));
@@ -125,26 +210,51 @@ export function blockers(w: World, self: number, index: SolidIndex, maps: number
       const row = rows[r];
       for (let c = c0; c <= c1 && c < row.length; c++) {
         if (!solid.includes(row[c])) continue;
-        const b: Block = [at[0] + c * size, 0, 0, size, 0, 0, -1];
+        const b = into.tiles[made] ?? (into.tiles[made] = [0, 0, 0, 0, 0, 0, -1]);
+        made++;
+        b[0] = at[0] + c * size; b[3] = size;
         b[vi] = at[vi] + r * size;
         b[vi + 3] = size;
         b[wi] = at[wi];
         b[wi + 3] = depth;
-        out.push(b);
+        out[n++] = b;
       }
     }
   }
+  if (out.length !== n) out.length = n;
   return out;
 }
+
+const AT = [0, 0, 0];
+
+/** Add solid `i` to the list if this query has not seen it and it overlaps the region. */
+function take(index: SolidIndex, i: number, q: number, self: number, lo: number[], hi: number[], out: Block[], n: number): number {
+  if (index.seen[i] === q) return n;
+  index.seen[i] = q;
+  if (index.ids[i] === self) return n;
+  const r = index.box[i];
+  if (lo[0] < r[0] + r[3] && hi[0] > r[0] && lo[1] < r[1] + r[4] && hi[1] > r[1] && lo[2] < r[2] + r[5] && hi[2] > r[2]) out[n++] = r;
+  return n;
+}
+
+/** Fill `lo` and `hi` with the region a box at `cur` covers going along axis `a` as far as `to`. */
+function swept(cur: number[], size: number[], a: number, to: number, lo: number[], hi: number[]): void {
+  for (let i = 0; i < 3; i++) { lo[i] = cur[i]; hi[i] = cur[i] + size[i]; }
+  lo[a] = Math.min(cur[a], to);
+  hi[a] = Math.max(cur[a], to) + size[a];
+}
+
+// A mover's position, movement and size, and the region it is about to cross.
+const CUR = [0, 0, 0], D = [0, 0, 0], SIZE = [0, 0, 0], LO = [0, 0, 0], HI = [0, 0, 0];
+const SHOVE_AT = [0, 0, 0], SHOVE_SIZE = [0, 0, 0], SHOVE_LO = [0, 0, 0], SHOVE_HI = [0, 0, 0];
 
 /** Move a crate along one axis by up to `want`, stopping at whatever blocks it. Returns how far it went. */
 function shove(w: World, crate: Block, a: number, want: number, index: SolidIndex, maps: number[]): number {
   const from = crate[a];
   let to = (from + want) | 0;
-  const lo = [crate[0], crate[1], crate[2]], hi = [crate[0] + crate[3], crate[1] + crate[4], crate[2] + crate[5]];
-  lo[a] = Math.min(from, to);
-  hi[a] = Math.max(from, to) + crate[a + 3];
-  for (const r of blockers(w, crate[6], index, maps, lo, hi)) {
+  for (let i = 0; i < 3; i++) { SHOVE_AT[i] = crate[i] as number; SHOVE_SIZE[i] = crate[i + 3] as number; }
+  swept(SHOVE_AT, SHOVE_SIZE, a, to, SHOVE_LO, SHOVE_HI);
+  for (const r of blockers(w, crate[6], index, maps, SHOVE_LO, SHOVE_HI, SHOVE_HITS)) {
     to = want > 0 ? Math.min(to, r[a] - crate[a + 3]) : Math.max(to, r[a] + r[a + 3]);
   }
   if (w.physics && to !== from) {
@@ -180,34 +290,76 @@ export function spinQuat(q: Comp, tx: number, ty: number, tz: number): void {
   q.x = Math.round((px * ONE) / len); q.y = Math.round((py * ONE) / len); q.z = Math.round((pz * ONE) / len); q.w = Math.round((pw * ONE) / len);
 }
 
+const held = (w: World, action: string): number => (w.pressed.has(action) ? 1 : 0);
+const tagOf = (w: World, id: number): string => (w.get(id, 'tag')?.name as string | undefined) ?? '';
+
+/** Where a mover going `way` along axis `a` has to stop for `r`, if that is before `to`. */
+const stopped = (to: number, way: number, size: number, a: number, r: Block): number =>
+  way > 0 ? Math.min(to, r[a] - size) : Math.max(to, r[a] + r[a + 3]);
+
+/** Entities this tick's triggers and buttons despawn, once all of them have run. */
+const DOOMED: number[] = [];
+
+/** Do what a trigger or button says; `who` is named by a load event. */
+function act(w: World, action: string, self: number, other: number | undefined, who: string): void {
+  if (action === 'none') return;
+  for (const a of action.split('+')) {
+    if (a === 'despawn-self') DOOMED.push(self);
+    else if (a === 'despawn-other' && other !== undefined) DOOMED.push(other);
+    else if (a.startsWith('despawn:')) DOOMED.push(...w.match(a.slice(8)));
+    // Headless this is only an event; the player reacts to it by opening the scene.
+    else if (a.startsWith('load:')) w.events.push({ tick: w.tick, name: 'load', a: a.slice(5), b: who });
+  }
+}
+
+// What the physics step needs from this tick to move a mover that a body ran into.
+const moved = { w: undefined as unknown as World, index: undefined as unknown as SolidIndex, maps: [] as number[] };
+
+/** Move a mover along one axis by up to `want`, as far as nothing solid or rigid is in the way. */
+function nudge(id: number, a: number, want: number): number {
+  const { w, index, maps } = moved;
+  const p = w.get(id, 'pos')!, b = w.get(id, 'box')!;
+  const cur = [p.x as number, p.y as number, p.z as number], size = [b.w as number, b.h as number, b.d as number];
+  const from = cur[a];
+  let to = (from + want) | 0;
+  swept(cur, size, a, to, SHOVE_LO, SHOVE_HI);
+  for (const r of blockers(w, id, index, maps, SHOVE_LO, SHOVE_HI, SHOVE_HITS)) to = want > 0 ? Math.max(from, Math.min(to, r[a] - size[a])) : Math.min(from, Math.max(to, r[a] + r[a + 3]));
+  if (to !== from) {
+    const hit = physicsSweep(w, cur, size, a, to - from, 0);
+    if (hit) to = from + hit.go;
+  }
+  p[P[a]] = to;
+  return to - from;
+}
+
 /** Advance one fixed tick. System order is fixed: input, ctrl, pace, scripts (pre), gravity, move, physics, turn, triggers, scripts (post). */
 export function step(w: World, script?: InputScript): void {
   // What was tapped or newly pressed this tick: buttons answer to these further down.
-  const fresh: string[] = [];
-  for (const [action, down] of script?.get(w.tick) ?? []) {
-    if (down) fresh.push(action);
+  let fresh: string[] | undefined;
+  const pressed = script?.get(w.tick);
+  if (pressed) for (const [action, down] of pressed) {
+    if (down) (fresh ??= []).push(action);
     if (action[3] === ':') continue;
     if (down) w.pressed.add(action);
     else w.pressed.delete(action);
   }
   const heard = w.events.length;
   const k = w.tick % w.hz;
-  const on = (a: string): number => (w.pressed.has(a) ? 1 : 0);
 
-  for (const id of w.query('ctrl', 'vel')) {
+  for (const id of find(w, CTRL)) {
     const c = w.get(id, 'ctrl')!, v = w.get(id, 'vel')!;
     const speed = c.speed as number, jump = c.jump as number;
-    v.x = (on('right') - on('left')) * speed;
+    v.x = (held(w, 'right') - held(w, 'left')) * speed;
     if (c.plane === 'xz') {
       // Ground plane is x/z: up/down walk along z, and `a` jumps.
-      v.z = (on('down') - on('up')) * speed;
-      if (jump > 0 && on('a') && w.get(id, 'body')?.grounded) v.y = -jump;
+      v.z = (held(w, 'down') - held(w, 'up')) * speed;
+      if (jump > 0 && held(w, 'a') && w.get(id, 'body')?.grounded) v.y = -jump;
     } else if (jump > 0) {
-      if (on('up') && w.get(id, 'body')?.grounded) v.y = -jump;
-    } else v.y = (on('down') - on('up')) * speed;
+      if (held(w, 'up') && w.get(id, 'body')?.grounded) v.y = -jump;
+    } else v.y = (held(w, 'down') - held(w, 'up')) * speed;
   }
 
-  for (const id of w.query('pace', 'pos', 'vel')) {
+  for (const id of find(w, PACE)) {
     const c = w.get(id, 'pace')!, p = w.get(id, 'pos')!, v = w.get(id, 'vel')!, a = c.axis as string;
     if ((p[a] as number) >= (c.max as number)) v[a] = -(c.speed as number);
     else if ((p[a] as number) <= (c.min as number) || v[a] === 0) v[a] = c.speed;
@@ -217,12 +369,12 @@ export function step(w: World, script?: InputScript): void {
 
   // Which way an animated sprite looks is state: it has to survive a save, and standing
   // still must not forget it. It follows what the entity is trying to do this tick.
-  for (const id of w.query('anim', 'vel')) {
+  for (const id of find(w, ANIM)) {
     const x = w.get(id, 'vel')!.x as number;
     if (x) w.get(id, 'anim')!.face = x > 0 ? 1 : -1;
   }
 
-  for (const id of w.query('body', 'vel')) {
+  for (const id of find(w, BODY)) {
     // The backend gives a rigid body its gravity; adding it here too would read as a script changing its speed.
     if (w.physics && w.has(id, 'rigid')) continue;
     const v = w.get(id, 'vel')!;
@@ -231,21 +383,23 @@ export function step(w: World, script?: InputScript): void {
     v.z = ((v.z as number) + tickShare(w.gz, k, w.hz)) | 0;
   }
 
-  const index = buildIndex(w, w.query('solid', 'pos', 'box'));
-  const maps = w.query('tiles', 'pos');
+  const index = solidIndex(w, find(w, SOLID));
+  const maps = find(w, MAPS);
   if (w.physics) physicsSync(w);
-  for (const id of w.query('pos', 'vel')) {
+  for (const id of find(w, MOVERS)) {
     // A rigid body is moved by the physics backend, below.
     if (w.physics && w.has(id, 'rigid')) continue;
     const p = w.get(id, 'pos')!, v = w.get(id, 'vel')!, b = w.get(id, 'box');
-    const cur = [p.x as number, p.y as number, p.z as number];
-    const d = [tickShare(v.x as number, k, w.hz), tickShare(v.y as number, k, w.hz), tickShare(v.z as number, k, w.hz)];
+    const cur = CUR, d = D;
+    cur[0] = p.x as number; cur[1] = p.y as number; cur[2] = p.z as number;
+    d[0] = tickShare(v.x as number, k, w.hz); d[1] = tickShare(v.y as number, k, w.hz); d[2] = tickShare(v.z as number, k, w.hz);
     if (!b || w.has(id, 'solid')) {
       for (let a = 0; a < 3; a++) p[P[a]] = (cur[a] + d[a]) | 0;
       continue;
     }
     // Swept test per axis: a solid anywhere along the path stops the mover, however fast it is.
-    const size = [b.w as number, b.h as number, b.d as number];
+    const size = SIZE;
+    size[0] = b.w as number; size[1] = b.h as number; size[2] = b.d as number;
     const body = w.get(id, 'body');
     // Standing on something that moves: go along with it sideways. (Vertically the platform
     // itself does the work: it is solid, so it lifts or drops whatever rests on it.)
@@ -262,21 +416,23 @@ export function step(w: World, script?: InputScript): void {
       let under = -1;
       const from = cur[a], free = (from + d[a]) | 0;
       let to = free;
-      const lo = [...cur], hi = [cur[0] + size[0], cur[1] + size[1], cur[2] + size[2]];
-      lo[a] = Math.min(from, to);
-      hi[a] = Math.max(from, to) + size[a];
-      const stop = (r: Block): void => { to = d[a] > 0 ? Math.min(to, r[a] - size[a]) : Math.max(to, r[a] + r[a + 3]); };
-      const hits = blockers(w, id, index, maps, lo, hi);
+      swept(cur, size, a, to, LO, HI);
+      const hits = blockers(w, id, index, maps, LO, HI, MOVE_HITS);
       // Crates in the way. With gravity on y, y is up/down and crates are not pushed along it;
       // without gravity (top-down) y is a ground axis like x. Only the nearest crate is shoved.
-      const crates = a === 1 && w.gy !== 0 ? [] : hits.filter((r) => r[6] >= 0 && w.has(r[6], 'push'));
-      for (const r of hits) if (!crates.includes(r)) stop(r);
-      if (crates.length) {
-        const near = crates.reduce((m, r) => ((d[a] > 0 ? r[a] < m[a] : r[a] > m[a]) ? r : m));
+      let crates: Block[] | undefined;
+      for (let i = 0; i < hits.length; i++) {
+        const r = hits[i];
+        if (!(a === 1 && w.gy !== 0) && r[6] >= 0 && w.has(r[6], 'push')) (crates ??= []).push(r);
+        else to = stopped(to, d[a], size[a], a, r);
+      }
+      if (crates) {
+        let near = crates[0];
+        for (const r of crates) if (d[a] > 0 ? r[a] < near[a] : r[a] > near[a]) near = r;
         const contact = d[a] > 0 ? near[a] - size[a] : near[a] + near[a + 3];
         // `to` is where the mover would end up without crates; anything past the contact point is the shove.
         if (d[a] > 0 ? to > contact : to < contact) to = contact + shove(w, near, a, to - contact, index, maps);
-        for (const r of crates) if (r !== near) stop(r);
+        for (const r of crates) if (r !== near) to = stopped(to, d[a], size[a], a, r);
       }
       // Rigid bodies stand in the way too. They are turned boxes and balls that only the
       // backend knows exactly, so it is asked how far this box can go before touching one.
@@ -303,30 +459,18 @@ export function step(w: World, script?: InputScript): void {
   }
 
   // A rigid body that ran into a mover moves it aside: along one axis, as far as nothing solid is in the way.
-  if (w.physics) physicsStep(w, (id, a, want) => {
-    const p = w.get(id, 'pos')!, b = w.get(id, 'box')!;
-    const cur = [p.x as number, p.y as number, p.z as number], size = [b.w as number, b.h as number, b.d as number];
-    const from = cur[a];
-    let to = (from + want) | 0;
-    const lo = [...cur], hi = [cur[0] + size[0], cur[1] + size[1], cur[2] + size[2]];
-    lo[a] = Math.min(from, to);
-    hi[a] = Math.max(from, to) + size[a];
-    for (const r of blockers(w, id, index, maps, lo, hi)) to = want > 0 ? Math.max(from, Math.min(to, r[a] - size[a])) : Math.min(from, Math.max(to, r[a] + r[a + 3]));
-    if (to !== from) {
-      const hit = physicsSweep(w, cur, size, a, to - from, 0);
-      if (hit) to = from + hit.go;
-    }
-    p[P[a]] = to;
-    return to - from;
-  });
+  if (w.physics) {
+    moved.w = w; moved.index = index; moved.maps = maps;
+    physicsStep(w, nudge);
+  }
 
   // Turning. An angle is added to exactly, like a position. A quaternion is multiplied by
   // this tick's small turn and then scaled back to unit length, all in fixed-point.
-  for (const id of w.query('rot')) {
+  for (const id of find(w, ROT)) {
     const r = w.get(id, 'rot')!;
     if (r.spin) r.angle = wrapDeg((r.angle as number) + tickShare(r.spin as number, k, w.hz));
   }
-  for (const id of w.query('quat')) {
+  for (const id of find(w, QUAT)) {
     const q = w.get(id, 'quat')!;
     if (w.physics && w.has(id, 'rigid')) continue;
     if (q.sx || q.sy || q.sz) spinQuat(q, tickShare(q.sx as number, k, w.hz), tickShare(q.sy as number, k, w.hz), tickShare(q.sz as number, k, w.hz));
@@ -334,42 +478,34 @@ export function step(w: World, script?: InputScript): void {
 
   w.tick++;
 
-  w.met = [];
-  const tagOf = (id: number): string => (w.get(id, 'tag')?.name as string | undefined) ?? '';
-  const doomed: number[] = [];
-  const act = (action: string, self: number, other: number | undefined, who: string): void => {
-    for (const a of action.split('+')) {
-      if (a === 'despawn-self') doomed.push(self);
-      else if (a === 'despawn-other' && other !== undefined) doomed.push(other);
-      else if (a.startsWith('despawn:')) doomed.push(...w.match(a.slice(8)));
-      // Headless this is only an event; the player reacts to it by opening the scene.
-      else if (a.startsWith('load:')) w.events.push({ tick: w.tick, name: 'load', a: a.slice(5), b: who });
-    }
-  };
-  for (const id of fresh.length ? w.query('button') : []) {
+  if (w.met.length) w.met = [];
+  if (DOOMED.length) DOOMED.length = 0;
+  if (fresh) for (const id of find(w, BUTTON)) {
     const b = w.get(id, 'button')!, name = w.names[id]!;
     if (!fresh.includes(`tap:${name}`) && !fresh.includes(b.key as string)) continue;
     w.events.push({ tick: w.tick, name: b.event as string, a: name, b: '' });
-    act(b.action as string, id, undefined, name);
+    act(w, b.action as string, id, undefined, name);
   }
-  for (const t of w.query('trigger', 'pos', 'box')) {
+  for (const t of find(w, TRIGGER)) {
     const tr = w.get(t, 'trigger')!, tp = w.get(t, 'pos')!, tb = w.get(t, 'box')!;
-    for (const o of w.match(tr.target as string)) {
+    for (const o of targets(w, tr.target as string)) {
       const op = w.get(o, 'pos'), ob = w.get(o, 'box');
       if (o === t || !op || !ob) continue;
-      const key = `${w.names[t]}:${w.names[o]}`;
-      if (!overlap(tp, tb, op, ob)) { w.overlaps.delete(key); continue; }
+      const touching = overlap(tp, tb, op, ob);
+      if (!touching && !w.overlaps.size) continue;
+      const key = pairKey(w.names[t]!, w.names[o]!);
+      if (!touching) { w.overlaps.delete(key); continue; }
       if (w.overlaps.has(key)) continue;
       w.overlaps.add(key);
-      w.met.push({ a: w.names[t]!, at: tagOf(t), b: w.names[o]!, bt: tagOf(o) });
+      w.met.push({ a: w.names[t]!, at: tagOf(w, t), b: w.names[o]!, bt: tagOf(w, o) });
       w.events.push({ tick: w.tick, name: tr.event as string, a: w.names[t]!, b: w.names[o]! });
-      act(tr.action as string, t, o, w.names[o]!);
+      act(w, tr.action as string, t, o, w.names[o]!);
     }
   }
-  for (const id of doomed) w.despawn(id);
+  for (const id of DOOMED) w.despawn(id);
   for (const sys of w.post) sys(w);
   // A tally counts what this step emitted, scripts included. It is state: saved and hashed.
-  for (const id of w.query('tally')) {
+  for (const id of find(w, TALLY)) {
     const t = w.get(id, 'tally')!;
     for (let i = heard; i < w.events.length; i++) if (w.events[i].name === t.event) t.n = (t.n as number) + (t.by as number);
   }

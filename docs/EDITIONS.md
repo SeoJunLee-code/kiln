@@ -67,9 +67,9 @@ Four things, the same four for each edition. A feature list alone does not close
    | Exported bytes of the engine for a game of that edition | CI (bytes do not jitter) |
    | Memory after loading the proof game | Reference machine |
    | Time from opening the page to the first frame | Reference machine |
-   | Allocation per tick in the simulation path. Lite: no more than what is measured today. Standard and Ultra: none | CI, if it can be counted without jitter; otherwise reference machine |
+   | Allocation per tick in the simulation path. Lite: no more than what is measured today. Standard and Ultra: none | CI (`tests/alloc.test.ts`, a ceiling); reference machine for the figures |
 
-   The allocation budget changed on 2026-11-27. What it protects is frame time without pauses for garbage collection. Lite's proof game allocates 5 to 11 KB per tick and its frame time shows no such pause ([`FPS.md`](../proof/lite/FPS.md)), so Lite only keeps that number from growing. It has to reach none where it can hurt: Standard's hundred thousand entities. For Lite the budget that is still unmeasured and matters is the time to the first frame on its reference phone.
+   The allocation budget changed on 2026-11-27. What it protects is frame time without pauses for garbage collection. Lite's proof game allocated 5 to 11 KB per tick when this was decided and its frame time showed no such pause ([`FPS.md`](../proof/lite/FPS.md)), so Lite only keeps that number from growing. It has to reach none where it can hurt: Standard's hundred thousand entities. For Lite the budget that is still unmeasured and matters is the time to the first frame on its reference phone.
 
 3. **A proof game.** One game per edition, built by an agent from a written spec, running at 60 fps on that edition's reference machine, by [`bench/PROTOCOL.md`](../bench/PROTOCOL.md). The spec, the game and the measurement are in the repository.
 
@@ -137,7 +137,7 @@ The last column is the present state, not the hope.
 | Unreal: Blueprint overhead | One script language, no second visual layer | True today. Script speed in JavaScript has not been measured |
 | Unreal: Nanite and Lumen are costly | Only Ultra pays for them | Not built |
 | Unreal, Unity, Godot: not built for agents | The core | Gated. Agents have built games with it; not yet shown to be cheaper than another engine, and on the 3D spec (H3) it cost more |
-| Unity: garbage collection pauses | **Kiln runs on JavaScript and has the same problem.** Answer: the allocation budget above | Measured once (5 to 11 KB a tick), no test holds it |
+| Unity: garbage collection pauses | **Kiln runs on JavaScript and has the same problem.** Answer: the allocation budget above | 1.3 to 2.4 KB a tick in four Lite examples (it was 5 to 11 KB); a test holds a ceiling |
 | Unity: GameObject and ECS side by side | One entity model. A second is never added | True today |
 | Unity: recompile and domain reload | State is text; reloading is parsing | True today |
 | Unity: three render pipelines | Rules 1, 2 and 6 | WebGL2 already cannot draw two of the 3D examples; rule 6 makes that a stated boundary instead of a gap |

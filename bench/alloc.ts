@@ -4,8 +4,8 @@
 // shows up as a smaller (or negative) number, so the median of many stretches is used.
 //   node --min-semi-space-size=64 --max-semi-space-size=64 bench/alloc.ts SCENE.kiln ...
 // Both flags are needed: without the minimum the young generation starts small and is
-// collected inside a stretch. Scenes with `use` scripts are not handled yet. Nothing in
-// CI runs this yet; the first numbers are in HANDOFF.md.
+// collected inside a stretch. Scenes with `use` scripts are not handled yet.
+// tests/alloc.test.ts holds a ceiling over the idle number.
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseScene } from '../src/scene.ts';
